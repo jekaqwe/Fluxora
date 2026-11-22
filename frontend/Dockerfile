@@ -22,3 +22,6 @@ FROM caddy:2-alpine
 
 # Копируем собранный Frontend
 COPY --from=builder /app/dist /usr/share/caddy
+
+# Копируем конфигурацию Caddy
+COPY Caddyfile /etc/caddy/Caddyfile

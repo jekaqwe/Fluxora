@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 // Экраны приложения
 import Home from "./screens/Home";
 import Operations from "./screens/Operations";
@@ -7,13 +7,65 @@ import Goals from "./screens/Goals";
 import Family from "./screens/Family";
 import Profile from "./screens/Profile";
 import Settings from "./screens/Settings";
+import Auth from "./screens/Auth";
 // Изображения
 import logo from "./assets/fluxora-logo.png";
 import background from "./assets/fluxora-bg.png";
 
 function App() {
   // Текущая открытая страница
-  const [currentPage, setCurrentPage] = useState("home");
+  const [currentPage, setCurrentPage] = useState(() => {
+    return localStorage.getItem("fluxora_current_page") || "home";
+  });
+  useEffect(() => {
+    localStorage.setItem("fluxora_current_page", currentPage);
+  }, [currentPage]);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  // Проверка авторизации при запуске приложения
+  useEffect(() => {
+    fetch("/api/me")
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Пользователь не авторизован");
+        }
+        return response.json();
+      })
+      .then(() => {
+        setIsAuthenticated(true);
+      })
+      .catch(() => {
+        setIsAuthenticated(false);
+      })
+      .finally(() => {
+        setIsCheckingAuth(false);
+      });
+  }, []);
+  // Выход из аккаунта
+  const handleLogout = async () => {
+    try {
+      const response = await fetch("/api/logout", {
+        method: "POST",
+      });
+      if (!response.ok) {
+        throw new Error("Ошибка при выходе из аккаунта");
+      }
+      localStorage.setItem("fluxora_current_page", "home");
+      setCurrentPage("home");
+      setIsAuthenticated(false);
+    } catch (error) {
+      console.error("Ошибка выхода:", error);
+      alert("Не удалось выйти из аккаунта. Попробуйте ещё раз.");
+    }
+  };
+
+  if (isCheckingAuth) {
+    return null;
+  }
+  if (!isAuthenticated) {
+    return <Auth onLogin={() => setIsAuthenticated(true)} />;
+  }
+
   // Переключение экранов
   let page;
 
@@ -105,7 +157,7 @@ function App() {
         </button>
 
         <button
-          onClick={() => {}}
+          onClick={handleLogout}
           className="mx-3 mt-8 flex items-center rounded-full px-4 py-3 text-left text-gray-400 transition-all duration-300 hover:translate-x-1 hover:bg-[#853CF5]/15 hover:text-gray-400">
           Выход
         </button>
