@@ -1,6 +1,17 @@
-import { useState, useEffect } from "react";
-// Экраны приложения
-import Home from "./screens/Home";
+import { useEffect, useState } from "react";
+import {
+  Home,
+  ArrowLeftRight,
+  ChartNoAxesCombined,
+  Target,
+  Users,
+  UserRound,
+  Settings as SettingsIcon,
+  LogOut,
+  Menu,
+  X,
+} from "lucide-react";
+import HomeScreen from "./screens/Home";
 import Operations from "./screens/Operations";
 import Analytics from "./screens/Analytics";
 import Goals from "./screens/Goals";
@@ -8,164 +19,167 @@ import Family from "./screens/Family";
 import Profile from "./screens/Profile";
 import Settings from "./screens/Settings";
 import Auth from "./screens/Auth";
-// Изображения
 import logo from "./assets/fluxora-logo.png";
 import background from "./assets/fluxora-bg.png";
+import "./App.css";
+
+type PageKey =
+  | "home"
+  | "operations"
+  | "analytics"
+  | "goals"
+  | "family"
+  | "profile"
+  | "settings";
+
+const navigation = [
+  { id: "home", label: "Главная", icon: Home },
+  { id: "operations", label: "Операции", icon: ArrowLeftRight },
+  { id: "analytics", label: "Аналитика", icon: ChartNoAxesCombined },
+  { id: "goals", label: "Цели", icon: Target },
+  { id: "family", label: "Семья", icon: Users },
+  { id: "profile", label: "Профиль", icon: UserRound },
+  { id: "settings", label: "Настройки", icon: SettingsIcon },
+] as const;
 
 function App() {
-  // Текущая открытая страница
-  const [currentPage, setCurrentPage] = useState(() => {
-    return localStorage.getItem("fluxora_current_page") || "home";
+  const [currentPage, setCurrentPage] = useState<PageKey>(() => {
+    const savedPage = localStorage.getItem("fluxora_current_page");
+    return navigation.some((item) => item.id === savedPage)
+      ? (savedPage as PageKey)
+      : "home";
   });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   useEffect(() => {
     localStorage.setItem("fluxora_current_page", currentPage);
   }, [currentPage]);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  // Проверка авторизации при запуске приложения
+
   useEffect(() => {
     fetch("/api/me")
       .then((response) => {
-        if (!response.ok) {
-          throw new Error("Пользователь не авторизован");
-        }
+        if (!response.ok) throw new Error("Пользователь не авторизован");
         return response.json();
       })
-      .then(() => {
-        setIsAuthenticated(true);
-      })
-      .catch(() => {
-        setIsAuthenticated(false);
-      })
-      .finally(() => {
-        setIsCheckingAuth(false);
-      });
+      .then(() => setIsAuthenticated(true))
+      .catch(() => setIsAuthenticated(false))
+      .finally(() => setIsCheckingAuth(false));
   }, []);
-  // Выход из аккаунта
+
   const handleLogout = async () => {
     try {
-      const response = await fetch("/api/logout", {
-        method: "POST",
-      });
-      if (!response.ok) {
-        throw new Error("Ошибка при выходе из аккаунта");
-      }
+      const response = await fetch("/api/logout", { method: "POST" });
+      if (!response.ok) throw new Error("Ошибка при выходе из аккаунта");
       localStorage.setItem("fluxora_current_page", "home");
       setCurrentPage("home");
       setIsAuthenticated(false);
+      setIsMobileMenuOpen(false);
     } catch (error) {
       console.error("Ошибка выхода:", error);
       alert("Не удалось выйти из аккаунта. Попробуйте ещё раз.");
     }
   };
 
-  if (isCheckingAuth) {
-    return null;
-  }
+  const selectPage = (page: PageKey) => {
+    setCurrentPage(page);
+    setIsMobileMenuOpen(false);
+  };
+
+  if (isCheckingAuth) return null;
   if (!isAuthenticated) {
     return <Auth onLogin={() => setIsAuthenticated(true)} />;
   }
 
-  // Переключение экранов
   let page;
-
   switch (currentPage) {
     case "home":
-      page = <Home />;
+      page = <HomeScreen />;
       break;
-
     case "operations":
       page = <Operations />;
       break;
-
     case "analytics":
       page = <Analytics />;
       break;
-
     case "goals":
       page = <Goals />;
       break;
-
     case "family":
       page = <Family />;
       break;
-
     case "profile":
       page = <Profile />;
       break;
-
     case "settings":
       page = <Settings />;
       break;
-
-    default:
-      page = null;
   }
 
   return (
-    // Основной контейнер приложения
-    <div className="flex min-h-screen bg-cover bg-center bg-no-repeat" style={{ backgroundImage: `url(${background})` }}>
-      {/* Боковое меню */}
-      <aside className="flex min-h-screen w-64 flex-col">
+    <div
+      className="app-shell"
+      style={{ backgroundImage: `linear-gradient(115deg, rgba(13, 10, 27, .94), rgba(17, 12, 35, .88)), url(${background})` }}
+    >
+      <button
+        className="mobile-menu-toggle"
+        type="button"
+        aria-label={isMobileMenuOpen ? "Закрыть меню" : "Открыть меню"}
+        aria-expanded={isMobileMenuOpen}
+        onClick={() => setIsMobileMenuOpen((open) => !open)}
+      >
+        {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+      </button>
 
-        <img
-          src={logo}
-          alt="Fluxora"
-          className="h-19 w-auto object-contain"
+      {isMobileMenuOpen && (
+        <button
+          className="sidebar-backdrop"
+          type="button"
+          aria-label="Закрыть меню"
+          onClick={() => setIsMobileMenuOpen(false)}
         />
+      )}
 
-        <button
-          onClick={() => setCurrentPage("home")}
-          className="mx-3 mt-8 flex items-center rounded-full px-4 py-3 text-left text-gray-400 transition-all duration-300 hover:translate-x-1 hover:bg-[#853CF5]/15 hover:text-gray-400">
-          Главная
-        </button>
+      <aside className={`app-sidebar ${isMobileMenuOpen ? "app-sidebar--open" : ""}`}>
+        <div className="sidebar-brand">
+          <img src={logo} alt="Fluxora" />
+          <span>Fluxora</span>
+        </div>
 
-        <button
-          onClick={() => setCurrentPage("operations")}
-          className="mx-3 mt-8 flex items-center rounded-full px-4 py-3 text-left text-gray-400 transition-all duration-300 hover:translate-x-1 hover:bg-[#853CF5]/15 hover:text-gray-400">
-          Операции
-        </button>
+        <div className="sidebar-caption">МЕНЮ</div>
+        <nav className="sidebar-nav" aria-label="Основная навигация">
+          {navigation.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              className={`sidebar-link ${currentPage === id ? "sidebar-link--active" : ""}`}
+              aria-current={currentPage === id ? "page" : undefined}
+              onClick={() => selectPage(id)}
+            >
+              <Icon size={19} strokeWidth={1.8} />
+              <span>{label}</span>
+              {currentPage === id && <span className="sidebar-active-dot" />}
+            </button>
+          ))}
+        </nav>
 
-        <button
-          onClick={() => setCurrentPage("analytics")}
-          className="mx-3 mt-8 flex items-center rounded-full px-4 py-3 text-left text-gray-400 transition-all duration-300 hover:translate-x-1 hover:bg-[#853CF5]/15 hover:text-gray-400">
-          Аналитика
-        </button>
-
-        <button
-          onClick={() => setCurrentPage("goals")}
-          className="mx-3 mt-8 flex items-center rounded-full px-4 py-3 text-left text-gray-400 transition-all duration-300 hover:translate-x-1 hover:bg-[#853CF5]/15 hover:text-gray-400">
-          Цели
-        </button>
-
-        <button
-          onClick={() => setCurrentPage("family")}
-          className="mx-3 mt-8 flex items-center rounded-full px-4 py-3 text-left text-gray-400 transition-all duration-300 hover:translate-x-1 hover:bg-[#853CF5]/15 hover:text-gray-400">
-          Семья
-        </button>
-
-        <button
-          onClick={() => setCurrentPage("profile")}
-          className="mx-3 mt-8 flex items-center rounded-full px-4 py-3 text-left text-gray-400 transition-all duration-300 hover:translate-x-1 hover:bg-[#853CF5]/15 hover:text-gray-400">
-          Профиль
-        </button>
-
-        <button
-          onClick={() => setCurrentPage("settings")}
-          className="mx-3 mt-8 flex items-center rounded-full px-4 py-3 text-left text-gray-400 transition-all duration-300 hover:translate-x-1 hover:bg-[#853CF5]/15 hover:text-gray-400">
-          Настройки
-        </button>
-
-        <button
-          onClick={handleLogout}
-          className="mx-3 mt-8 flex items-center rounded-full px-4 py-3 text-left text-gray-400 transition-all duration-300 hover:translate-x-1 hover:bg-[#853CF5]/15 hover:text-gray-400">
-          Выход
-        </button>
+        <div className="sidebar-bottom">
+          <div className="sidebar-divider" />
+          <button type="button" className="sidebar-link sidebar-logout" onClick={handleLogout}>
+            <LogOut size={19} strokeWidth={1.8} />
+            <span>Выход</span>
+          </button>
+          <div className="sidebar-version">FLUXORA <span>•</span> PERSONAL SPACE</div>
+        </div>
       </aside>
-      <main className="flex-1">
+
+      <main className="app-main">
+        <div className="mobile-top-spacer" />
         {page}
       </main>
     </div>
   );
 }
+
 export default App;
