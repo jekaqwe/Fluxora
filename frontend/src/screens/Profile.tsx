@@ -1,153 +1,192 @@
-import { useState } from "react";
-import { UserRound } from "lucide-react";
-// Изображения
-import calendar from "../assets/calendar.png";
+import { useEffect, useState } from "react";
+import {
+  CalendarDays,
+  Camera,
+  ChevronUp,
+  Crown,
+  Gem,
+  LockKeyhole,
+  Mail,
+  Phone,
+  Star,
+  Trophy,
+  UserRound,
+  ArrowUpRight,
+} from "lucide-react";
+import "./Profile.css";
+
+type UserProfile = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  username: string;
+  email: string;
+};
 
 function Profile() {
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
-  const handleAvatarChange = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
+
+  useEffect(() => {
+    fetch("/api/me")
+      .then((response) => {
+        if (!response.ok) throw new Error("Не удалось загрузить профиль");
+        return response.json();
+      })
+      .then((data: UserProfile) => setUser(data))
+      .catch((error) => console.error("Ошибка загрузки профиля:", error));
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (avatar) URL.revokeObjectURL(avatar);
+    };
+  }, [avatar]);
+
+  const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-
-    if (file) {
-      setAvatar(URL.createObjectURL(file));
-    }
+    if (file) setAvatar(URL.createObjectURL(file));
   };
+
+  const fullName = user ? `${user.firstName} ${user.lastName}` : "Загрузка профиля";
+  const initials = user ? `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}` : "F";
+
+  const accountRows = [
+    { label: "Логин", value: user?.username ?? "Загрузка…", icon: UserRound },
+    { label: "Пароль", value: "••••••••••••", icon: LockKeyhole },
+    { label: "Телефон", value: "Не указан", icon: Phone },
+    { label: "Почта", value: user?.email ?? "Загрузка…", icon: Mail },
+  ];
+
   return (
-    <div className="grid grid-cols-[1fr_2fr] gap-6 p-8">
+    <div className="profile-page">
+      <header className="profile-page-header">
+        <div>
+          <div className="profile-eyebrow">ЛИЧНЫЙ КАБИНЕТ</div>
+          <h1>Мой профиль</h1>
+          <p>Управляйте своей учётной записью и следите за прогрессом</p>
+        </div>
+        <div className="profile-status"><span /> Аккаунт активен</div>
+      </header>
 
-      {/* Левая карточка */}
-      <div className="flex min-h-[820px] flex-col items-center rounded-3xl border border-white/10 bg-white/5 p-6">
-
-        {/* Аватарка и информация пользователя */}
-        <div className="flex flex-col items-center gap-4">
-
-          <label className="relative flex h-72 w-72 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-white/20 bg-white/10 transition hover:border-[#853CF5]">
-
-            {avatar ? (
-              <img
-                src={avatar}
-                alt="Аватар"
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <UserRound
-                size={40}
-                className="text-white/70"
-              />
-            )}
-
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleAvatarChange}
-            />
-
-          </label>
-
-          <div>
-            <h2 className="text-xl font-semibold text-white">
-              ФИО
-            </h2>
-
-            <p className="mt-1 text-sm text-white/50">
-              логин
-            </p>
+      <div className="profile-layout">
+        <section className="profile-card glass-card" aria-labelledby="profile-name">
+          <div className="profile-card-glow" />
+          <div className="profile-avatar-wrap">
+            <div className="profile-avatar-ring">
+              {avatar ? (
+                <img src={avatar} alt="Аватар пользователя" className="profile-avatar-image" />
+              ) : (
+                <div className="profile-avatar-placeholder">
+                  <UserRound size={58} strokeWidth={1.2} />
+                  <span>{initials}</span>
+                </div>
+              )}
+            </div>
+            <label className="profile-avatar-edit" title="Изменить аватар">
+              <Camera size={16} />
+              <input type="file" accept="image/*" onChange={handleAvatarChange} />
+            </label>
           </div>
 
-        </div>
-
-        {/* Разделитель */}
-        <div className="mt-8 h-px w-full bg-white/15" />
-
-        {/* Дата регистрации */}
-        <div className="mt-12 flex items-center gap-3.5">
-          <img
-            src={calendar}
-            alt="Календарь"
-            className="h-5 w-5 object-contain"
-          />
-
-          <p className="text-sm text-white/50">
-            Дата регистрации:
-          </p>
-        </div>
-
-        <p className="mt-6 flex items-center text-sm text-white/50">
-          20.11.2026
-        </p>
-
-        {/* Карточка прогресса */}
-        <div className="mt-18 h-60 w-full rounded-3xl border border-white/10 bg-white/5 p-5">
-
-          <h3 className="text-xl font-semibold text-white">
-            Ваш прогресс
-          </h3>
-
-          <p className="mt-5 text-5xl font-bold text-white">
-            75%
-          </p>
-
-          {/* Полоса прогресса */}
-          <div className="mt-4 h-8 w-full overflow-hidden rounded-full bg-white/10">
-            <div className="h-full w-[75%] rounded-full bg-gradient-to-r from-[#853CF5] to-[#B56AFF]" />
-          </div>
-
-          {/* Оценка результата */}
-          <div className="mt-8 flex items-center gap-5">
-            <span className="text-3xl">⭐</span>
-
-            <span className="text-lg font-medium text-white/70">
-              Отличный результат!
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Правая часть */}
-      <div className="flex flex-col gap-4">
-
-        {/* Верхняя карточка */}
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
-
-          <div className="flex flex-col gap-12">
-
-            <div className="flex justify-between">
-              <span>Логин</span>
-              <button className="text-[#C4A1FF] underline">
-                изменить
-              </button>
-            </div>
-
-            <div className="flex justify-between">
-              <span>Пароль</span>
-              <button className="text-[#C4A1FF] underline">
-                изменить
-              </button>
-            </div>
-
-            <div className="flex justify-between">
-              <span>Телефон</span>
-              <button className="text-[#C4A1FF] underline">
-                изменить
-              </button>
-            </div>
-
-            <div className="flex justify-between">
-              <span>Почта</span>
-              <button className="text-[#C4A1FF] underline">
-                изменить
-              </button>
+          <div className="profile-identity">
+            <h2 id="profile-name">{fullName}</h2>
+            <span className="profile-username">@{user?.username ?? "username"}</span>
+            <div className="profile-member-since">
+              <CalendarDays size={15} />
+              <span>Участник Fluxora</span>
             </div>
           </div>
-        </div>
-        {/* Нижняя карточка */}
-        <div className="min-h-[560px] rounded-3xl border border-white/10 bg-white/5">
+
+          <div className="profile-card-separator" />
+
+          <div className="progress-card">
+            <div className="progress-heading">
+              <div>
+                <span className="progress-kicker">ВАШ ПРОГРЕСС</span>
+                <h3>Отличный темп!</h3>
+              </div>
+              <div className="progress-trend"><ChevronUp size={17} /> +12%</div>
+            </div>
+            <div className="progress-number">75<span>%</span></div>
+            <div
+              className="progress-track"
+              role="progressbar"
+              aria-label="Прогресс профиля"
+              aria-valuenow={75}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
+              <div className="progress-fill" />
+            </div>
+            <div className="progress-foot">
+              <span><Star size={15} fill="currentColor" /> Отличный результат!</span>
+              <span>75 из 100</span>
+            </div>
+          </div>
+
+          <div className="profile-card-footnote">
+            <span className="profile-footnote-icon"><Gem size={16} /></span>
+            <span>Каждый шаг приближает к вашим целям</span>
+          </div>
+        </section>
+
+        <div className="profile-side-column">
+          <section className="account-card glass-card" aria-labelledby="account-title">
+            <div className="section-heading">
+              <div>
+                <span className="section-eyebrow">БЕЗОПАСНОСТЬ И ДОСТУП</span>
+                <h2 id="account-title">Настройки аккаунта</h2>
+              </div>
+              <div className="section-heading-icon"><LockKeyhole size={19} /></div>
+            </div>
+
+            <div className="account-list">
+              {accountRows.map(({ label, value, icon: Icon }) => (
+                <div className="account-row" key={label}>
+                  <div className="account-row-icon"><Icon size={18} /></div>
+                  <div className="account-row-copy">
+                    <span>{label}</span>
+                    <strong>{value}</strong>
+                  </div>
+                  <span className="account-edit-label">Изменить <ArrowUpRight size={14} /></span>
+                </div>
+              ))}
+            </div>
+            <p className="account-note">Изменение личных данных станет доступно в следующих обновлениях Fluxora.</p>
+          </section>
+
+          <section className="achievements-card glass-card" aria-labelledby="achievements-title">
+            <div className="section-heading achievements-heading">
+              <div>
+                <span className="section-eyebrow">ВАШИ УСПЕХИ</span>
+                <h2 id="achievements-title">Достижения</h2>
+              </div>
+              <span className="achievements-count">4 награды</span>
+            </div>
+            <div className="achievement-list">
+              <div className="achievement-item achievement-purple">
+                <div className="achievement-hex"><Trophy size={23} /></div>
+                <span>Первый шаг</span>
+              </div>
+              <div className="achievement-item achievement-blue">
+                <div className="achievement-hex"><Star size={23} /></div>
+                <span>Активность</span>
+              </div>
+              <div className="achievement-item achievement-gold">
+                <div className="achievement-hex"><Crown size={23} /></div>
+                <span>Лидер</span>
+              </div>
+              <div className="achievement-item achievement-cyan">
+                <div className="achievement-hex"><Gem size={23} /></div>
+                <span>Эксперт</span>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
     </div>
   );
 }
+
 export default Profile;
