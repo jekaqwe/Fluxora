@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Users, Home as HomeIcon, Trash2, UserPlus, LogOut } from "lucide-react";
+import { Plus, Users, Home as HomeIcon, Trash2, UserPlus, LogOut, Pencil } from "lucide-react";
 import { PageHeading, Panel, Stat } from "./ui";
 import "./Pure.css";
 
@@ -29,6 +29,7 @@ function Family(){
  const [date,setDate]=useState(today());
  const [kind,setKind]=useState<"income"|"expense">("expense");
  const [showForm,setShowForm]=useState(false);
+ const [editingTxId,setEditingTxId]=useState<number|null>(null);
 
  const load=async()=>{
   setError("");
@@ -57,8 +58,11 @@ function Family(){
  };
  const addTransaction=async()=>{
   setError("");
-  try{const r=await fetch("/api/family/transactions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,type:kind,amount:amount.replace(",", "."),category,date,comment:"",idempotencyKey:crypto.randomUUID()})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось сохранить семейную операцию");setTransactions(old=>[d,...old.filter(x=>x.id!==d.id)]);setTitle("");setAmount("");setShowForm(false);await load();}
+  try{const r=await fetch(editingTxId===null?"/api/family/transactions":`/api/family/transactions/${editingTxId}`,{method:editingTxId===null?"POST":"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,type:kind,amount:amount.replace(",", "."),category,date,comment:"",...(editingTxId===null?{idempotencyKey:crypto.randomUUID()}:{})})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось сохранить семейную операцию");setTransactions(old=>[d,...old.filter(x=>x.id!==d.id)]);setTitle("");setAmount("");setShowForm(false);setEditingTxId(null);await load();}
   catch(e){setError(e instanceof Error?e.message:"Ошибка операции");}
+ };
+ const editTransaction=(t:FamilyTx)=>{
+  setEditingTxId(t.id);setTitle(t.title);setKind(t.type);setAmount(t.amount);setCategory(t.category);setDate(t.date);setShowForm(true);
  };
  const removeTransaction=async(id:number)=>{
   if(!window.confirm("Удалить семейную операцию?"))return;
@@ -121,13 +125,13 @@ function Family(){
      <label className="form-label">Сумма, ₽<input className="pure-input" value={amount} onChange={e=>setAmount(e.target.value)}/></label>
      <label className="form-label">Категория<input className="pure-input" value={category} onChange={e=>setCategory(e.target.value)}/></label>
      <label className="form-label">Дата<input className="pure-input" type="date" value={date} onChange={e=>setDate(e.target.value)}/></label>
-     <div className="form-row" style={{alignItems:"end"}}><button className="pure-button" disabled={!title.trim()||!/^\d+(?:[.,]\d{1,2})?$/.test(amount)||cents(amount.replace(",", "."))<=0n} onClick={()=>void addTransaction()}>Сохранить</button><button className="pure-button ghost" onClick={()=>setShowForm(false)}>Отмена</button></div>
+     <div className="form-row" style={{alignItems:"end"}}><button className="pure-button" disabled={!title.trim()||!/^\d+(?:[.,]\d{1,2})?$/.test(amount)||cents(amount.replace(",", "."))<=0n} onClick={()=>void addTransaction()}>Сохранить</button><button className="pure-button ghost" onClick={()=>{setShowForm(false);setEditingTxId(null);}}>Отмена</button></div>
     </div>}
     {transactions.length?<div className="transaction-list">{transactions.map(t=><div className="transaction-row" key={t.id}>
      <span className={`transaction-icon ${t.type==="income"?"mint":""}`}><HomeIcon size={16}/></span>
      <span className="transaction-copy"><strong>{t.title}</strong><small>{t.category} · {t.author} · {t.date}</small></span>
      <strong className={`transaction-amount ${t.type==="income"?"positive":"negative"}`}>{t.type==="income"?"+":"−"}{money(t.amount)}</strong>
-     <button className="pure-button ghost" aria-label="Удалить операцию" onClick={()=>void removeTransaction(t.id)}><Trash2 size={14}/></button>
+     <button className="pure-button ghost" aria-label="Изменить операцию" onClick={()=>editTransaction(t)}><Pencil size={14}/></button><button className="pure-button ghost" aria-label="Удалить операцию" onClick={()=>void removeTransaction(t.id)}><Trash2 size={14}/></button>
     </div>)}</div>:<div className="empty-note">Семейных операций пока нет.</div>}
    </Panel>
    <div className="empty-note">Начальный семейный баланс и общие операции учитываются отдельно от личных счетов участников.</div>
