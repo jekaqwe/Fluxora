@@ -40,6 +40,12 @@ func main() {
 	}
 	log.Println("Миграции базы данных применены")
 
+	if os.Getenv("APPLY_DELETION_LEDGER") == "1" {
+		if err := applyDeletionLedger(context.Background(), db); err != nil { log.Fatal("Ошибка применения журнала удалений: ", err) }
+		log.Println("Журнал удалений применён")
+		return
+	}
+
 	// Регистрация пользователя
 	http.HandleFunc("/api/register", func(w http.ResponseWriter, r *http.Request) {
 		registerHandler(w, r, db)
@@ -136,6 +142,11 @@ func main() {
 	// Смена пароля
 	http.HandleFunc("/api/account/password", func(w http.ResponseWriter, r *http.Request) {
 		passwordChangeHandler(w, r, db)
+	})
+
+	// Безвозвратное удаление аккаунта
+	http.HandleFunc("/api/account/delete", func(w http.ResponseWriter, r *http.Request) {
+		deleteAccountHandler(w, r, db)
 	})
 
 	// Выход из аккаунта
