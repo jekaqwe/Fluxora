@@ -97,8 +97,8 @@ func goalsHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool) 
   due,err:=parseGoalDate(in.DueDate); if err!=nil { http.Error(w,`{"error":"Некорректная дата цели"}`,400); return }
   var item goalResponse; var dueText *string
   err=database.QueryRow(r.Context(),`
-   INSERT INTO goals(user_id,title,description,target_amount,starting_amount,due_date,priority)
-   VALUES($1,$2,$3,$4::numeric,$5::numeric,$6,$7)
+   INSERT INTO goals(user_id,title,description,target_amount,starting_amount,due_date,priority,status)
+   VALUES($1,$2,$3,$4::numeric,$5::numeric,$6,$7,CASE WHEN $5::numeric>=$4::numeric THEN 'completed' ELSE 'active' END)
    RETURNING id,title,description,target_amount::text,starting_amount::text,starting_amount::text,due_date::text,priority,status,created_at
   `,userID,in.Title,in.Description,in.TargetAmount,in.StartingAmount,due,in.Priority).Scan(&item.ID,&item.Title,&item.Description,&item.TargetAmount,&item.StartingAmount,&item.CurrentAmount,&dueText,&item.Priority,&item.Status,&item.CreatedAt)
   if err!=nil { http.Error(w,`{"error":"Не удалось создать цель"}`,500); return }
