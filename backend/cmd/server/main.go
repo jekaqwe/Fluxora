@@ -149,6 +149,14 @@ func main() {
 		deleteAccountHandler(w, r, db)
 	})
 
+	// Управление активными сессиями
+	http.HandleFunc("/api/account/sessions", func(w http.ResponseWriter, r *http.Request) {
+		sessionsHandler(w, r, db)
+	})
+	http.HandleFunc("/api/account/sessions/", func(w http.ResponseWriter, r *http.Request) {
+		sessionsHandler(w, r, db)
+	})
+
 	// Выход из аккаунта
 	http.HandleFunc("/api/logout", func(w http.ResponseWriter, r *http.Request) {
 		logoutHandler(w, r, db)
