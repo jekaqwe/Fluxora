@@ -137,7 +137,13 @@ func familyGoalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pg
   if !transactionMatches{http.Error(w,`{"error":"Ключ операции уже использован для другой финансовой записи"}`,409);return}
   in.TransactionID=transactionID
  }
- if in.TransactionID>0{var exists bool;if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM transactions WHERE id=$1 AND user_id=$2)`,in.TransactionID,userID).Scan(&exists);err!=nil||!exists{http.Error(w,`{"error":"Связанная операция не найдена"}`,400);return}}
+ if in.TransactionID>0{
+  var linkedID int64
+  if err:=tx.QueryRow(r.Context(),`SELECT id FROM transactions WHERE id=$1 AND user_id=$2 AND amount=$3::numeric AND operation_type='expense' FOR UPDATE`,in.TransactionID,userID,in.Amount).Scan(&linkedID);err!=nil{
+   http.Error(w,`{"error":"Связанная операция не найдена или её сумма и тип не совпадают с пополнением"}`,400);return
+  }
+  in.TransactionID=linkedID
+ }
  var author string;_=tx.QueryRow(r.Context(),`SELECT first_name||' '||last_name FROM users WHERE id=$1`,userID).Scan(&author)
  _,err=tx.Exec(r.Context(),`INSERT INTO family_goal_entries(goal_id,family_id,author_user_id,amount,comment,transaction_id,idempotency_key) VALUES($1,$2,$3,$4::numeric,$5,NULLIF($6,0),$7)`,goalID,familyID,userID,in.Amount,in.Comment,in.TransactionID,in.IdempotencyKey)
  if err!=nil{http.Error(w,`{"error":"Не удалось сохранить пополнение"}`,500);return}
