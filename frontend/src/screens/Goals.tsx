@@ -1,21 +1,102 @@
-import { useState } from "react";
-import { Plus, Plane, CarFront, Laptop, X } from "lucide-react";
-import { PageHeading, Panel, Stat, Progress, money } from "./ui";
+import { useEffect, useState } from "react";
+import { Plus, Target, Plane, CarFront, Laptop, X, Pause, Play, Trash2, Pencil, History } from "lucide-react";
+import { PageHeading, Panel, Stat, Progress } from "./ui";
 import "./Pure.css";
-type Goal={id:number;name:string;current:number;target:number;date:string;kind:"plane"|"car"|"laptop"};
-const initial:Goal[]=[{id:1,name:"На отпуск",current:62000,target:100000,date:"01.08.2025",kind:"plane"},{id:2,name:"На машину",current:120000,target:300000, date:"01.12.2025",kind:"car"},{id:3,name:"Новый ПК",current:25000,target:100000,date:"01.03.2026",kind:"laptop"}];
+
+type Priority="low"|"medium"|"high";
+type Goal={id:number;title:string;description:string;targetAmount:string;startingAmount:string;currentAmount:string;dueDate?:string;priority:Priority;status:"active"|"paused"|"completed";createdAt:string};
+type Entry={id:number;type:"contribution"|"withdrawal";amount:string;comment:string;createdAt:string;transactionId?:number};
+const toCents=(value:string)=>{const [whole,fraction=""]=value.split(".");return BigInt(whole||"0")*100n+BigInt((fraction+"00").slice(0,2));};
+const money=(value:string)=>{const negative=value.startsWith("-");const abs=value.replace("-","");const cents=toCents(abs);return (negative?"−":"")+new Intl.NumberFormat("ru-RU").format(cents/100n)+","+(cents%100n).toString().padStart(2,"0")+" ₽";};
+const validAmount=(value:string)=>/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(value)&&toCents(value.replace(",","."))>0n;
+
 function Goals(){
- const [goals,setGoals]=useState<Goal[]>(()=>{try{return JSON.parse(localStorage.getItem("fluxora_demo_goals")||"null")||initial}catch{return initial}});
- const [show,setShow]=useState(false);const [name,setName]=useState("");const [target,setTarget]=useState("");
- const save=(next:Goal[])=>{setGoals(next);localStorage.setItem("fluxora_demo_goals",JSON.stringify(next));};
- const add=()=>{const n=Number(target);if(!name.trim()||n<=0)return;save([...goals,{id:Date.now(),name:name.trim(),current:0,target:n,date:"Срок не задан",kind:"laptop"}]);setName("");setTarget("");setShow(false);};
- const contribute=(id:number)=>save(goals.map(g=>g.id===id?{...g,current:Math.min(g.target,g.current+5000)}:g));
- const total=goals.reduce((s,g)=>s+g.current,0);
- return <div className="pure-page"><PageHeading title="Цели" subtitle="Планируйте накопления и приближайте мечты" action={<button className="pure-button" onClick={()=>setShow(v=>!v)}><Plus size={16}/>Создать цель</button>}/>
- <div className="pure-grid two"><Stat label="Всего накоплено" value={money(total)} change="По всем целям" icon={<Plane size={17}/>}/><Stat label="Активные цели" value={String(goals.length)} change="Ваш план накоплений" tone="mint"/></div>
- {show&&<Panel title="Новая цель"><div className="form-row"><label className="form-label" style={{flex:2}}>Название<input className="pure-input" value={name} onChange={e=>setName(e.target.value)} placeholder="Например, Путешествие"/></label><label className="form-label" style={{flex:1}}>Сумма, ₽<input className="pure-input" type="number" min="1" value={target} onChange={e=>setTarget(e.target.value)} placeholder="100000"/></label></div><div className="form-row" style={{marginTop:13}}><button className="pure-button" onClick={add}>Добавить цель</button><button className="pure-button ghost" onClick={()=>setShow(false)}><X size={14}/>Отмена</button></div></Panel>}
- <div className="pure-grid three" style={{marginTop:16}}>{goals.map(g=>{const Icon=g.kind==="plane"?Plane:g.kind==="car"?CarFront:Laptop;const pct=Math.min(100,Math.round(g.current/g.target*100));return <Panel key={g.id} className="goal-card"><div className="goal-art"><Icon/></div><div className="goal-content"><h3>{g.name}</h3><p>Цель накоплений</p><strong style={{fontSize:21}}>{pct}%</strong><div className="goal-meta"><span>{money(g.current)}</span><span>{money(g.target)}</span></div><Progress value={pct}/><div className="goal-meta"><span>Срок: {g.date}</span><span>{money(Math.max(0,g.target-g.current))} осталось</span></div><button className="pure-button secondary" style={{width:"100%",marginTop:12}} onClick={()=>contribute(g.id)} disabled={pct>=100}>+ Пополнить на 5 000 ₽</button></div></Panel>})}</div>
- <p className="muted" style={{fontSize:10,marginTop:14}}>Созданные цели и пополнения сохраняются локально в этом браузере.</p>
+ const [goals,setGoals]=useState<Goal[]>([]);
+ const [loading,setLoading]=useState(true);
+ const [error,setError]=useState("");
+ const [show,setShow]=useState(false);
+ const [editingId,setEditingId]=useState<number|null>(null);
+ const [title,setTitle]=useState("");
+ const [target,setTarget]=useState("");
+ const [starting,setStarting]=useState("0");
+ const [dueDate,setDueDate]=useState("");
+ const [priority,setPriority]=useState<Priority>("medium");
+ const [description,setDescription]=useState("");
+ const [saving,setSaving]=useState(false);
+ const [entryGoalId,setEntryGoalId]=useState<number|null>(null);
+ const [entryAmount,setEntryAmount]=useState("");
+ const [entryType,setEntryType]=useState<"contribution"|"withdrawal">("contribution");
+ const [historyGoalId,setHistoryGoalId]=useState<number|null>(null);
+ const [history,setHistory]=useState<Record<number,Entry[]>>({});
+
+ const load=async()=>{try{const r=await fetch("/api/goals");const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось загрузить цели");setGoals(d);}catch(e){setError(e instanceof Error?e.message:"Ошибка загрузки");}finally{setLoading(false);}};
+ useEffect(()=>{void load();},[]);
+
+ const resetForm=()=>{setShow(false);setEditingId(null);setTitle("");setTarget("");setStarting("0");setDueDate("");setPriority("medium");setDescription("");};
+ const beginEdit=(g:Goal)=>{setEditingId(g.id);setTitle(g.title);setTarget(g.targetAmount);setStarting(g.startingAmount);setDueDate(g.dueDate||"");setPriority(g.priority);setDescription(g.description);setShow(true);};
+ const save=async()=>{
+  setError("");setSaving(true);
+  try{
+   const response=await fetch(editingId===null?"/api/goals":`/api/goals/${editingId}`,{method:editingId===null?"POST":"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,description,targetAmount:target.replace(",", "."),startingAmount:starting.replace(",", "."),dueDate,priority,status:"active"})});
+   const data=await response.json();if(!response.ok)throw new Error(data.error||"Не удалось сохранить цель");
+   setGoals(old=>editingId===null?[data,...old]:old.map(g=>g.id===data.id?data:g));resetForm();
+  }catch(e){setError(e instanceof Error?e.message:"Ошибка сохранения");}finally{setSaving(false);}
+ };
+ const recordEntry=async()=>{
+  if(entryGoalId===null)return;setError("");
+  try{
+   const response=await fetch(`/api/goals/${entryGoalId}/entries`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:entryType,amount:entryAmount.replace(",", "."),comment:""})});
+   const data=await response.json();if(!response.ok)throw new Error(data.error||"Не удалось записать движение");
+   setEntryGoalId(null);setEntryAmount("");await load();
+   setHistory(old=>({...old,[data.goalId]:[data,...(old[data.goalId]||[])]}));
+  }catch(e){setError(e instanceof Error?e.message:"Ошибка операции");}
+ };
+ const remove=async(id:number)=>{if(!window.confirm("Удалить цель и её историю?"))return;try{const r=await fetch(`/api/goals/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить цель");setGoals(old=>old.filter(g=>g.id!==id));}catch(e){setError(e instanceof Error?e.message:"Ошибка удаления");}};
+ const togglePause=async(g:Goal)=>{try{const r=await fetch(`/api/goals/${g.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({...g,status:g.status==="paused"?"active":"paused"})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось изменить статус");setGoals(old=>old.map(x=>x.id===g.id?d:x));}catch(e){setError(e instanceof Error?e.message:"Ошибка статуса");}};
+ const showHistory=async(id:number)=>{if(historyGoalId===id){setHistoryGoalId(null);return;}try{const r=await fetch(`/api/goals/${id}/entries`);const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось загрузить историю");setHistory(old=>({...old,[id]:d}));setHistoryGoalId(id);}catch(e){setError(e instanceof Error?e.message:"Ошибка истории");}};
+ const total=goals.reduce((sum,g)=>sum+toCents(g.currentAmount),0n);
+ const active=goals.filter(g=>g.status==="active").length;
+
+ return <div className="pure-page">
+  <PageHeading title="Цели" subtitle="Планируйте накопления и приближайте мечты" action={<button className="pure-button" onClick={()=>{resetForm();setShow(true);}}><Plus size={16}/>Создать цель</button>}/>
+  <div className="pure-grid two"><Stat label="Всего накоплено" value={money((total/100n).toString()+"."+ (total%100n).toString().padStart(2,"0"))} change="По всем целям" icon={<Target size={17}/>}/><Stat label="Активные цели" value={String(active)} change="Ваш план накоплений" tone="mint"/></div>
+  {show&&<Panel title={editingId===null?"Новая цель":"Изменить цель"}>
+   <div className="pure-grid two">
+    <label className="form-label">Название<input className="pure-input" value={title} onChange={e=>setTitle(e.target.value)} maxLength={120} placeholder="Например, Путешествие"/></label>
+    <label className="form-label">Целевая сумма, ₽<input className="pure-input" value={target} onChange={e=>setTarget(e.target.value)} placeholder="100000"/></label>
+    <label className="form-label">Уже накоплено, ₽<input className="pure-input" value={starting} onChange={e=>setStarting(e.target.value)} placeholder="0"/></label>
+    <label className="form-label">Срок<input className="pure-input" type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}/></label>
+    <label className="form-label">Приоритет<select className="pure-select" value={priority} onChange={e=>setPriority(e.target.value as Priority)}><option value="low">Низкий</option><option value="medium">Средний</option><option value="high">Высокий</option></select></label>
+    <label className="form-label">Описание<input className="pure-input" value={description} onChange={e=>setDescription(e.target.value)} maxLength={1000}/></label>
+   </div>
+   <div className="form-row" style={{marginTop:13}}><button className="pure-button" disabled={saving||!title.trim()||!validAmount(target)||!(/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(starting))} onClick={()=>void save()}>{saving?"Сохранение…":editingId===null?"Добавить цель":"Сохранить изменения"}</button><button className="pure-button ghost" onClick={resetForm}><X size={14}/>Отмена</button></div>
+  </Panel>}
+  {loading?<div className="empty-note">Загружаем цели…</div>:goals.length===0?<div className="empty-note">Целей пока нет. Создайте первую и начните копить на важное.</div>:
+   <div className="pure-grid three" style={{marginTop:16}}>{goals.map(g=>{
+    const current=toCents(g.currentAmount);const targetCents=toCents(g.targetAmount);
+    const pct=Math.max(0,Math.min(100,Number(current*10000n/targetCents)/100));
+    const Icon=g.title.toLowerCase().includes("авто")||g.title.toLowerCase().includes("машин")?CarFront:g.title.toLowerCase().includes("отпуск")||g.title.toLowerCase().includes("путеше")?Plane:Laptop;
+    return <Panel key={g.id} className="goal-card">
+     <div className="goal-art"><Icon/></div><div className="goal-content">
+      <div className="form-row" style={{justifyContent:"space-between"}}><h3>{g.title}</h3><span className="muted">{g.priority==="high"?"Высокий":g.priority==="low"?"Низкий":"Средний"}</span></div>
+      <p>{g.description||"Цель накоплений"}</p><strong style={{fontSize:21}}>{pct.toFixed(1).replace(".",",")}%</strong>
+      <div className="goal-meta"><span>{money(g.currentAmount)}</span><span>{money(g.targetAmount)}</span></div><Progress value={pct}/>
+      <div className="goal-meta"><span>Срок: {g.dueDate||"не задан"}</span><span>{money((targetCents>current?targetCents-current:0n)/100n+"."+(targetCents>current?targetCents-current:0n)%100n)}</span></div>
+      <span className="muted">{g.status==="paused"?"Приостановлена":g.status==="completed"?"Завершена":"Активна"}</span>
+      <div className="form-row" style={{marginTop:10,flexWrap:"wrap"}}>
+       <button className="pure-button secondary" onClick={()=>{setEntryGoalId(g.id);setEntryType("contribution");}} disabled={g.status!=="active"}>Пополнить</button>
+       <button className="pure-button ghost" onClick={()=>{setEntryGoalId(g.id);setEntryType("withdrawal");}} disabled={g.status!=="active"||current<=0n}>Снять</button>
+       <button className="pure-button ghost" onClick={()=>beginEdit(g)}><Pencil size={14}/></button>
+       <button className="pure-button ghost" onClick={()=>void togglePause(g)} disabled={g.status==="completed"}>{g.status==="paused"?<Play size={14}/>:<Pause size={14}/>}</button>
+       <button className="pure-button ghost" onClick={()=>void showHistory(g.id)}><History size={14}/></button>
+       <button className="pure-button ghost" onClick={()=>void remove(g.id)}><Trash2 size={14}/></button>
+      </div>
+      {entryGoalId===g.id&&<div style={{marginTop:12}}><label className="form-label">{entryType==="contribution"?"Пополнение, ₽":"Снятие, ₽"}<input className="pure-input" value={entryAmount} onChange={e=>setEntryAmount(e.target.value)} placeholder="0.00"/></label><div className="form-row" style={{marginTop:8}}><button className="pure-button" disabled={!validAmount(entryAmount)} onClick={()=>void recordEntry()}>Подтвердить</button><button className="pure-button ghost" onClick={()=>setEntryGoalId(null)}>Отмена</button></div></div>}
+      {historyGoalId===g.id&&<div className="empty-note" style={{marginTop:12}}>{(history[g.id]||[]).length?(history[g.id]||[]).map(e=><div key={e.id} className="legend-row"><span>{e.type==="contribution"?"Пополнение":"Снятие"} · {new Date(e.createdAt).toLocaleDateString("ru-RU")}</span><strong>{money(e.amount)}</strong></div>):"История пока пуста."}</div>}
+     </div>
+    </Panel>;
+   })}</div>}
+  {error&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{error}</p>}
  </div>;
 }
 export default Goals;
