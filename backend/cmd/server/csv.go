@@ -58,9 +58,32 @@ func csvSuggestedMapping(headers []string) map[string]string {
  return result
 }
 
+func detectCSVDelimiter(data []byte) rune {
+	line := strings.SplitN(strings.TrimPrefix(string(data), "\uFEFF"), "\n", 2)[0]
+	commas, semicolons := 0, 0
+	inQuotes := false
+	for i := 0; i < len(line); i++ {
+		switch line[i] {
+		case '"':
+			if inQuotes && i+1 < len(line) && line[i+1] == '"' {
+				i++
+				continue
+			}
+			inQuotes = !inQuotes
+		case ',':
+			if !inQuotes { commas++ }
+		case ';':
+			if !inQuotes { semicolons++ }
+		}
+	}
+	if semicolons > commas { return ';' }
+	return ','
+}
+
 func parseCSVHeaders(data []byte) ([]string, error) {
  data = []byte(strings.TrimPrefix(string(data), "\uFEFF"))
  reader := csv.NewReader(strings.NewReader(string(data)))
+ reader.Comma = detectCSVDelimiter(data)
  reader.FieldsPerRecord = -1
  header, err := reader.Read()
  if err != nil { return nil, err }
@@ -93,6 +116,7 @@ func parseImportCSVWithMapping(data []byte, mapping map[string]string) ([]import
   resolved[field] = index
  }
  reader := csv.NewReader(strings.NewReader(strings.TrimPrefix(string(data), "\uFEFF")))
+ reader.Comma = detectCSVDelimiter(data)
  reader.FieldsPerRecord = -1
  if _, err := reader.Read(); err != nil { return nil, err }
  rows := make([]importCSVRow, 0)
