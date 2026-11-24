@@ -8,6 +8,7 @@ type Account = {
   name: string;
   type: "cash" | "bank" | "card" | "savings" | "other";
   initialBalance: string;
+  currentBalance: string;
   currency: "RUB";
   createdAt: string;
 };
@@ -108,7 +109,7 @@ function Accounts() {
 
   const totalCents = items.reduce((sum, item) => {
     const negative = item.initialBalance.startsWith("-");
-    const [wholePart, fractionPart = ""] = item.initialBalance.replace("-", "").split(".");
+    const [wholePart, fractionPart = ""] = item.currentBalance.replace("-", "").split(".");
     const value = BigInt(wholePart) * 100n + BigInt((fractionPart + "00").slice(0, 2));
     return sum + (negative ? -value : value);
   }, 0n);
@@ -142,8 +143,8 @@ function Accounts() {
             <div className="form-row"><button type="button" className="pure-button" onClick={() => void saveEdit()}>Сохранить</button><button type="button" className="pure-button ghost" onClick={() => setEditingId(null)}>Отмена</button></div>
           </div> : <>
             <span className="transaction-copy"><strong>{item.name}</strong><small>{accountTypes[item.type]}</small></span>
-            <strong className="transaction-amount">{item.initialBalance} ₽</strong>
-            <span className="transaction-date">Начальный</span>
+            <strong className="transaction-amount">{item.currentBalance} ₽</strong>
+            <span className="transaction-date">Начальный: {item.initialBalance} ₽</span>
             <div className="form-row"><button type="button" className="pure-button secondary" onClick={() => beginEdit(item)}>Изменить</button><button type="button" className="pure-button ghost" onClick={() => void removeAccount(item.id)}>Удалить</button></div>
           </>}
         </div>)}</div>}
