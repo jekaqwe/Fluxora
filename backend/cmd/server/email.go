@@ -25,7 +25,7 @@ func sendEmailChangeMessage(to,token string)error{
  if host==""||from==""{return errors.New("SMTP is not configured")};if port==""{port="587"}
  fromAddress,err:=mail.ParseAddress(from);if err!=nil{return errors.New("SMTP_FROM is not a valid email address")}
  subject:=base64.StdEncoding.EncodeToString([]byte("Подтверждение нового email Fluxora"))
- body:="From: "+from+"\r\nTo: "+to+"\r\nSubject: =?UTF-8?B?"+subject+"?=\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n"+
+ body:="From: "+fromAddress.Address+"\r\nTo: "+to+"\r\nSubject: =?UTF-8?B?"+subject+"?=\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n"+
   "Для подтверждения нового адреса в Fluxora введите этот код в настройках аккаунта:\r\n\r\n"+token+"\r\n\r\nКод действует 30 минут. Если вы не запрашивали смену email, проигнорируйте письмо.\r\n"
  conn,err:=net.DialTimeout("tcp",net.JoinHostPort(host,port),15*time.Second);if err!=nil{return err}
  _=conn.SetDeadline(time.Now().Add(30*time.Second))
