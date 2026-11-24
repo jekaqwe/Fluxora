@@ -52,7 +52,7 @@ function Home() {
       </div>
       <div className="pure-grid two" style={{marginTop:16}}>
         <Panel title="Динамика расходов" subtitle="По дням текущего месяца">
-          {trend.length?<LineChart values={trendValues.map(v=>Math.max(4,Math.round(v/max*100))} labels={labels}/>:<div className="empty-note">За этот месяц операций пока нет.</div>}
+          {trend.length?<LineChart values={trendValues.map(v=>Math.max(4,Math.round(v/max*100)))} labels={labels}/>:<div className="empty-note">За этот месяц операций пока нет.</div>}
         </Panel>
         <Panel title="Расходы по категориям" subtitle="Распределение за текущий месяц">
           {analytics?.categories.length?<div style={{display:"flex",alignItems:"center",justifyContent:"space-around",gap:16,flexWrap:"wrap"}}>
