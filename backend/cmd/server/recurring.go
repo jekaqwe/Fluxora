@@ -82,8 +82,9 @@ func recurringHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Po
   in.Title=strings.TrimSpace(in.Title);in.Type=strings.TrimSpace(in.Type);in.Amount=strings.TrimSpace(in.Amount);in.Category=strings.TrimSpace(in.Category)
   next,err:=recurringPayloadDate(in.NextDate)
   var endDate any
-  if in.EndDate!="" { parsedEnd,endErr:=recurringPayloadDate(in.EndDate); if endErr!=nil { http.Error(w,`{"error":"Некорректная дата завершения"}`,400); return }; endDate=parsedEnd }
-  if in.Title==""||len([]rune(in.Title))>160||(in.Type!="income"&&in.Type!="expense")||!accountAmountPattern.MatchString(in.Amount)||strings.HasPrefix(in.Amount,"-")||strings.Trim(in.Amount,"0.")==""||in.Category==""||len([]rune(in.Category))>80||in.AccountID<=0||err!=nil||(in.EndDate!=""&&endDate==nil) {
+  var endValue time.Time
+  if in.EndDate!="" { parsedEnd,endErr:=recurringPayloadDate(in.EndDate); if endErr!=nil { http.Error(w,`{"error":"Некорректная дата завершения"}`,400); return }; endDate=parsedEnd; endValue=parsedEnd }
+  if in.Title==""||len([]rune(in.Title))>160||(in.Type!="income"&&in.Type!="expense")||!accountAmountPattern.MatchString(in.Amount)||strings.HasPrefix(in.Amount,"-")||strings.Trim(in.Amount,"0.")==""||in.Category==""||len([]rune(in.Category))>80||in.AccountID<=0||err!=nil||(in.EndDate!=""&&(endDate==nil||endValue.Before(next))) {
    http.Error(w,`{"error":"Проверьте параметры регулярной операции"}`,400);return
   }
   if in.Frequency!="daily"&&in.Frequency!="weekly"&&in.Frequency!="monthly"&&in.Frequency!="yearly"{http.Error(w,`{"error":"Неизвестная периодичность"}`,400);return}
