@@ -54,7 +54,63 @@ type goalEntryResponse struct {
  TransactionID *int64 `json:"transactionId,omitempty"`
  CreatedAt time.Time `json:"createdAt"`
 }
-var goalAmountPattern = regexp.MustCompile("^(?:0|[1-9][0-9]{0,17})(?:\\.[0-9]{1,2})?$")
+var goalAmountPattern = regexp.MustCompile(`^(?:0|[1-9][0-9]{0,17})(?:\.[0-9]{1,2})?package main
+
+import (
+ "crypto/rand"
+ "encoding/hex"
+ "encoding/json"
+ "io"
+ "log"
+ "net/http"
+ "github.com/jackc/pgx/v5"
+ "regexp"
+ "strconv"
+ "strings"
+ "time"
+ "github.com/jackc/pgx/v5/pgtype"
+ "github.com/jackc/pgx/v5/pgxpool"
+)
+
+type goalPayload struct {
+ Title string `json:"title"`
+ Description string `json:"description"`
+ TargetAmount string `json:"targetAmount"`
+ StartingAmount string `json:"startingAmount"`
+ DueDate string `json:"dueDate"`
+ Priority string `json:"priority"`
+ Status string `json:"status"`
+}
+type goalResponse struct {
+ ID int64 `json:"id"`
+ Title string `json:"title"`
+ Description string `json:"description"`
+ TargetAmount string `json:"targetAmount"`
+ StartingAmount string `json:"startingAmount"`
+ CurrentAmount string `json:"currentAmount"`
+ ImageURL *string `json:"imageUrl,omitempty"`
+ DueDate *string `json:"dueDate,omitempty"`
+ Priority string `json:"priority"`
+ Status string `json:"status"`
+ CreatedAt time.Time `json:"createdAt"`
+}
+type goalEntryPayload struct {
+ Type string `json:"type"`
+ Amount string `json:"amount"`
+ Comment string `json:"comment"`
+ TransactionID int64 `json:"transactionId"`
+ AccountID int64 `json:"accountId"`
+ IdempotencyKey string `json:"idempotencyKey"`
+}
+type goalEntryResponse struct {
+ ID int64 `json:"id"`
+ Type string `json:"type"`
+ Amount string `json:"amount"`
+ Comment string `json:"comment"`
+ TransactionID *int64 `json:"transactionId,omitempty"`
+ CreatedAt time.Time `json:"createdAt"`
+}
+var goalAmountPattern = )
 func validGoalAmount(v string, zero bool) bool {
  if !goalAmountPattern.MatchString(v) { return false }
  return zero || strings.Trim(v,"0.")!=""
