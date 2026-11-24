@@ -48,11 +48,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f database/schema.sql
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f database/tests/account_transaction_history.sql
           /tmp/fluxora-server > /tmp/fluxora-server.log 2>&1 &
           SERVER_PID=$!
           for attempt in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:8080/api/health > /dev/null; then
+              psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f database/tests/account_transaction_history.sql
               kill "$SERVER_PID"
               wait "$SERVER_PID" || true
               exit 0
