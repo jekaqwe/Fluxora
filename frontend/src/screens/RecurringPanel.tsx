@@ -9,6 +9,7 @@ const frequencies:Record<string,string>={daily:"Ежедневно",weekly:"Еж
 
 export default function RecurringPanel({accounts}:{accounts:Account[]}){
  const [items,setItems]=useState<Item[]>([]);
+ const [accountSelections,setAccountSelections]=useState<Record<number,string>>({});
  const [missed,setMissed]=useState<Missed[]>([]);
  const [show,setShow]=useState(false);
  const [title,setTitle]=useState("");
@@ -24,7 +25,7 @@ export default function RecurringPanel({accounts}:{accounts:Account[]}){
  const load=async()=>{try{const r=await fetch("/api/recurring");const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось загрузить расписание");setItems(d.items||[]);setMissed(d.missed||[]);}catch(e){setError(e instanceof Error?e.message:"Ошибка расписания");}};
  useEffect(()=>{void load();},[]);
  const create=async()=>{setSaving(true);setError("");try{const r=await fetch("/api/recurring",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,type,amount:amount.replace(",", "."),category,accountId:Number(accountId),frequency,nextDate,endDate})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось создать расписание");setItems(old=>[...old,d]);setShow(false);setTitle("");setAmount("");}catch(e){setError(e instanceof Error?e.message:"Ошибка создания");}finally{setSaving(false);}};
- const update=async(item:Item,status:"active"|"paused")=>{const selected=item.accountId||Number(accountId);try{const r=await fetch(`/api/recurring/${item.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status,accountId:selected})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось обновить расписание");await load();}catch(e){setError(e instanceof Error?e.message:"Ошибка обновления");}};
+ const update=async(item:Item,status:"active"|"paused")=>{const selected=item.accountId||Number(accountSelections[item.id]||accountId);try{const r=await fetch(`/api/recurring/${item.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status,accountId:selected})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось обновить расписание");await load();}catch(e){setError(e instanceof Error?e.message:"Ошибка обновления");}};
  const remove=async(id:number)=>{if(!window.confirm("Удалить регулярную операцию?"))return;try{const r=await fetch(`/api/recurring/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить расписание");await load();}catch(e){setError(e instanceof Error?e.message:"Ошибка удаления");}};
  const resolve=async(id:number,action:"confirm"|"skip")=>{try{const r=await fetch(`/api/recurring/occurrences/${id}/${action}`,{method:"POST"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось обработать дату");await load();}catch(e){setError(e instanceof Error?e.message:"Ошибка обработки даты");}};
  const confirmAll=async()=>{for(const item of missed){try{const r=await fetch(`/api/recurring/occurrences/${item.id}/confirm`,{method:"POST"});if(!r.ok){const d=await r.json();throw new Error(d.error||"Не удалось подтвердить операцию");}}catch(e){setError(e instanceof Error?e.message:"Ошибка подтверждения");break;}}await load();};
@@ -46,7 +47,7 @@ export default function RecurringPanel({accounts}:{accounts:Account[]}){
     <span className={`transaction-icon ${item.type==="income"?"mint":""}`}>{item.type==="income"?"+":"↻"}</span>
     <span className="transaction-copy"><strong>{item.title}</strong><small>{frequencies[item.frequency]} · Следующая дата: {item.nextDate} · {item.status==="active"?"Активна":item.status==="paused"?"Приостановлена":"Завершена"}</small></span>
     <strong className="transaction-amount">{item.amount} ₽</strong>
-    {item.status!=="completed"&&<button className="pure-button ghost" aria-label={item.status==="active"?"Приостановить":"Возобновить"} onClick={()=>void update(item,item.status==="active"?"paused":"active")}>{item.status==="active"?<Pause size={14}/>:<Play size={14}/>}</button>}
+    {item.status==="paused"&&!item.accountId&&<select className="pure-select" aria-label="Выберите счёт для возобновления" value={accountSelections[item.id]||""} onChange={e=>setAccountSelections(old=>({...old,[item.id]:e.target.value}))}><option value="">Счёт для возобновления</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>}{item.status!=="completed"&&<button className="pure-button ghost" aria-label={item.status==="active"?"Приостановить":"Возобновить"} disabled={item.status==="paused"&&!item.accountId&&!accountSelections[item.id]&&!accountId} onClick={()=>void update(item,item.status==="active"?"paused":"active")}>{item.status==="active"?<Pause size={14}/>:<Play size={14}/>}</button>}
     <button className="pure-button ghost" aria-label="Удалить расписание" onClick={()=>void remove(item.id)}><Trash2 size={14}/></button>
    </div>)}</div>}
   </Panel>
