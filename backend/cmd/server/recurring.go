@@ -106,13 +106,23 @@ func recurringItemHandler(w http.ResponseWriter,r *http.Request,database *pgxpoo
  case http.MethodDelete:
   tag,err:=database.Exec(r.Context(),`DELETE FROM recurring_operations WHERE id=$1 AND user_id=$2`,id,userID);if err!=nil{http.Error(w,`{"error":"Не удалось удалить расписание"}`,500);return};if tag.RowsAffected()==0{http.Error(w,`{"error":"Расписание не найдено"}`,404);return};_=json.NewEncoder(w).Encode(map[string]bool{"success":true})
  case http.MethodPatch:
-  r.Body=http.MaxBytesReader(w,r.Body,12<<10);var in struct{Status string `json:"status"`;AccountID int64 `json:"accountId"`}
+  r.Body=http.MaxBytesReader(w,r.Body,16<<10);var in recurringPayload
   if err:=json.NewDecoder(r.Body).Decode(&in);err!=nil{http.Error(w,`{"error":"Некорректные данные"}`,400);return}
   if in.Status!="active"&&in.Status!="paused"{http.Error(w,`{"error":"Статус должен быть active или paused"}`,400);return}
-  if in.Status=="active"&&in.AccountID<=0{http.Error(w,`{"error":"Для возобновления выберите счёт"}`,400);return}
   if in.AccountID>0{var ok bool;if err:=database.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM accounts WHERE id=$1 AND user_id=$2)`,in.AccountID,userID).Scan(&ok);err!=nil||!ok{http.Error(w,`{"error":"Счёт не найден"}`,400);return}}
-  tag,err:=database.Exec(r.Context(),`UPDATE recurring_operations SET status=$3,account_id=CASE WHEN $4>0 THEN $4 ELSE account_id END,updated_at=NOW() WHERE id=$1 AND user_id=$2`,id,userID,in.Status,in.AccountID)
-  if err!=nil{http.Error(w,`{"error":"Не удалось обновить расписание"}`,500);return};if tag.RowsAffected()==0{http.Error(w,`{"error":"Расписание не найдено"}`,404);return};_=json.NewEncoder(w).Encode(map[string]bool{"success":true})
+  if in.Title==""{
+   if in.Status=="active"&&in.AccountID<=0{var currentAccount pgtype.Int8;if err:=database.QueryRow(r.Context(),`SELECT account_id FROM recurring_operations WHERE id=$1 AND user_id=$2`,id,userID).Scan(&currentAccount);err!=nil||!currentAccount.Valid{http.Error(w,`{"error":"Для возобновления выберите счёт"}`,400);return}}
+   tag,err:=database.Exec(r.Context(),`UPDATE recurring_operations SET status=$3,account_id=CASE WHEN $4>0 THEN $4 ELSE account_id END,updated_at=NOW() WHERE id=$1 AND user_id=$2`,id,userID,in.Status,in.AccountID)
+   if err!=nil{http.Error(w,`{"error":"Не удалось обновить расписание"}`,500);return};if tag.RowsAffected()==0{http.Error(w,`{"error":"Расписание не найдено"}`,404);return};_=json.NewEncoder(w).Encode(map[string]bool{"success":true});return
+  }
+  in.Title=strings.TrimSpace(in.Title);in.Type=strings.TrimSpace(in.Type);in.Amount=strings.TrimSpace(in.Amount);in.Category=strings.TrimSpace(in.Category)
+  nextDate,err:=recurringPayloadDate(in.NextDate);if err!=nil{http.Error(w,`{"error":"Некорректная следующая дата"}`,400);return}
+  var endDate any;var endValue time.Time
+  if in.EndDate!=""{v,e:=recurringPayloadDate(in.EndDate);if e!=nil{http.Error(w,`{"error":"Некорректная дата завершения"}`,400);return};endDate=v;endValue=v}
+  if in.Title==""||len([]rune(in.Title))>160||(in.Type!="income"&&in.Type!="expense")||!accountAmountPattern.MatchString(in.Amount)||strings.HasPrefix(in.Amount,"-")||strings.Trim(in.Amount,"0.")==""||in.Category==""||len([]rune(in.Category))>80||in.AccountID<=0||(in.Frequency!="daily"&&in.Frequency!="weekly"&&in.Frequency!="monthly"&&in.Frequency!="yearly")||(in.EndDate!=""&&endValue.Before(nextDate)){http.Error(w,`{"error":"Проверьте поля регулярной операции"}`,400);return}
+  tag,err:=database.Exec(r.Context(),`UPDATE recurring_operations SET title=$3,operation_type=$4,amount=$5::numeric,category=$6,account_id=$7,frequency=$8,next_date=$9,end_date=$10,status=$11,updated_at=NOW() WHERE id=$1 AND user_id=$2`,id,userID,in.Title,in.Type,in.Amount,in.Category,in.AccountID,in.Frequency,nextDate,endDate,in.Status)
+  if err!=nil{http.Error(w,`{"error":"Не удалось изменить регулярную операцию"}`,500);return};if tag.RowsAffected()==0{http.Error(w,`{"error":"Расписание не найдено"}`,404);return};_=json.NewEncoder(w).Encode(map[string]bool{"success":true})
+
  default:w.Header().Set("Allow","PATCH, DELETE");http.Error(w,`{"error":"Метод не поддерживается"}`,405)
  }
 }
