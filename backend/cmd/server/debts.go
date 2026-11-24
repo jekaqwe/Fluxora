@@ -107,6 +107,9 @@ func debtItemHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Poo
  }
 }
 func debtPaymentsHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool,userID,debtID int64){
+ var debtExists bool
+ if err:=database.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM debts WHERE id=$1 AND user_id=$2)`,debtID,userID).Scan(&debtExists);err!=nil{http.Error(w,`{"error":"Не удалось проверить долг"}`,500);return}
+ if !debtExists{http.Error(w,`{"error":"Долг не найден"}`,404);return}
  if r.Method==http.MethodGet{
   rows,err:=database.Query(r.Context(),`SELECT id,amount::text,account_id,transaction_id,payment_date::text,comment,created_at FROM debt_payments WHERE debt_id=$1 AND user_id=$2 ORDER BY payment_date DESC,id DESC`,debtID,userID)
   if err!=nil{http.Error(w,`{"error":"Не удалось загрузить платежи"}`,500);return};defer rows.Close();items:=make([]debtPaymentResponse,0)
