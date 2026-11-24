@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS debt_payments (
     debt_id BIGINT NOT NULL REFERENCES debts(id) ON DELETE CASCADE,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     amount NUMERIC(20, 2) NOT NULL CHECK (amount > 0),
-    account_id BIGINT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    account_id BIGINT REFERENCES accounts(id) ON DELETE SET NULL,
     transaction_id BIGINT REFERENCES transactions(id) ON DELETE SET NULL,
     payment_date DATE NOT NULL,
     comment VARCHAR(500) NOT NULL DEFAULT '',
