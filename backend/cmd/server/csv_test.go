@@ -126,10 +126,10 @@ func TestTinkoffCSVProfileAndAccountCurrencyAmounts(t *testing.T) {
 	if len(rows) != 2 {
 		t.Fatalf("expected two successful rows, got %d", len(rows))
 	}
-	if rows[0].Date != "2026-03-17" || rows[0].Amount != "86.15" || rows[0].Type != "expense" || rows[0].AccountID != 42 {
+	if rows[0].Date != "17.03.2026 14:38:23" || rows[0].Amount != "86.15" || rows[0].Type != "expense" || rows[0].AccountID != 42 {
 		t.Fatalf("unexpected converted USD operation: %#v", rows[0])
 	}
-	if rows[1].Date != "2026-03-18" || rows[1].Amount != "12.50" || rows[1].Type != "income" {
+	if rows[1].Date != "18.03.2026 10:00:00" || rows[1].Amount != "12.50" || rows[1].Type != "income" {
 		t.Fatalf("unexpected income operation: %#v", rows[1])
 	}
 }
