@@ -33,7 +33,7 @@ type importCSVRow struct {
 }
 
 func csvHeaderKey(value string) string {
-	value = strings.ToLower(strings.TrimSpace(value))
+	value = strings.ReplaceAll(strings.ToLower(strings.TrimSpace(value)), "ё", "е")
 	replacer := strings.NewReplacer(" ", "", "_", "", "-", "", ".", "")
 	return replacer.Replace(value)
 }
