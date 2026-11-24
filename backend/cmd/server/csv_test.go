@@ -59,3 +59,10 @@ func TestCSVSuggestedMappingRussianHeaders(t *testing.T) {
  mapping:=csvSuggestedMapping(headers)
  if mapping["date"]!="Дата операции"||mapping["title"]!="Описание"||mapping["accountId"]!="Счёт"||mapping["comment"]!="Комментарий" { t.Fatalf("unexpected suggested mapping: %#v",mapping) }
 }
+
+func TestParseImportCSVWithSemicolonDelimiter(t *testing.T) {
+ data:=[]byte("Дата;Описание;Тип;Сумма;Категория;Счёт\n2026-11-24;Кофе;expense;250.00;Еда;7\n")
+ rows,err:=parseImportCSV(data)
+ if err!=nil { t.Fatalf("semicolon-delimited CSV failed: %v",err) }
+ if len(rows)!=1||rows[0].Title!="Кофе"||rows[0].Amount!="250.00"||rows[0].AccountID!=7 { t.Fatalf("unexpected semicolon-delimited row: %#v",rows) }
+}
