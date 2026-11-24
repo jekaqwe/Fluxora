@@ -29,7 +29,8 @@ func emailIdentityHash(email string)string{sum:=sha256.Sum256([]byte(strings.ToL
 
 func deleteUserData(ctx context.Context,database *pgxpool.Pool,userID int64,allowOwnerAlone bool)([]string,error){
  tx,err:=database.Begin(ctx);if err!=nil{return nil,err};defer tx.Rollback(ctx)
- if err:=tx.QueryRow(ctx,`SELECT id FROM users WHERE id=$1 FOR UPDATE`,userID).Scan(&userID);err!=nil{return nil,err}
+ var email string
+ if err:=tx.QueryRow(ctx,`SELECT email FROM users WHERE id=$1 FOR UPDATE`,userID).Scan(&email);err!=nil{return nil,err}
  _,err=tx.Exec(ctx,`DELETE FROM family_invitations WHERE LOWER(email)=LOWER($1)`,email);if err!=nil{return nil,err}
  keys:=make([]string,0)
  var avatar pgtype.Text
