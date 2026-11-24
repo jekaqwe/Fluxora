@@ -101,7 +101,7 @@ func familyGoalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pg
  if r.Method!=http.MethodPost{w.Header().Set("Allow","GET, POST");http.Error(w,`{"error":"Метод не поддерживается"}`,405);return}
  r.Body=http.MaxBytesReader(w,r.Body,12<<10);var in familyGoalEntryPayload;if err:=json.NewDecoder(r.Body).Decode(&in);err!=nil{http.Error(w,`{"error":"Некорректные данные"}`,400);return}
  in.Amount=strings.TrimSpace(in.Amount);in.Comment=strings.TrimSpace(in.Comment);in.IdempotencyKey=strings.TrimSpace(in.IdempotencyKey)
- if !validGoalAmount(in.Amount,false)||len([]rune(in.Comment))>500||in.IdempotencyKey==""||len(in.IdempotencyKey)>40{http.Error(w,`{"error":"Проверьте сумму, комментарий и ключ операции"}`,400);return}
+ if !validGoalAmount(in.Amount,false)||len([]rune(in.Comment))>500||in.IdempotencyKey==""||len(in.IdempotencyKey)>40||in.AccountID<0||in.TransactionID<0{http.Error(w,`{"error":"Проверьте сумму, комментарий, счёт и ключ операции"}`,400);return}
  tx,err:=database.Begin(r.Context());if err!=nil{http.Error(w,`{"error":"Не удалось начать пополнение"}`,500);return};defer tx.Rollback(r.Context())
  var status string;if err:=tx.QueryRow(r.Context(),`SELECT status FROM family_goals WHERE id=$1 AND family_id=$2 FOR UPDATE`,goalID,familyID).Scan(&status);err!=nil{http.Error(w,`{"error":"Семейная цель не найдена"}`,404);return}
  var item familyGoalEntryResponse
