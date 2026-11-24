@@ -3,6 +3,7 @@ package main
 import (
  "encoding/json"
  "net/http"
+ "github.com/jackc/pgx/v5"
  "regexp"
  "strconv"
  "strings"
@@ -155,7 +156,7 @@ func goalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
  r.Body=http.MaxBytesReader(w,r.Body,16<<10); var in goalEntryPayload
  if err:=json.NewDecoder(r.Body).Decode(&in); err!=nil { http.Error(w,`{"error":"Некорректные данные"}`,400); return }
  in.Type=strings.TrimSpace(in.Type); in.Amount=strings.TrimSpace(in.Amount); in.Comment=strings.TrimSpace(in.Comment)
- if (in.Type!="contribution"&&in.Type!="withdrawal")||!validGoalAmount(in.Amount,false)||len([]rune(in.Comment))>500 { http.Error(w,`{"error":"Проверьте тип, сумму и комментарий"}`,400); return }
+ if (in.Type!="contribution"&&in.Type!="withdrawal")||!validGoalAmount(in.Amount,false)||len([]rune(in.Comment))>500||strings.TrimSpace(in.IdempotencyKey)==""||len(in.IdempotencyKey)>100 { http.Error(w,`{"error":"Проверьте тип, сумму и комментарий"}`,400); return }
  tx,err:=database.Begin(r.Context()); if err!=nil { http.Error(w,`{"error":"Не удалось начать операцию"}`,500); return }; defer tx.Rollback(r.Context())
  var goalStatus string
  if err:=tx.QueryRow(r.Context(),"SELECT status FROM goals WHERE id=$1 AND user_id=$2 FOR UPDATE",goalID,userID).Scan(&goalStatus); err!=nil { http.Error(w,`{"error":"Цель не найдена"}`,404); return }
