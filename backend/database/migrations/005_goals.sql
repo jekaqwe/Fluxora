@@ -25,7 +25,9 @@ CREATE TABLE IF NOT EXISTS goal_entries (
     amount NUMERIC(20, 2) NOT NULL CHECK (amount > 0),
     comment VARCHAR(500) NOT NULL DEFAULT '',
     transaction_id BIGINT REFERENCES transactions(id) ON DELETE SET NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    idempotency_key VARCHAR(100) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT goal_entries_user_idempotency_unique UNIQUE (user_id, idempotency_key)
 );
 
 CREATE INDEX IF NOT EXISTS goal_entries_goal_created_idx
