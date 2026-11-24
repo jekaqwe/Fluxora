@@ -186,6 +186,17 @@ func transactionsHandler(w http.ResponseWriter, r *http.Request, database *pgxpo
 			http.Error(w, `{"error":"Не удалось сохранить операцию"}`, http.StatusInternalServerError)
 			return
 		}
+		if !created {
+			var samePayload bool
+			if err := tx.QueryRow(r.Context(), `SELECT EXISTS (SELECT 1 FROM transactions WHERE id=$1 AND title=$2 AND operation_type=$3 AND amount=$4::numeric AND category=$5 AND operation_date=$6::date AND account_id=$7 AND transfer_account_id IS NOT DISTINCT FROM $8::bigint AND comment=$9)`, item.ID, input.Title, input.Type, input.Amount, input.Category, date, input.AccountID, transferID, input.Comment).Scan(&samePayload); err != nil {
+				http.Error(w, `{"error":"Не удалось проверить повтор операции"}`, http.StatusInternalServerError)
+				return
+			}
+			if !samePayload {
+				http.Error(w, `{"error":"Ключ идемпотентности уже использован для другой операции"}`, http.StatusConflict)
+				return
+			}
+		}
 		if created {
 			_, _ = tx.Exec(r.Context(), "INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) VALUES($1,'transaction','Операция добавлена', $2, 'transaction', $3)", userID, input.Title, item.ID)
 		}
