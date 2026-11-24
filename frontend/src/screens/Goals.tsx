@@ -99,7 +99,7 @@ function Goals(){
       <span className="muted">{g.status==="paused"?"Приостановлена":g.status==="completed"?"Завершена":"Активна"}</span>
       <div className="form-row" style={{marginTop:10,flexWrap:"wrap"}}>
        <button className="pure-button secondary" onClick={()=>{setEntryGoalId(g.id);setEntryType("contribution");setEntryKey(crypto.randomUUID());}} disabled={g.status!=="active"}>Пополнить</button>
-       <button className="pure-button ghost" onClick={()=>{setEntryGoalId(g.id);setEntryType("withdrawal");setEntryKey(crypto.randomUUID());}} disabled={g.status!=="active"||current<=0n}>Снять</button>
+       <button className="pure-button ghost" onClick={()=>{setEntryGoalId(g.id);setEntryType("withdrawal");setEntryKey(crypto.randomUUID());}} disabled={g.status==="paused"||current<=0n}>Снять</button>
        <button className="pure-button ghost" onClick={()=>beginEdit(g)}><Pencil size={14}/></button>
        <button className="pure-button ghost" onClick={()=>void togglePause(g)} disabled={g.status==="completed"}>{g.status==="paused"?<Play size={14}/>:<Pause size={14}/>}</button>
        <button className="pure-button ghost" onClick={()=>void showHistory(g.id)}><History size={14}/></button><label className="pure-button ghost" title="Изменить изображение"><Image size={14}/><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={e=>void uploadGoalImage(g.id,e)}/></label>{g.imageUrl&&<button className="pure-button ghost" title="Удалить изображение" onClick={()=>void deleteGoalImage(g.id)}><XCircle size={14}/></button>}
