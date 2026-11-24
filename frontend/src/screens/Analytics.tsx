@@ -13,6 +13,7 @@ type AnalyticsData = {
   averageExpense: string; categories: Category[]; trend: Point[]; largest: Large[];
   previousIncome: string; previousExpense: string; previousNet: string;
   balanceTrend: BalancePoint[];
+  insights: string[];
 };
 const formatAmount = (value: string) => {
   const negative = value.startsWith("-");
@@ -114,6 +115,9 @@ function Analytics() {
       <Panel title="Динамика общего баланса" subtitle="Баланс личных счетов с учётом доходов и расходов, без внутренних переводов">
         {balanceValues.length?<LineChart values={balanceValues} labels={balanceLabels}/>:<div className="empty-note">Нет данных для динамики баланса.</div>}
       </Panel>
+      {data.insights.length>0&&<Panel title="Финансовые подсказки" subtitle="Короткие выводы по выбранному периоду">
+        <ul className="insight-list">{data.insights.map((insight,index)=><li key={index}>{insight}</li>)}</ul>
+      </Panel>}
       <div className="pure-grid two" style={{marginTop:16}}>
         <Panel title="Крупнейшие расходы" subtitle="Пять самых больших операций">
           {data.largest.length ? <div className="transaction-list">{data.largest.map((item,index)=><div className="transaction-row" key={index}>
