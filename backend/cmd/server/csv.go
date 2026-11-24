@@ -33,7 +33,7 @@ func csvHeaderKey(value string) string {
 
 func csvSuggestedMapping(headers []string) map[string]string {
  aliases := map[string][]string{
-  "date": {"date", "operationdate", "дата", "датоперации"},
+  "date": {"date", "operationdate", "дата", "датаоперации"},
   "title": {"title", "name", "description", "название", "наименование", "описание"},
   "type": {"type", "kind", "operationtype", "тип", "видоперации"},
   "amount": {"amount", "sum", "value", "сумма", "значение"},
