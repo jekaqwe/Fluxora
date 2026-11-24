@@ -20,6 +20,11 @@ type analyticsPoint struct {
 	Expense string `json:"expense"`
 }
 
+type analyticsBalancePoint struct {
+ Date string `json:"date"`
+ Balance string `json:"balance"`
+}
+
 type analyticsTransaction struct {
 	Title  string `json:"title"`
 	Amount string `json:"amount"`
@@ -36,6 +41,7 @@ type analyticsResponse struct {
  PreviousIncome string `json:"previousIncome"`
  PreviousExpense string `json:"previousExpense"`
  PreviousNet string `json:"previousNet"`
+ BalanceTrend []analyticsBalancePoint `json:"balanceTrend"`
 	AverageExpense string                `json:"averageExpense"`
 	Categories    []analyticsCategory    `json:"categories"`
 	Trend         []analyticsPoint       `json:"trend"`
@@ -89,7 +95,7 @@ func analyticsHandler(w http.ResponseWriter, r *http.Request, database *pgxpool.
 	}
 
 	result := analyticsResponse{Period: period, From: from.Format("2006-01-02"), To: to.AddDate(0, 0, -1).Format("2006-01-02"),
-		Categories: make([]analyticsCategory, 0), Trend: make([]analyticsPoint, 0), Largest: make([]analyticsTransaction, 0)}
+		Categories: make([]analyticsCategory, 0), Trend: make([]analyticsPoint, 0), Largest: make([]analyticsTransaction, 0), BalanceTrend: make([]analyticsBalancePoint, 0)}
 	err = database.QueryRow(r.Context(), `
 		SELECT
 			COALESCE(SUM(amount) FILTER (WHERE operation_type = 'income'), 0)::text,
@@ -172,6 +178,34 @@ func analyticsHandler(w http.ResponseWriter, r *http.Request, database *pgxpool.
 		result.Trend = append(result.Trend, item)
 	}
 	trendRows.Close()
+
+ balanceRows, err := database.Query(r.Context(), `
+  WITH calendar AS (
+   SELECT generate_series($2::date, $3::date - 1, interval '1 day')::date AS day
+  ), opening AS (
+   SELECT COALESCE((SELECT SUM(initial_balance) FROM accounts WHERE user_id=$1),0) +
+    COALESCE((SELECT SUM(CASE WHEN operation_type='income' THEN amount WHEN operation_type='expense' THEN -amount ELSE 0 END) FROM transactions WHERE user_id=$1 AND operation_date<$2),0) AS amount
+  ), daily AS (
+   SELECT operation_date, SUM(CASE WHEN operation_type='income' THEN amount WHEN operation_type='expense' THEN -amount ELSE 0 END) AS net
+   FROM transactions WHERE user_id=$1 AND operation_date >= $2::date AND operation_date < $3::date GROUP BY operation_date
+  ), running AS (
+   SELECT c.day, o.amount + SUM(COALESCE(d.net,0)) OVER (ORDER BY c.day) AS balance
+   FROM calendar c CROSS JOIN opening o LEFT JOIN daily d ON d.operation_date=c.day
+  )
+  SELECT TO_CHAR(date_trunc($4,day::timestamp),'YYYY-MM-DD'), (ARRAY_AGG(balance ORDER BY day DESC))[1]::text
+  FROM running GROUP BY date_trunc($4,day::timestamp) ORDER BY date_trunc($4,day::timestamp)
+ `, userID, from, to, bucket)
+ if err != nil {
+  http.Error(w, `{"error":"Не удалось рассчитать динамику баланса"}`, http.StatusInternalServerError)
+  return
+ }
+ for balanceRows.Next() {
+  var item analyticsBalancePoint
+  if err := balanceRows.Scan(&item.Date, &item.Balance); err != nil { balanceRows.Close(); http.Error(w, `{"error":"Ошибка чтения динамики баланса"}`, http.StatusInternalServerError); return }
+  result.BalanceTrend = append(result.BalanceTrend, item)
+ }
+ if err := balanceRows.Err(); err != nil { balanceRows.Close(); http.Error(w, `{"error":"Ошибка чтения динамики баланса"}`, http.StatusInternalServerError); return }
+ balanceRows.Close()
 
 	largestRows, err := database.Query(r.Context(), `
 		SELECT title, amount::text, operation_date::text
