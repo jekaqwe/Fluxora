@@ -1,5 +1,5 @@
 import { Plus, Users, ShoppingCart, Home as HomeIcon } from "lucide-react";
-import { PageHeading, Panel, Stat, Progress, money } from "./ui";
+import { PageHeading, Panel, Stat, Progress } from "./ui";
 import "./Pure.css";
 const members=[{name:"Иван Петров",role:"Администратор",share:50,initials:"ИП"},{name:"Анна Петрова",role:"Участник",share:30,initials:"АП"},{name:"Дмитрий Петров",role:"Участник",share:20,initials:"ДП"}];
 function Family(){
