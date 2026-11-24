@@ -106,7 +106,22 @@ func familyGoalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pg
  var status string;if err:=tx.QueryRow(r.Context(),`SELECT status FROM family_goals WHERE id=$1 AND family_id=$2 FOR UPDATE`,goalID,familyID).Scan(&status);err!=nil{http.Error(w,`{"error":"Семейная цель не найдена"}`,404);return}
  var item familyGoalEntryResponse
  err=tx.QueryRow(r.Context(),`SELECT e.id,e.amount::text,e.comment,COALESCE(u.first_name||' '||u.last_name,'Удалённый участник'),e.created_at FROM family_goal_entries e LEFT JOIN users u ON u.id=e.author_user_id WHERE e.family_id=$1 AND e.author_user_id=$2 AND e.idempotency_key=$3`,familyID,userID,in.IdempotencyKey).Scan(&item.ID,&item.Amount,&item.Comment,&item.Author,&item.CreatedAt)
- if err==nil{if e:=tx.Commit(r.Context());e!=nil{http.Error(w,`{"error":"Не удалось завершить пополнение"}`,500);return};_=json.NewEncoder(w).Encode(item);return}
+ if err==nil{
+  var samePayload bool
+  err=tx.QueryRow(r.Context(),`SELECT EXISTS(
+   SELECT 1 FROM family_goal_entries e
+   WHERE e.id=$1 AND e.goal_id=$2 AND e.family_id=$3 AND e.author_user_id=$4 AND e.amount=$5::numeric AND e.comment=$6
+   AND (
+    ($7::bigint>0 AND EXISTS(SELECT 1 FROM transactions t WHERE t.id=e.transaction_id AND t.user_id=$4 AND t.account_id=$7 AND t.amount=$5::numeric AND t.operation_type='expense'))
+    OR ($8::bigint>0 AND e.transaction_id=$8)
+    OR ($7::bigint=0 AND $8::bigint=0 AND e.transaction_id IS NULL)
+   )
+  )`,item.ID,goalID,familyID,userID,in.Amount,in.Comment,in.AccountID,in.TransactionID).Scan(&samePayload)
+  if err!=nil{http.Error(w,`{"error":"Не удалось проверить повтор пополнения"}`,500);return}
+  if !samePayload{http.Error(w,`{"error":"Ключ идемпотентности уже использован для другого пополнения"}`,409);return}
+  if e:=tx.Commit(r.Context());e!=nil{http.Error(w,`{"error":"Не удалось завершить пополнение"}`,500);return}
+  _=json.NewEncoder(w).Encode(item);return
+ }
  if err!=pgx.ErrNoRows{http.Error(w,`{"error":"Не удалось проверить повтор пополнения"}`,500);return}
  if status=="paused"||status=="completed"{http.Error(w,`{"error":"Пополнение недоступно для приостановленной или завершённой цели"}`,409);return}
  if in.AccountID>0&&in.TransactionID>0{http.Error(w,`{"error":"Укажите счёт или готовую операцию, но не оба поля"}`,400);return}
