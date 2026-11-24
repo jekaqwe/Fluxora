@@ -21,6 +21,8 @@ function Settings(){
  const [savingField,setSavingField]=useState<ProfileField|null>(null);
  const [profileMessage,setProfileMessage]=useState("");
  const [prefsError,setPrefsError]=useState("");
+ const [integrationStatus,setIntegrationStatus]=useState<{s3:{configured:boolean;note:string};email:{configured:boolean;note:string}}|null>(null);
+ const [integrationError,setIntegrationError]=useState("");
  const [profileError,setProfileError]=useState("");
  const [prefs,setPrefs]=useState(()=>{try{return JSON.parse(localStorage.getItem("fluxora_preferences")||"{}")}catch{return {}}});
  const [theme,setTheme]=useState(localStorage.getItem("fluxora_theme")||"light");
@@ -92,6 +94,7 @@ function Settings(){
    finally{setRevokingSessions(false);}
  };
  useEffect(()=>{fetch("/api/settings/preferences").then(r=>{if(!r.ok)throw new Error("Не удалось загрузить настройки");return r.json();}).then(data=>{setTheme(data.theme||"light");document.documentElement.dataset.theme=data.theme==="auto"?(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):(data.theme||"light");localStorage.setItem("fluxora_theme",data.theme||"light");const merged={...(data.notifications||{}),...(data.privacy||{})};setPrefs(merged);localStorage.setItem("fluxora_preferences",JSON.stringify(merged));}).catch(e=>console.error(e));},[]);
+ useEffect(()=>{if(section!=="integrations")return;fetch("/api/settings/integrations").then(r=>{if(!r.ok)throw new Error("Не удалось проверить настройки интеграций");return r.json();}).then(setIntegrationStatus).catch(e=>setIntegrationError(e instanceof Error?e.message:"Ошибка проверки интеграций"));},[section]);
  useEffect(()=>{fetch("/api/profile").then(r=>{if(!r.ok)throw new Error("Не удалось загрузить аккаунт");return r.json();}).then((data:UserProfile)=>{setUser(data);setDraft({firstName:data.firstName,lastName:data.lastName,username:data.username});}).catch(e=>console.error(e));},[]);
  const saveProfileField=async(field:ProfileField)=>{
    setProfileError("");setProfileMessage("");setSavingField(field);
@@ -163,7 +166,12 @@ function Settings(){
  {section==="appearance"&&<><div className="toggle-row"><span><strong>Тема оформления</strong><br/><small className="muted">Выберите внешний вид интерфейса</small></span></div><div className="filter-pills">{["light","dark","auto"].map(t=><button key={t} className={`filter-pill ${theme===t?"active":""}`} onClick={()=>void saveTheme(t)}>{t==="light"?"Светлая":t==="dark"?"Тёмная":"Авто"}</button>)}</div><p className="muted" style={{fontSize:10,marginTop:12}}>Тема и параметры сохраняются в аккаунте и синхронизируются между устройствами.</p></>}
  {section==="privacy"&&<>{[["profile","Публичный профиль","Разрешить другим видеть имя и достижения"],["achievements","Достижения","Показывать полученные награды"],["activity","Активность","Показывать события в ленте профиля"]].map(([k,t,d])=><div className="toggle-row" key={k}><span><strong>{t}</strong><br/><small className="muted">{d}</small></span><button type="button" aria-label={t} aria-pressed={isOn(k)} className={`toggle ${isOn(k)?"on":""}`} onClick={()=>toggle(k)}/></div>)}<div className="empty-note" style={{marginTop:14}}>Финансовые суммы и история операций не публикуются в профиле.</div></>}
  {prefsError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{prefsError}</p>}
- {section==="integrations"&&<div className="empty-note">Подключённых интеграций пока нет. Раздел подготовлен для будущего подключения банковских и внешних сервисов.</div>}
+ {section==="integrations"&&<div className="pure-grid two">
+   <div className="empty-note"><strong>REG.RU S3</strong><p style={{margin:"8px 0",color:integrationStatus?.s3.configured?"#08a47f":"#e99a4c"}}>{integrationStatus?.s3.configured?"Переменные настроены":"Требуется настройка"}</p><small>{integrationStatus?.s3.note||"Проверка конфигурации…"}</small></div>
+   <div className="empty-note"><strong>Email / SMTP</strong><p style={{margin:"8px 0",color:integrationStatus?.email.configured?"#08a47f":"#e99a4c"}}>{integrationStatus?.email.configured?"Переменные настроены":"Требуется настройка"}</p><small>{integrationStatus?.email.note||"Проверка конфигурации…"}</small></div>
+   <p className="muted" style={{gridColumn:"1 / -1",fontSize:11}}>Статус показывает только наличие переменных окружения. Реальная доступность S3 и доставка тестового письма проверяются отдельно. Настройка выполняется на сервере в корневом файле .env. Секретные ключи здесь не отображаются.</p>
+   {integrationError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{integrationError}</p>}
+  </div>}
  </Panel></div></div>;
 }
 export default Settings;
