@@ -80,14 +80,16 @@ func recurringHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Po
   r.Body=http.MaxBytesReader(w,r.Body,24<<10);var in recurringPayload
   if err:=json.NewDecoder(r.Body).Decode(&in);err!=nil{http.Error(w,`{"error":"Некорректные данные"}`,400);return}
   in.Title=strings.TrimSpace(in.Title);in.Type=strings.TrimSpace(in.Type);in.Amount=strings.TrimSpace(in.Amount);in.Category=strings.TrimSpace(in.Category)
-  next,err:=recurringPayloadDate(in.NextDate);end,errEnd:=recurringPayloadDate(in.EndDate)
-  if in.Title==""||len([]rune(in.Title))>160||(in.Type!="income"&&in.Type!="expense")||!accountAmountPattern.MatchString(in.Amount)||strings.HasPrefix(in.Amount,"-")||strings.Trim(in.Amount,"0.")==""||in.Category==""||len([]rune(in.Category))>80||in.AccountID<=0||err!=nil||(in.EndDate!=""&&errEnd!=nil)|| (in.EndDate!=""&&end.Before(next)) {
+  next,err:=recurringPayloadDate(in.NextDate)
+  var endDate any
+  if in.EndDate!="" { parsedEnd,endErr:=recurringPayloadDate(in.EndDate); if endErr!=nil { http.Error(w,`{"error":"Некорректная дата завершения"}`,400); return }; endDate=parsedEnd }
+  if in.Title==""||len([]rune(in.Title))>160||(in.Type!="income"&&in.Type!="expense")||!accountAmountPattern.MatchString(in.Amount)||strings.HasPrefix(in.Amount,"-")||strings.Trim(in.Amount,"0.")==""||in.Category==""||len([]rune(in.Category))>80||in.AccountID<=0||err!=nil||(in.EndDate!=""&&endDate==nil) {
    http.Error(w,`{"error":"Проверьте параметры регулярной операции"}`,400);return
   }
   if in.Frequency!="daily"&&in.Frequency!="weekly"&&in.Frequency!="monthly"&&in.Frequency!="yearly"{http.Error(w,`{"error":"Неизвестная периодичность"}`,400);return}
   var exists bool;if err:=database.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM accounts WHERE id=$1 AND user_id=$2)`,in.AccountID,userID).Scan(&exists);err!=nil||!exists{http.Error(w,`{"error":"Счёт не найден"}`,400);return}
   var item recurringResponse
-  err=database.QueryRow(r.Context(),`INSERT INTO recurring_operations(user_id,account_id,title,operation_type,amount,category,frequency,next_date,end_date) VALUES($1,$2,$3,$4,$5::numeric,$6,$7,$8,$9) RETURNING id,title,operation_type,amount::text,category,account_id,frequency,next_date::text,end_date::text,status`,userID,in.AccountID,in.Title,in.Type,in.Amount,in.Category,in.Frequency,next,in.EndDate).Scan(&item.ID,&item.Title,&item.Type,&item.Amount,&item.Category,&item.AccountID,&item.Frequency,&item.NextDate,&item.EndDate,&item.Status)
+  err=database.QueryRow(r.Context(),`INSERT INTO recurring_operations(user_id,account_id,title,operation_type,amount,category,frequency,next_date,end_date) VALUES($1,$2,$3,$4,$5::numeric,$6,$7,$8,$9) RETURNING id,title,operation_type,amount::text,category,account_id,frequency,next_date::text,end_date::text,status`,userID,in.AccountID,in.Title,in.Type,in.Amount,in.Category,in.Frequency,next,endDate).Scan(&item.ID,&item.Title,&item.Type,&item.Amount,&item.Category,&item.AccountID,&item.Frequency,&item.NextDate,&item.EndDate,&item.Status)
   if err!=nil{http.Error(w,`{"error":"Не удалось создать расписание"}`,500);return};w.WriteHeader(201);_=json.NewEncoder(w).Encode(item)
  default:w.Header().Set("Allow","GET, POST");http.Error(w,`{"error":"Метод не поддерживается"}`,405)
  }
