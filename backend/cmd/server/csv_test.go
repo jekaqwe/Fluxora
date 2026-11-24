@@ -103,10 +103,11 @@ func TestCSVSuggestedMappingDoesNotTreatAccountNameAsID(t *testing.T) {
 
 
 func TestTinkoffCSVProfileAndAccountCurrencyAmounts(t *testing.T) {
-	data := []byte("\uFEFFИмя счёта;Дата операции;Сумма операции;Валюта операции;Сумма в валюте счёта;Валюта счёта;Статус;Категория по-умолчанию;Описание;Сообщение\n" +
-		"Black;17.03.2026 14:38:23;-1,00;USD;-86,15;RUB;Ок;Переводы;Между своими счетами;\n" +
-		"Black;18.03.2026 10:00:00;12,50;RUB;12,50;RUB;Ок;Пополнения;Пополнение;\n" +
-		"Black;19.03.2026 10:00:00;-5,00;RUB;-5,00;RUB;Ошибка;Покупки;Неуспешная операция;\n")
+	data := []byte("\uFEFFИмя счёта;Дата операции;Сумма операции;Валюта операции;Сумма в валюте счёта;Валюта счёта;Статус;Категория по-умолчанию;Описание;Сообщение;Учёт в аналитике\\n" +
+		"Black;17.03.2026 14:38:23;-1,00;USD;-86,15;RUB;Ок;Переводы;Между своими счетами;;Да\\n" +
+		"Black;18.03.2026 10:00:00;12,50;RUB;12,50;RUB;Ок;Пополнения;Пополнение;;Да\\n" +
+		"Black;19.03.2026 10:00:00;-5,00;RUB;-5,00;RUB;Ошибка;Покупки;Неуспешная операция;;Да\\n" +
+		"Black;20.03.2026 10:00:00;-7,00;RUB;-7,00;RUB;Ок;Переводы;Пополнение Кубышки;;Нет\\n")
 	headers, err := parseCSVHeaders(data)
 	if err != nil {
 		t.Fatalf("parseCSVHeaders failed: %v", err)
@@ -143,4 +144,3 @@ func TestParseImportDateSupportsTinkoffDateTime(t *testing.T) {
 		t.Fatalf("unexpected normalized date: %s", got)
 	}
 }
-
