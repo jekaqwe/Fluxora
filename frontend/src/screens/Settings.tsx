@@ -36,6 +36,23 @@ function Settings(){
  const [sessions,setSessions]=useState<Session[]>([]);
  const [sessionError,setSessionError]=useState("");
  const [revokingSessions,setRevokingSessions]=useState(false);
+ const [newEmail,setNewEmail]=useState("");
+ const [emailToken,setEmailToken]=useState("");
+ const [emailBusy,setEmailBusy]=useState(false);
+ const [emailError,setEmailError]=useState("");
+ const [emailMessage,setEmailMessage]=useState("");
+ const requestEmailChange=async()=>{
+  setEmailBusy(true);setEmailError("");setEmailMessage("");
+  try{const r=await fetch("/api/account/email/change",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:newEmail})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось отправить подтверждение");setEmailMessage(d.message||"Письмо отправлено");}
+  catch(e){setEmailError(e instanceof Error?e.message:"Ошибка отправки");}
+  finally{setEmailBusy(false);}
+ };
+ const confirmEmailChange=async()=>{
+  setEmailBusy(true);setEmailError("");setEmailMessage("");
+  try{const r=await fetch("/api/account/email/confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:emailToken})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось подтвердить email");setEmailMessage(d.message||"Email изменён");setEmailToken("");setNewEmail("");await loadProfile();}
+  catch(e){setEmailError(e instanceof Error?e.message:"Ошибка подтверждения");}
+  finally{setEmailBusy(false);}
+ };
  const deleteAccount=async()=>{
    setDeleteError("");setDeleteMessage("");setDeleteBusy(true);
    try{
@@ -108,7 +125,11 @@ function Settings(){
        <button type="button" className="pure-button secondary" style={{marginTop:8,alignSelf:"flex-start"}} disabled={!user||savingField!==null||isCooling(availableAt||null)||draft[field].trim()===""||draft[field]===user[field]} onClick={()=>saveProfileField(field)}>{savingField===field?"Сохранение…":"Сохранить "+labels[field].toLowerCase()}</button>
      </div>;
    })}
-   <label className="setting-field">Email<input value={user?.email||""} readOnly placeholder="Загрузка…"/><small className="muted">Изменение email будет добавлено отдельным механизмом подтверждения адреса.</small></label>
+   <label className="setting-field">Текущий email<input value={user?.email||""} readOnly placeholder="Загрузка…"/></label>
+ <div className="setting-field"><label>Новый email<input type="email" value={newEmail} onChange={e=>setNewEmail(e.target.value)} placeholder="new@example.com"/></label><button type="button" className="pure-button secondary" disabled={emailBusy||!newEmail.includes("@")} onClick={()=>void requestEmailChange()}>{emailBusy?"Отправка…":"Отправить код подтверждения"}</button></div>
+ <div className="setting-field"><label>Код из письма<input value={emailToken} onChange={e=>setEmailToken(e.target.value)} placeholder="Вставьте код"/></label><button type="button" className="pure-button" disabled={emailBusy||!emailToken.trim()} onClick={()=>void confirmEmailChange()}>Подтвердить новый email</button></div>
+ {emailError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{emailError}</p>}
+ {emailMessage&&<p role="status" style={{color:"#86efac",fontSize:12}}>{emailMessage}</p>}
  </div>
  {profileError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{profileError}</p>}
  {profileMessage&&<p role="status" style={{color:"#86efac",fontSize:12}}>{profileMessage}</p>}
