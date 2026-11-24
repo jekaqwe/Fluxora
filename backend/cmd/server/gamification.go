@@ -53,6 +53,24 @@ func awardAchievement(ctx context.Context,tx pgx.Tx,userID int64,def achievement
  _,err=tx.Exec(ctx,`INSERT INTO notifications(user_id,notification_type,title,message,related_type) VALUES($1,'achievement',$2,$3,'achievement')`,userID,"Новое достижение: "+def.title,def.description+" · +"+strconv.Itoa(def.xp)+" XP")
  return err
 }
+func calculateActivityStreak(dates []time.Time, today time.Time) int {
+	if len(dates) == 0 { return 0 }
+	today = today.UTC().Truncate(24*time.Hour)
+	expected := dates[0].UTC().Truncate(24*time.Hour)
+	if expected.Before(today.AddDate(0,0,-1)) { return 0 }
+	streak := 0
+	last := time.Time{}
+	for _, value := range dates {
+		day := value.UTC().Truncate(24*time.Hour)
+		if day.Equal(last) { continue }
+		if !day.Equal(expected) { break }
+		streak++
+		last = day
+		expected = expected.AddDate(0,0,-1)
+	}
+	return streak
+}
+
 func gamificationHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool){
  w.Header().Set("Content-Type","application/json");w.Header().Set("Cache-Control","no-store")
  if r.Method!=http.MethodGet{w.Header().Set("Allow","GET");http.Error(w,`{"error":"Метод не поддерживается"}`,405);return}
@@ -72,12 +90,7 @@ func gamificationHandler(w http.ResponseWriter,r *http.Request,database *pgxpool
  ) activity WHERE activity_date<=CURRENT_DATE ORDER BY activity_date DESC`,userID)
  if err!=nil{http.Error(w,`{"error":"Не удалось рассчитать активность"}`,500);return}
  dates:=make([]time.Time,0);for rows.Next(){var d time.Time;if rows.Scan(&d)==nil{dates=append(dates,d)}};rows.Close()
- streak:=0
- if len(dates)>0{
-  today:=time.Now().UTC().Truncate(24*time.Hour);expected:=dates[0].UTC().Truncate(24*time.Hour)
-  if expected.Before(today.AddDate(0,0,-1)){expected=time.Time{}} 
-  if !expected.IsZero(){for _,d:=range dates{day:=d.UTC().Truncate(24*time.Hour);if !day.Equal(expected){break};streak++;expected=expected.AddDate(0,0,-1)}}
- }
+ streak:=calculateActivityStreak(dates,time.Now().UTC())
  checks:=map[string]bool{"first_operation":operations>=1,"ten_operations":operations>=10,"hundred_operations":operations>=100,"first_goal_completed":completedGoals,"first_savings":savings,"first_family_budget":family,"thirty_day_streak":streak>=30}
  for _,def:=range achievementDefinitions{if checks[def.key]{if err:=awardAchievement(r.Context(),tx,userID,def);err!=nil{http.Error(w,`{"error":"Не удалось начислить достижение"}`,500);return}}}
  if err:=tx.Commit(r.Context());err!=nil{http.Error(w,`{"error":"Не удалось сохранить достижения"}`,500);return}
