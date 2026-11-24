@@ -197,6 +197,25 @@ func accountItemHandler(w http.ResponseWriter, r *http.Request, database *pgxpoo
 			return
 		}
 		defer tx.Rollback(r.Context())
+
+		// Lock the account so a concurrent transaction cannot attach to it
+		// between the history check and the delete.
+		var lockedAccountID int64
+		if err := tx.QueryRow(r.Context(), "SELECT id FROM accounts WHERE id = $1 AND user_id = $2 FOR UPDATE", accountID, userID).Scan(&lockedAccountID); err != nil {
+			http.Error(w, `{"error":"Счёт не найден"}`, http.StatusNotFound)
+			return
+		}
+
+		var hasTransactions bool
+		if err := tx.QueryRow(r.Context(), "SELECT EXISTS (SELECT 1 FROM transactions WHERE user_id = $1 AND (account_id = $2 OR transfer_account_id = $2))", userID, accountID).Scan(&hasTransactions); err != nil {
+			http.Error(w, `{"error":"Не удалось проверить историю операций счёта"}`, http.StatusInternalServerError)
+			return
+		}
+		if hasTransactions {
+			http.Error(w, `{"error":"Нельзя удалить счёт, пока с ним связаны финансовые операции. Сохраните историю или удалите связанные операции отдельно."}`, http.StatusConflict)
+			return
+		}
+
 		_, err = tx.Exec(r.Context(), "UPDATE recurring_operations SET status = 'paused', account_id = NULL, updated_at = NOW() WHERE account_id = $1 AND user_id = $2 AND status = 'active'", accountID, userID)
 		if err != nil {
 			http.Error(w, `{"error":"Не удалось приостановить регулярные операции"}`, http.StatusInternalServerError)
