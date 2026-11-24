@@ -38,8 +38,8 @@ func newS3Store() (*s3Store, error) {
 		return nil, errors.New("S3 is not configured")
 	}
 	endpoint, err := url.Parse(endpointValue)
-	if err != nil || (endpoint.Scheme != "https" && endpoint.Scheme != "http") || endpoint.Host == "" {
-		return nil, errors.New("invalid S3 endpoint")
+	if err != nil || endpoint.Scheme != "https" || endpoint.Host == "" || endpoint.User != nil || endpoint.RawQuery != "" || endpoint.Fragment != "" {
+		return nil, errors.New("invalid S3 endpoint: HTTPS URL without user info, query, or fragment is required")
 	}
 	return &s3Store{
 		endpoint: endpoint,
