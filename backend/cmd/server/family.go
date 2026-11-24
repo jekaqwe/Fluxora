@@ -170,7 +170,7 @@ func familyTransactionsHandler(w http.ResponseWriter,r *http.Request,database *p
  if err:=json.NewDecoder(r.Body).Decode(&in);err!=nil{http.Error(w,`{"error":"Некорректные данные"}`,400);return}
  in.Title=strings.TrimSpace(in.Title);in.Type=strings.TrimSpace(in.Type);in.Amount=strings.TrimSpace(in.Amount);in.Category=strings.TrimSpace(in.Category);in.Comment=strings.TrimSpace(in.Comment);in.IdempotencyKey=strings.TrimSpace(in.IdempotencyKey)
  date,e:=time.Parse("2006-01-02",in.Date)
- if in.Title==""||len([]rune(in.Title))>160||(in.Type!="income"&&in.Type!="expense")||!accountAmountPattern.MatchString(in.Amount)||strings.Trim(in.Amount,"0.")==""||in.Category==""||len([]rune(in.Category))>80||len([]rune(in.Comment))>1000||in.IdempotencyKey==""||len(in.IdempotencyKey)>100||e!=nil{http.Error(w,`{"error":"Проверьте поля семейной операции"}`,400);return}
+ if in.Title==""||len([]rune(in.Title))>160||(in.Type!="income"&&in.Type!="expense")||!accountAmountPattern.MatchString(in.Amount)||strings.HasPrefix(in.Amount,"-")||strings.Trim(in.Amount,"0.")==""||in.Category==""||len([]rune(in.Category))>80||len([]rune(in.Comment))>1000||in.IdempotencyKey==""||len(in.IdempotencyKey)>100||e!=nil{http.Error(w,`{"error":"Проверьте поля семейной операции"}`,400);return}
  var item familyTxResponse
  err=database.QueryRow(r.Context(),`INSERT INTO family_transactions(family_id,author_user_id,operation_type,title,amount,category,operation_date,comment,idempotency_key) VALUES($1,$2,$3,$4,$5::numeric,$6,$7,$8,$9) ON CONFLICT(author_user_id,idempotency_key) DO NOTHING RETURNING id,title,operation_type,amount::text,category,operation_date::text,comment,(SELECT first_name||' '||last_name FROM users WHERE id=$2),created_at`,family.ID,userID,in.Type,in.Title,in.Amount,in.Category,date,in.Comment,in.IdempotencyKey).Scan(&item.ID,&item.Title,&item.Type,&item.Amount,&item.Category,&item.Date,&item.Comment,&item.Author,&item.CreatedAt)
  if err==pgx.ErrNoRows{err=database.QueryRow(r.Context(),`SELECT t.id,t.title,t.operation_type,t.amount::text,t.category,t.operation_date::text,t.comment,CASE WHEN u.id IS NULL THEN 'Удалённый участник' ELSE u.first_name||' '||u.last_name END,t.created_at FROM family_transactions t LEFT JOIN users u ON u.id=t.author_user_id WHERE t.author_user_id=$1 AND t.idempotency_key=$2`,userID,in.IdempotencyKey).Scan(&item.ID,&item.Title,&item.Type,&item.Amount,&item.Category,&item.Date,&item.Comment,&item.Author,&item.CreatedAt)}
@@ -184,8 +184,25 @@ func familyTransactionItemHandler(w http.ResponseWriter,r *http.Request,database
  if err:=database.QueryRow(r.Context(),`SELECT author_user_id FROM family_transactions WHERE id=$1 AND family_id=$2`,id,family.ID).Scan(&author);err!=nil{http.Error(w,`{"error":"Операция не найдена"}`,404);return}
  allowed:=author.Valid&&author.Int64==userID||family.Role=="owner"||family.Role=="admin"
  if !allowed{http.Error(w,`{"error":"Недостаточно прав для изменения операции"}`,403);return}
- if r.Method==http.MethodDelete{
-  _,err:=database.Exec(r.Context(),`DELETE FROM family_transactions WHERE id=$1 AND family_id=$2`,id,family.ID);if err!=nil{http.Error(w,`{"error":"Не удалось удалить операцию"}`,500);return};_=json.NewEncoder(w).Encode(map[string]bool{"success":true});return
+ if r.Method==http.MethodDelete {
+  _,err:=database.Exec(r.Context(),`DELETE FROM family_transactions WHERE id=$1 AND family_id=$2`,id,family.ID)
+  if err!=nil{http.Error(w,`{"error":"Не удалось удалить операцию"}`,500);return}
+  _=json.NewEncoder(w).Encode(map[string]bool{"success":true});return
  }
- w.Header().Set("Allow","DELETE");http.Error(w,`{"error":"Метод не поддерживается"}`,405)
+ if r.Method==http.MethodPatch {
+  r.Body=http.MaxBytesReader(w,r.Body,24<<10);var in familyTxPayload
+  if err:=json.NewDecoder(r.Body).Decode(&in);err!=nil{http.Error(w,`{"error":"Некорректные данные"}`,400);return}
+  in.Title=strings.TrimSpace(in.Title);in.Type=strings.TrimSpace(in.Type);in.Amount=strings.TrimSpace(in.Amount);in.Category=strings.TrimSpace(in.Category);in.Comment=strings.TrimSpace(in.Comment)
+  date,e:=time.Parse("2006-01-02",in.Date)
+  if in.Title==""||len([]rune(in.Title))>160||(in.Type!="income"&&in.Type!="expense")||!accountAmountPattern.MatchString(in.Amount)||strings.HasPrefix(in.Amount,"-")||strings.Trim(in.Amount,"0.")==""||in.Category==""||len([]rune(in.Category))>80||len([]rune(in.Comment))>1000||e!=nil{http.Error(w,`{"error":"Проверьте поля семейной операции"}`,400);return}
+  var item familyTxResponse
+  err:=database.QueryRow(r.Context(),`UPDATE family_transactions SET title=$3,operation_type=$4,amount=$5::numeric,category=$6,operation_date=$7,comment=$8,updated_at=NOW()
+   WHERE id=$1 AND family_id=$2
+   RETURNING id,title,operation_type,amount::text,category,operation_date::text,comment,
+    COALESCE((SELECT first_name||' '||last_name FROM users WHERE id=family_transactions.author_user_id),'Удалённый участник'),created_at`,
+   id,family.ID,in.Title,in.Type,in.Amount,in.Category,date,in.Comment).Scan(&item.ID,&item.Title,&item.Type,&item.Amount,&item.Category,&item.Date,&item.Comment,&item.Author,&item.CreatedAt)
+  if err!=nil{http.Error(w,`{"error":"Не удалось обновить семейную операцию"}`,500);return}
+  _=json.NewEncoder(w).Encode(item);return
+ }
+ w.Header().Set("Allow","PATCH, DELETE");http.Error(w,`{"error":"Метод не поддерживается"}`,405)
 }
