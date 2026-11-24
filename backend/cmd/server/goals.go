@@ -1,7 +1,11 @@
 package main
 
 import (
+ "crypto/rand"
+ "encoding/hex"
  "encoding/json"
+ "io"
+ "log"
  "net/http"
  "github.com/jackc/pgx/v5"
  "regexp"
@@ -64,16 +68,18 @@ func goalsHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool) 
   rows,err:=database.Query(r.Context(),`
    SELECT g.id,g.title,g.description,g.target_amount::text,g.starting_amount::text,
     (g.starting_amount+COALESCE(SUM(CASE WHEN e.entry_type='contribution' THEN e.amount ELSE -e.amount END),0))::text,
-    g.due_date::text,g.priority,g.status,g.created_at
+    g.due_date::text,g.priority,g.status,g.image_key,g.created_at
    FROM goals g LEFT JOIN goal_entries e ON e.goal_id=g.id AND e.user_id=g.user_id
    WHERE g.user_id=$1 GROUP BY g.id ORDER BY g.created_at DESC,g.id DESC
   `,userID)
   if err!=nil { http.Error(w,`{"error":"Не удалось загрузить цели"}`,500); return }
   defer rows.Close(); items:=make([]goalResponse,0)
   for rows.Next() {
-   var item goalResponse; var due *string
-   if err:=rows.Scan(&item.ID,&item.Title,&item.Description,&item.TargetAmount,&item.StartingAmount,&item.CurrentAmount,&due,&item.Priority,&item.Status,&item.CreatedAt); err!=nil { http.Error(w,`{"error":"Ошибка чтения целей"}`,500); return }
-   item.DueDate=due; items=append(items,item)
+   var item goalResponse; var due,imageKey *string
+   if err:=rows.Scan(&item.ID,&item.Title,&item.Description,&item.TargetAmount,&item.StartingAmount,&item.CurrentAmount,&due,&item.Priority,&item.Status,&imageKey,&item.CreatedAt); err!=nil { http.Error(w,`{"error":"Ошибка чтения целей"}`,500); return }
+   item.DueDate=due
+   if imageKey!=nil&&*imageKey!=""{if store,e:=newS3Store();e==nil{if url,e:=store.presignGet(*imageKey,7*24*time.Hour);e==nil{item.ImageURL=&url}}}
+   items=append(items,item)
   }
   _=json.NewEncoder(w).Encode(items)
  case http.MethodPost:
@@ -111,6 +117,7 @@ func goalItemHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Poo
  parts:=strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path,"/api/goals/"),"/"),"/")
  id,err:=strconv.ParseInt(parts[0],10,64); if err!=nil||id<=0 { http.Error(w,`{"error":"Некорректный идентификатор цели"}`,400); return }
  if len(parts)==2&&parts[1]=="entries" { goalEntriesHandler(w,r,database,userID,id); return }
+ if len(parts)==2&&parts[1]=="image" { goalImageHandler(w,r,database,userID,id); return }
  if len(parts)!=1 { http.Error(w,`{"error":"Некорректный адрес цели"}`,400); return }
  switch r.Method {
  case http.MethodPatch:
