@@ -32,6 +32,7 @@ type goalResponse struct {
  TargetAmount string `json:"targetAmount"`
  StartingAmount string `json:"startingAmount"`
  CurrentAmount string `json:"currentAmount"`
+ ImageURL *string `json:"imageUrl,omitempty"`
  DueDate *string `json:"dueDate,omitempty"`
  Priority string `json:"priority"`
  Status string `json:"status"`
