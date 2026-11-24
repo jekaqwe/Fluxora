@@ -107,6 +107,7 @@ func familyHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool)
   token,hash,err:=familyToken();if err!=nil{http.Error(w,`{"error":"Не удалось создать приглашение"}`,500);return}
   _,err=database.Exec(r.Context(),`INSERT INTO family_invitations(family_id,email,token_hash,invited_by,expires_at) VALUES($1,$2,$3,$4,NOW()+INTERVAL '7 days')`,family.ID,in.Email,hash,userID)
   if err!=nil{http.Error(w,`{"error":"Не удалось сохранить приглашение"}`,500);return}
+  _,_=database.Exec(r.Context(),`INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) SELECT id,'family_invite','Приглашение в семейный бюджет','Вас пригласили в семейный бюджет. Используйте полученный токен для принятия.','family',$1 FROM users WHERE LOWER(email)=LOWER($2)`,family.ID,in.Email)
   _=json.NewEncoder(w).Encode(map[string]string{"token":token,"message":"Приглашение создано. Передайте токен участнику вручную."})
  case "/api/family/accept":
   if r.Method!=http.MethodPost{w.Header().Set("Allow","POST");http.Error(w,`{"error":"Метод не поддерживается"}`,405);return}
