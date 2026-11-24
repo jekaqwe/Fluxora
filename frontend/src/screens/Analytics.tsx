@@ -10,6 +10,7 @@ type Large = { title: string; amount: string; date: string };
 type AnalyticsData = {
   period: string; from: string; to: string; income: string; expense: string; net: string;
   averageExpense: string; categories: Category[]; trend: Point[]; largest: Large[];
+  previousIncome: string; previousExpense: string; previousNet: string;
 };
 const formatAmount = (value: string) => {
   const negative = value.startsWith("-");
@@ -110,6 +111,9 @@ function Analytics() {
           <div className="legend-row" style={{marginTop:12}}><span>Категорий с расходами</span><strong>{data.categories.length}</strong></div>
           <div className="legend-row" style={{marginTop:12}}><span>Операций в динамике</span><strong>{data.trend.length}</strong></div>
           <div className="empty-note" style={{display:"flex",gap:12,alignItems:"center",marginTop:16}}><TrendingUp color="#08a47f" size={23}/><span>Переводы между собственными счетами не включаются в доходы и расходы.</span></div>
+          <div className="legend-row"><span>Доходы в прошлом периоде</span><strong>{formatAmount(data.previousIncome)}</strong></div>
+          <div className="legend-row" style={{marginTop:12}}><span>Расходы в прошлом периоде</span><strong>{formatAmount(data.previousExpense)}</strong></div>
+          <div className="legend-row" style={{marginTop:12}}><span>Разница в прошлом периоде</span><strong>{formatAmount(data.previousNet)}</strong></div>
         </Panel>
       </div>
     </>}
