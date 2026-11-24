@@ -60,6 +60,7 @@ function Settings(){
      const data=await response.json();
      if(!response.ok)throw new Error(data.error||"Не удалось удалить аккаунт");
      setDeleteMessage(data.message||"Аккаунт удалён");
+     if(data.cleanupWarning||data.ledgerWarning){window.alert(data.message||"Аккаунт удалён, но требуется внимание к резервным копиям или файлам.");}
      window.location.reload();
    }catch(error){setDeleteError(error instanceof Error?error.message:"Ошибка удаления аккаунта");}
    finally{setDeleteBusy(false);}
