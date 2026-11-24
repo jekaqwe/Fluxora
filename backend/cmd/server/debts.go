@@ -40,7 +40,7 @@ type debtPaymentPayload struct {
 type debtPaymentResponse struct {
  ID int64 `json:"id"`
  Amount string `json:"amount"`
- AccountID int64 `json:"accountId"`
+ AccountID *int64 `json:"accountId,omitempty"`
  TransactionID *int64 `json:"transactionId,omitempty"`
  Date string `json:"date"`
  Comment string `json:"comment"`
@@ -92,7 +92,7 @@ func debtPaymentsHandler(w http.ResponseWriter,r *http.Request,database *pgxpool
  if r.Method==http.MethodGet{
   rows,err:=database.Query(r.Context(),`SELECT id,amount::text,account_id,transaction_id,payment_date::text,comment,created_at FROM debt_payments WHERE debt_id=$1 AND user_id=$2 ORDER BY payment_date DESC,id DESC`,debtID,userID)
   if err!=nil{http.Error(w,`{"error":"Не удалось загрузить платежи"}`,500);return};defer rows.Close();items:=make([]debtPaymentResponse,0)
-  for rows.Next(){var x debtPaymentResponse;var txID pgtype.Int8;if err:=rows.Scan(&x.ID,&x.Amount,&x.AccountID,&txID,&x.Date,&x.Comment,&x.CreatedAt);err!=nil{http.Error(w,`{"error":"Ошибка чтения платежей"}`,500);return};if txID.Valid{v:=txID.Int64;x.TransactionID=&v};items=append(items,x)}
+  for rows.Next(){var x debtPaymentResponse;var accountID,txID pgtype.Int8;if err:=rows.Scan(&x.ID,&x.Amount,&accountID,&txID,&x.Date,&x.Comment,&x.CreatedAt);err!=nil{http.Error(w,`{"error":"Ошибка чтения платежей"}`,500);return};if accountID.Valid{v:=accountID.Int64;x.AccountID=&v};if txID.Valid{v:=txID.Int64;x.TransactionID=&v};items=append(items,x)}
   _=json.NewEncoder(w).Encode(items);return
  }
  if r.Method!=http.MethodPost{w.Header().Set("Allow","GET, POST");http.Error(w,`{"error":"Метод не поддерживается"}`,405);return}
@@ -105,9 +105,9 @@ func debtPaymentsHandler(w http.ResponseWriter,r *http.Request,database *pgxpool
  var name,direction,status string;var initial string
  err=tx.QueryRow(r.Context(),`SELECT name,direction,initial_amount::text,status FROM debts WHERE id=$1 AND user_id=$2 FOR UPDATE`,debtID,userID).Scan(&name,&direction,&initial,&status)
  if err!=nil{http.Error(w,`{"error":"Долг не найден"}`,404);return}
- var existing debtPaymentResponse;var existingTxID pgtype.Int8
- err=tx.QueryRow(r.Context(),`SELECT id,amount::text,account_id,transaction_id,payment_date::text,comment,created_at FROM debt_payments WHERE user_id=$1 AND idempotency_key=$2`,userID,in.IdempotencyKey).Scan(&existing.ID,&existing.Amount,&existing.AccountID,&existingTxID,&existing.Date,&existing.Comment,&existing.CreatedAt)
- if err==nil{if existingTxID.Valid{v:=existingTxID.Int64;existing.TransactionID=&v};if e:=tx.Commit(r.Context());e!=nil{http.Error(w,`{"error":"Не удалось завершить платёж"}`,500);return};_=json.NewEncoder(w).Encode(existing);return}
+ var existing debtPaymentResponse;var existingAccountID,existingTxID pgtype.Int8
+ err=tx.QueryRow(r.Context(),`SELECT id,amount::text,account_id,transaction_id,payment_date::text,comment,created_at FROM debt_payments WHERE user_id=$1 AND idempotency_key=$2`,userID,in.IdempotencyKey).Scan(&existing.ID,&existing.Amount,&existingAccountID,&existingTxID,&existing.Date,&existing.Comment,&existing.CreatedAt)
+ if err==nil{if existingAccountID.Valid{v:=existingAccountID.Int64;existing.AccountID=&v};if existingTxID.Valid{v:=existingTxID.Int64;existing.TransactionID=&v};if e:=tx.Commit(r.Context());e!=nil{http.Error(w,`{"error":"Не удалось завершить платёж"}`,500);return};_=json.NewEncoder(w).Encode(existing);return}
  if err!=pgx.ErrNoRows{http.Error(w,`{"error":"Не удалось проверить повтор платежа"}`,500);return}
  if status!="open"{http.Error(w,`{"error":"Долг уже закрыт"}`,409);return}
  var accountExists bool
@@ -120,9 +120,9 @@ func debtPaymentsHandler(w http.ResponseWriter,r *http.Request,database *pgxpool
  var transactionID int64
  err=tx.QueryRow(r.Context(),`INSERT INTO transactions(user_id,account_id,title,operation_type,amount,category,operation_date,comment,idempotency_key) VALUES($1,$2,$3,$4,$5::numeric,'Долги',$6,$7,$8) RETURNING id`,userID,in.AccountID,"Платёж по долгу: "+name,txType,in.Amount,date,in.Comment,transactionKey).Scan(&transactionID)
  if err!=nil{http.Error(w,`{"error":"Не удалось записать финансовую операцию"}`,500);return}
- var payment debtPaymentResponse;var paymentTxID pgtype.Int8
- err=tx.QueryRow(r.Context(),`INSERT INTO debt_payments(debt_id,user_id,amount,account_id,transaction_id,payment_date,comment,idempotency_key) VALUES($1,$2,$3::numeric,$4,$5,$6,$7,$8) RETURNING id,amount::text,account_id,transaction_id,payment_date::text,comment,created_at`,debtID,userID,in.Amount,in.AccountID,transactionID,date,in.Comment,in.IdempotencyKey).Scan(&payment.ID,&payment.Amount,&payment.AccountID,&paymentTxID,&payment.Date,&payment.Comment,&payment.CreatedAt)
- if err!=nil{http.Error(w,`{"error":"Не удалось сохранить историю платежа"}`,500);return};if paymentTxID.Valid{v:=paymentTxID.Int64;payment.TransactionID=&v}
+ var payment debtPaymentResponse;var paymentAccountID,paymentTxID pgtype.Int8
+ err=tx.QueryRow(r.Context(),`INSERT INTO debt_payments(debt_id,user_id,amount,account_id,transaction_id,payment_date,comment,idempotency_key) VALUES($1,$2,$3::numeric,$4,$5,$6,$7,$8) RETURNING id,amount::text,account_id,transaction_id,payment_date::text,comment,created_at`,debtID,userID,in.Amount,in.AccountID,transactionID,date,in.Comment,in.IdempotencyKey).Scan(&payment.ID,&payment.Amount,&paymentAccountID,&paymentTxID,&payment.Date,&payment.Comment,&payment.CreatedAt)
+ if err!=nil{http.Error(w,`{"error":"Не удалось сохранить историю платежа"}`,500);return};if paymentAccountID.Valid{v:=paymentAccountID.Int64;payment.AccountID=&v};if paymentTxID.Valid{v:=paymentTxID.Int64;payment.TransactionID=&v}
  _,err=tx.Exec(r.Context(),`UPDATE debts SET status=CASE WHEN initial_amount-COALESCE((SELECT SUM(amount) FROM debt_payments WHERE debt_id=$1),0)<=0 THEN 'closed' ELSE status END,updated_at=NOW() WHERE id=$1`,debtID)
  if err!=nil{http.Error(w,`{"error":"Не удалось обновить остаток долга"}`,500);return}
  _,_=tx.Exec(r.Context(),`INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) VALUES($1,'debt_payment','Записан платёж по долгу',$2,'debt',$3)`,userID,in.Amount+" ₽",debtID)
