@@ -164,8 +164,12 @@ func processOneRecurring(ctx context.Context,database *pgxpool.Pool,id int64,tod
  next=next.UTC();if end!=nil{v:=end.UTC();end=&v}
  missedCount:=0
  for next.Before(today){
-    if missedCount>0{_,_=tx.Exec(ctx,`INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) VALUES($1,'recurring_missed','Есть пропущенные регулярные операции',$2,'recurring',$3)`,userID,title+" · пропущено дат: "+strconv.Itoa(missedCount),id)}
-  if end!=nil&&next.After(*end){_,_=tx.Exec(ctx,`UPDATE recurring_operations SET status='completed',updated_at=NOW() WHERE id=$1`,id);_ = tx.Commit(ctx);return}
+  if end!=nil&&next.After(*end){
+  if missedCount>0{_,_=tx.Exec(ctx,`INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) VALUES($1,'recurring_missed','Есть пропущенные регулярные операции',$2,'recurring',$3)`,userID,title+" · пропущено дат: "+strconv.Itoa(missedCount),id)}
+   _,_=tx.Exec(ctx,`UPDATE recurring_operations SET status='completed',updated_at=NOW() WHERE id=$1`,id)
+   _ = tx.Commit(ctx)
+   return
+  }
   tag,err:=tx.Exec(ctx,`INSERT INTO recurring_occurrences(recurring_id,user_id,occurrence_date) VALUES($1,$2,$3) ON CONFLICT(recurring_id,occurrence_date) DO NOTHING`,id,userID,next)
   if err!=nil{log.Printf("recurring missed date: %v",err);return}
   if tag.RowsAffected()>0{missedCount++}
