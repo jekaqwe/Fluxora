@@ -1,5 +1,5 @@
 import { useEffect, useState, type ChangeEvent } from "react";
-import { UserRound, Trophy, Star, Crown, ShieldCheck, TrendingUp, CalendarDays, Camera } from "lucide-react";
+import { UserRound, Trophy, Star, Crown, ShieldCheck, TrendingUp, CalendarDays, Camera, Trash2 } from "lucide-react";
 import { PageHeading, Panel, Progress } from "./ui";
 import "./Pure.css";
 
@@ -48,6 +48,21 @@ function Profile() {
     }
   };
 
+  const handleAvatarDelete = async () => {
+    setAvatarError("");
+    setAvatarBusy(true);
+    try {
+      const response = await fetch("/api/profile/avatar", { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Не удалось удалить аватар");
+      setUser((current) => current ? { ...current, avatarUrl: null } : current);
+    } catch (error) {
+      setAvatarError(error instanceof Error ? error.message : "Ошибка удаления аватара");
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
   const fullName = user ? `${user.firstName} ${user.lastName}` : "Загрузка профиля";
 
   return (
@@ -67,10 +82,13 @@ function Profile() {
             <small className="muted">750 / 1 000 XP до следующего уровня</small>
           </div>
         </div>
-        <label className="pure-button secondary" style={{ cursor: avatarBusy ? "wait" : "pointer", opacity: avatarBusy ? 0.6 : 1 }}>
-          <Camera size={15} />{avatarBusy ? "Загрузка…" : "Изменить фото"}
-          <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden disabled={avatarBusy} onChange={handleAvatarChange} />
-        </label>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <label className="pure-button secondary" style={{ cursor: avatarBusy ? "wait" : "pointer", opacity: avatarBusy ? 0.6 : 1 }}>
+            <Camera size={15} />{avatarBusy ? "Загрузка…" : "Изменить фото"}
+            <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden disabled={avatarBusy} onChange={handleAvatarChange} />
+          </label>
+          {user?.avatarUrl && <button type="button" className="pure-button secondary" disabled={avatarBusy} onClick={handleAvatarDelete}><Trash2 size={15} />Удалить фото</button>}
+        </div>
       </Panel>
       {avatarError && <p role="alert" style={{ color: "#f87171", fontSize: 12, marginTop: 8 }}>{avatarError}</p>}
 
