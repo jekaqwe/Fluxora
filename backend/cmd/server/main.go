@@ -81,9 +81,15 @@ func main() {
 	http.HandleFunc("/api/accounts", func(w http.ResponseWriter, r *http.Request) {
 		accountsHandler(w, r, db)
 	})
+	http.HandleFunc("/api/accounts/", func(w http.ResponseWriter, r *http.Request) {
+		accountsHandler(w, r, db)
+	})
 
 	// Финансовые операции
 	http.HandleFunc("/api/transactions", func(w http.ResponseWriter, r *http.Request) {
+		transactionsHandler(w, r, db)
+	})
+	http.HandleFunc("/api/transactions/", func(w http.ResponseWriter, r *http.Request) {
 		transactionsHandler(w, r, db)
 	})
 
@@ -105,6 +111,9 @@ func main() {
 
 	// Финансовые цели
 	http.HandleFunc("/api/goals", func(w http.ResponseWriter, r *http.Request) {
+		goalsHandler(w, r, db)
+	})
+	http.HandleFunc("/api/goals/", func(w http.ResponseWriter, r *http.Request) {
 		goalsHandler(w, r, db)
 	})
 
