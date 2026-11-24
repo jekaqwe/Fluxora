@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Home, ArrowLeftRight, ChartNoAxesCombined, Target, Users, UserRound, Settings as SettingsIcon, LogOut, Menu, X } from "lucide-react";
+import { Home, ArrowLeftRight, ChartNoAxesCombined, Target, Users, UserRound, Settings as SettingsIcon, LogOut, Menu, X, WalletCards } from "lucide-react";
 import HomeScreen from "./screens/Home";
 import Operations from "./screens/Operations";
+import Accounts from "./screens/Accounts";
 import Analytics from "./screens/Analytics";
 import Goals from "./screens/Goals";
 import Family from "./screens/Family";
@@ -11,10 +12,11 @@ import Auth from "./screens/Auth";
 import logo from "./assets/fluxora-logo.png";
 import "./App.css";
 
-type PageKey = "home" | "operations" | "analytics" | "goals" | "family" | "profile" | "settings";
+type PageKey = "home" | "operations" | "accounts" | "analytics" | "goals" | "family" | "profile" | "settings";
 const navigation = [
   { id: "home", label: "Главная", icon: Home },
   { id: "operations", label: "Операции", icon: ArrowLeftRight },
+  { id: "accounts", label: "Счета", icon: WalletCards },
   { id: "analytics", label: "Аналитика", icon: ChartNoAxesCombined },
   { id: "goals", label: "Цели", icon: Target },
   { id: "family", label: "Семья", icon: Users },
@@ -62,6 +64,7 @@ function App() {
   switch (currentPage) {
     case "home": page = <HomeScreen />; break;
     case "operations": page = <Operations />; break;
+    case "accounts": page = <Accounts />; break;
     case "analytics": page = <Analytics />; break;
     case "goals": page = <Goals />; break;
     case "family": page = <Family />; break;
