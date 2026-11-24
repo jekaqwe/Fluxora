@@ -107,7 +107,15 @@ func accountsHandler(w http.ResponseWriter, r *http.Request, database *pgxpool.P
 		err := database.QueryRow(r.Context(), `
 			INSERT INTO accounts (user_id, name, account_type, initial_balance)
 			VALUES ($1, $2, $3, $4::numeric)
-			RETURNING id, name, account_type, initial_balance::text, initial_balance::text, currency, created_at
+			RETURNING id, name, account_type, initial_balance::text,
+			(initial_balance + COALESCE((SELECT SUM(CASE
+			    WHEN t.operation_type = 'income' AND t.account_id = accounts.id THEN t.amount
+			    WHEN t.operation_type = 'expense' AND t.account_id = accounts.id THEN -t.amount
+			    WHEN t.operation_type = 'transfer' AND t.account_id = accounts.id THEN -t.amount
+			    WHEN t.operation_type = 'transfer' AND t.transfer_account_id = accounts.id THEN t.amount
+			    ELSE 0 END) FROM transactions t
+			    WHERE t.user_id = accounts.user_id AND (t.account_id = accounts.id OR t.transfer_account_id = accounts.id)), 0))::text,
+			currency, created_at
 		`, userID, input.Name, input.Type, input.InitialBalance).Scan(
 			&item.ID, &item.Name, &item.Type, &item.InitialBalance, &item.CurrentBalance, &item.Currency, &item.CreatedAt,
 		)
