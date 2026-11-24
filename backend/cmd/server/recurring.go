@@ -210,7 +210,7 @@ func processOneRecurring(ctx context.Context,database *pgxpool.Pool,id int64,tod
    VALUES($1,$2,$3,'confirmed',$4,NOW())
    ON CONFLICT(recurring_id,occurrence_date) DO UPDATE SET status='confirmed',transaction_id=EXCLUDED.transaction_id,resolved_at=NOW()`,id,userID,next,transactionID)
   if err!=nil{log.Printf("recurring history: %v",err);return}
-  _,_=tx.Exec(ctx,`INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) VALUES($1,'recurring_created','Создана регулярная операция',$2,'recurring',$3)`,userID,title+" · "+next.Format("02.01.2006"),id);next=nextRecurringDate(next,frequency)
+  _,_=tx.Exec(ctx,`INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) VALUES($1,'recurring_created','Создана регулярная операция',$2,'recurring',$3)`,userID,title+" · "+next.Format("02.01.2006"),id);next=nextRecurringDate(next,frequency,anchorDay,anchorMonth)
  }
  status:="active";if end!=nil&&next.After(*end){status="completed"}
  _,err=tx.Exec(ctx,`UPDATE recurring_operations SET next_date=$2,status=$3,updated_at=NOW() WHERE id=$1`,id,next,status)
