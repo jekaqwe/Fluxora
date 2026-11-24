@@ -159,6 +159,14 @@ func goalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
  in.Type=strings.TrimSpace(in.Type); in.Amount=strings.TrimSpace(in.Amount); in.Comment=strings.TrimSpace(in.Comment)
  if (in.Type!="contribution"&&in.Type!="withdrawal")||!validGoalAmount(in.Amount,false)||len([]rune(in.Comment))>500||strings.TrimSpace(in.IdempotencyKey)==""||len(in.IdempotencyKey)>100 { http.Error(w,`{"error":"Проверьте тип, сумму и комментарий"}`,400); return }
  tx,err:=database.Begin(r.Context()); if err!=nil { http.Error(w,`{"error":"Не удалось начать операцию"}`,500); return }; defer tx.Rollback(r.Context())
+ var item goalEntryResponse; var txID pgtype.Int8
+ err=tx.QueryRow(r.Context(),`SELECT id,entry_type,amount::text,comment,transaction_id,created_at FROM goal_entries WHERE user_id=$1 AND idempotency_key=$2`,userID,in.IdempotencyKey).Scan(&item.ID,&item.Type,&item.Amount,&item.Comment,&txID,&item.CreatedAt)
+ if err==nil {
+  if txID.Valid { value:=txID.Int64; item.TransactionID=&value }
+  if commitErr:=tx.Commit(r.Context()); commitErr!=nil { http.Error(w,`{"error":"Не удалось завершить операцию"}`,500); return }
+  _=json.NewEncoder(w).Encode(item); return
+ }
+ if err!=pgx.ErrNoRows { http.Error(w,`{"error":"Не удалось проверить повтор операции"}`,500); return }
  var goalStatus string
  if err:=tx.QueryRow(r.Context(),"SELECT status FROM goals WHERE id=$1 AND user_id=$2 FOR UPDATE",goalID,userID).Scan(&goalStatus); err!=nil { http.Error(w,`{"error":"Цель не найдена"}`,404); return }
  if goalStatus=="paused" || goalStatus=="completed" { http.Error(w,`{"error":"Пополнение или снятие недоступно для приостановленной или завершённой цели"}`,409); return }
