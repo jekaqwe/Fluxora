@@ -1,4 +1,4 @@
-import { ArrowDownLeft, ArrowUpRight, Coffee, ShoppingBag, Plane, Plus, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Coffee, ShoppingBag, Plane, Wallet } from "lucide-react";
 import { PageHeading, Panel, Stat, Donut, LineChart, Progress, money } from "./ui";
 import "./Pure.css";
 const transactions=[{name:"Пятёрочка",category:"Продукты",amount:-1250,date:"Сегодня",icon:ShoppingBag,tone:"coral"},{name:"Зарплата",category:"Доход",amount:85000,date:"Вчера",icon:ArrowDownLeft,tone:"mint"},{name:"Кафе",category:"Рестораны",amount:-720,date:"14 мая",icon:Coffee,tone:"orange"}];
