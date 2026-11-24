@@ -23,6 +23,7 @@ type deletionLedgerEntry struct {
  UserID int64 `json:"user_id"`
  EmailHash string `json:"email_hash"`
  UserCreatedAt time.Time `json:"user_created_at"`
+ Status string `json:"status"`
  DeletedAt time.Time `json:"deleted_at"`
 }
 func emailIdentityHash(email string)string{sum:=sha256.Sum256([]byte(strings.ToLower(strings.TrimSpace(email))));return hex.EncodeToString(sum[:])}
@@ -68,27 +69,39 @@ func deleteAccountHandler(w http.ResponseWriter,r *http.Request,database *pgxpoo
  if err:=database.QueryRow(r.Context(),`SELECT email,password_hash,created_at FROM users WHERE id=$1`,userID).Scan(&email,&passwordHash,&userCreatedAt);err!=nil{http.Error(w,`{"error":"Пользователь не найден"}`,404);return}
  if bcrypt.CompareHashAndPassword([]byte(passwordHash),[]byte(input.Password))!=nil{http.Error(w,`{"error":"Неверный пароль"}`,401);return}
  store,err:=newS3Store();if err!=nil{http.Error(w,`{"error":"Удаление аккаунта временно недоступно: не настроено защищённое хранилище журнала удаления"}`,503);return}
- ledger:=deletionLedgerEntry{UserID:userID,EmailHash:emailIdentityHash(email),UserCreatedAt:userCreatedAt,DeletedAt:time.Now().UTC()}
+ ledger:=deletionLedgerEntry{UserID:userID,EmailHash:emailIdentityHash(email),UserCreatedAt:userCreatedAt,DeletedAt:time.Now().UTC(),Status:"pending"}
  body,err:=json.Marshal(ledger);if err!=nil{http.Error(w,`{"error":"Не удалось подготовить журнал удаления"}`,500);return}
- ledgerKey:="deletion-ledger/"+strconv.FormatInt(userID,10)+"-"+ledger.UserCreatedAt.UTC().Format("20060102T150405.000000000Z")+".json"
- if err:=store.put(r.Context(),ledgerKey,"application/json",body);err!=nil{http.Error(w,`{"error":"Не удалось сохранить защищённый журнал удаления"}`,503);return}
+ ledgerName:=strconv.FormatInt(userID,10)+"-"+ledger.UserCreatedAt.UTC().Format("20060102T150405.000000000Z")+".json"
+ pendingKey:="deletion-ledger/pending/"+ledgerName
+ committedKey:="deletion-ledger/committed/"+ledgerName
+ if err:=store.put(r.Context(),pendingKey,"application/json",body);err!=nil{http.Error(w,`{"error":"Не удалось сохранить защищённый журнал удаления"}`,503);return}
  keys,err:=deleteUserData(r.Context(),database,userID,false)
- if err!=nil{_ = store.delete(r.Context(),ledgerKey);if errors.Is(err,errFamilyOwnerAlone){http.Error(w,`{"error":"Вы единственный участник семейного бюджета. Перед удалением аккаунта добавьте другого участника и передайте ему владение."}`,409);return};http.Error(w,`{"error":"Не удалось удалить аккаунт"}`,500);return}
+ if err!=nil{_ = store.delete(r.Context(),pendingKey);if errors.Is(err,errFamilyOwnerAlone){http.Error(w,`{"error":"Вы единственный участник семейного бюджета. Перед удалением аккаунта добавьте другого участника и передайте ему владение."}`,409);return};http.Error(w,`{"error":"Не удалось удалить аккаунт"}`,500);return}
+ ledger.Status="committed"
+ committedBody,marshalErr:=json.Marshal(ledger)
+ ledgerCommitted:=false
+ if marshalErr==nil {
+  for attempt:=0;attempt<3;attempt++ {
+   if putErr:=store.put(r.Context(),committedKey,"application/json",committedBody);putErr==nil{ledgerCommitted=true;break}else{log.Printf("account deletion: committed ledger write attempt %d failed: %v",attempt+1,putErr)}
+  }
+ }
+ if ledgerCommitted{_ = store.delete(r.Context(),pendingKey)}
  cleanupFailed:=false
  for _,key:=range keys{if err:=store.delete(r.Context(),key);err!=nil{cleanupFailed=true;log.Printf("account deletion: could not remove S3 object %s: %v",key,err)}}
  message:="Аккаунт удалён. Резервные копии могут содержать данные до 7 дней и автоматически истекут."
  if cleanupFailed{message+=" Некоторые файлы не удалось удалить из S3."}
- _=json.NewEncoder(w).Encode(map[string]any{"success":true,"message":message,"cleanupWarning":cleanupFailed})
+ if !ledgerCommitted{message+=" ВНИМАНИЕ: не удалось подтвердить запись журнала удаления. Не восстанавливайте резервную копию до устранения этой проблемы."}
+ _=json.NewEncoder(w).Encode(map[string]any{"success":true,"message":message,"cleanupWarning":cleanupFailed,"ledgerWarning":!ledgerCommitted})
 }
 
 func applyDeletionLedger(ctx context.Context,database *pgxpool.Pool)error{
  store,err:=newS3Store();if err!=nil{return err}
- keys,err:=store.listKeys(ctx,"deletion-ledger/");if err!=nil{return err}
+ keys,err:=store.listKeys(ctx,"deletion-ledger/committed/");if err!=nil{return err}
  for _,key:=range keys{
   raw,err:=store.get(ctx,key);if err!=nil{log.Printf("deletion ledger read failed %s: %v",key,err);continue}
-  var entry deletionLedgerEntry;if err:=json.Unmarshal(raw,&entry);err!=nil{log.Printf("invalid deletion ledger entry %s: %v",key,err);continue}
-  var email string;var createdAt time.Time
-  err=database.QueryRow(ctx,`SELECT email,created_at FROM users WHERE id=$1`,entry.UserID).Scan(&email,&createdAt)
+  var entry deletionLedgerEntry;if err:=json.Unmarshal(raw,&entry);err!=nil{log.Printf("invalid deletion ledger entry %s: %v",key,err);continue};if entry.Status!="committed"{log.Printf("uncommitted deletion ledger entry ignored: %s",key);continue}
+  var createdAt time.Time
+  err=database.QueryRow(ctx,`SELECT created_at FROM users WHERE id=$1`,entry.UserID).Scan(&createdAt)
   if err==pgx.ErrNoRows{continue};if err!=nil{return err}
   if !createdAt.Equal(entry.UserCreatedAt){log.Printf("deletion ledger account incarnation mismatch for user id %d",entry.UserID);continue}
   if _,err:=deleteUserData(ctx,database,entry.UserID,true);err!=nil{return err}
