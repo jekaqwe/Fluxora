@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"strconv"
 	"time"
 )
 
@@ -97,7 +98,17 @@ func (s *s3Store) put(ctx context.Context, key, contentType string, data []byte)
 	return s.doSigned(ctx, http.MethodPut, key, contentType, data)
 }
 
+const s3SinglePutLimit int64 = 5 * 1024 * 1024 * 1024
+const s3MultipartPartSize int64 = 64 * 1024 * 1024
+const s3MaximumObjectSize int64 = 5 * 1024 * 1024 * 1024 * 1024
+
 func (s *s3Store) putReader(ctx context.Context, key, contentType string, body io.ReadSeeker, size int64) error {
+	if size < 0 || size > s3MaximumObjectSize {
+		return errors.New("S3 object size is outside the supported range")
+	}
+	if size > s3SinglePutLimit {
+		return s.putReaderMultipart(ctx, key, contentType, body, size)
+	}
 	return s.doSignedURLReader(ctx, http.MethodPut, s.objectURL(key), contentType, body, size)
 }
 
@@ -110,12 +121,17 @@ func (s *s3Store) doSigned(ctx context.Context, method, key, contentType string,
 }
 
 func (s *s3Store) doSignedURLReader(ctx context.Context, method string, u *url.URL, contentType string, body io.ReadSeeker, size int64) error {
+	_, _, err := s.doSignedURLReaderResponse(ctx, method, u, contentType, body, size)
+	return err
+}
+
+func (s *s3Store) doSignedURLReaderResponse(ctx context.Context, method string, u *url.URL, contentType string, body io.ReadSeeker, size int64) (http.Header, []byte, error) {
 	hasher := sha256.New()
 	if _, err := io.Copy(hasher, body); err != nil {
-		return err
+		return nil, nil, err
 	}
 	if _, err := body.Seek(0, io.SeekStart); err != nil {
-		return err
+		return nil, nil, err
 	}
 	payloadHash := hex.EncodeToString(hasher.Sum(nil))
 	now := time.Now().UTC()
@@ -131,14 +147,14 @@ func (s *s3Store) doSignedURLReader(ctx context.Context, method string, u *url.U
 	signedHeaders += "host;x-amz-content-sha256;x-amz-date"
 	canonicalHeaders += "x-amz-content-sha256:" + payloadHash + "\n"
 	canonicalHeaders += "x-amz-date:" + amzDate + "\n"
-	canonicalRequest := buildS3CanonicalRequest(method, u.EscapedPath(), "", canonicalHeaders, signedHeaders, payloadHash)
+	canonicalRequest := buildS3CanonicalRequest(method, u.EscapedPath(), u.Query().Encode(), canonicalHeaders, signedHeaders, payloadHash)
 	scope := dateStamp + "/" + s.region + "/s3/aws4_request"
 	stringToSign := "AWS4-HMAC-SHA256\n" + amzDate + "\n" + scope + "\n" + sha256Hex([]byte(canonicalRequest))
 	signature := hex.EncodeToString(hmacSHA256(s.signingKey(dateStamp), stringToSign))
 
 	req, err := http.NewRequestWithContext(ctx, method, u.String(), body)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	req.ContentLength = size
 	req.Header.Set("X-Amz-Date", amzDate)
@@ -149,12 +165,124 @@ func (s *s3Store) doSignedURLReader(ctx context.Context, method string, u *url.U
 	req.Header.Set("Authorization", "AWS4-HMAC-SHA256 Credential="+s.access+"/"+scope+", SignedHeaders="+signedHeaders+", Signature="+signature)
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	defer resp.Body.Close()
+	responseBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if readErr != nil {
+		return nil, nil, readErr
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-		return fmt.Errorf("S3 request failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return nil, nil, fmt.Errorf("S3 request failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(responseBody)))
+	}
+	return resp.Header.Clone(), responseBody, nil
+}
+
+type s3MultipartPart struct {
+	PartNumber int    `xml:"PartNumber"`
+	ETag       string `xml:"ETag"`
+}
+
+type s3MultipartInitiated struct {
+	UploadID string `xml:"UploadId"`
+}
+
+type s3MultipartCompletion struct {
+	XMLName xml.Name          `xml:"CompleteMultipartUpload"`
+	Parts   []s3MultipartPart `xml:"Part"`
+}
+
+type s3MultipartCompletionError struct {
+	Code    string `xml:"Code"`
+	Message string `xml:"Message"`
+}
+
+func (s *s3Store) putReaderMultipart(ctx context.Context, key, contentType string, body io.ReadSeeker, size int64) error {
+	return s.putReaderMultipartWithPartSize(ctx, key, contentType, body, size, s3MultipartPartSize)
+}
+
+func (s *s3Store) putReaderMultipartWithPartSize(ctx context.Context, key, contentType string, body io.ReadSeeker, size, partSize int64) error {
+	readerAt, ok := body.(io.ReaderAt)
+	if !ok {
+		return errors.New("multipart S3 upload requires a seekable ReaderAt source")
+	}
+	if size <= s3SinglePutLimit || size > s3MaximumObjectSize || partSize < 5*1024*1024 {
+		return errors.New("invalid multipart S3 upload size")
+	}
+	partCount := (size + partSize - 1) / partSize
+	if partCount > 10000 {
+		partSize = (size + 9999) / 10000
+		partCount = (size + partSize - 1) / partSize
+	}
+	if partSize > 5*1024*1024*1024 || partCount > 10000 {
+		return errors.New("multipart S3 upload exceeds supported part limits")
+	}
+
+	initURL := s.objectURL(key)
+	initQuery := url.Values{}
+	initQuery.Set("uploads", "")
+	initURL.RawQuery = initQuery.Encode()
+	_, initBody, err := s.doSignedURLReaderResponse(ctx, http.MethodPost, initURL, contentType, bytes.NewReader(nil), 0)
+	if err != nil {
+		return fmt.Errorf("initiate multipart upload: %w", err)
+	}
+	var initiated s3MultipartInitiated
+	if err := xml.Unmarshal(initBody, &initiated); err != nil || strings.TrimSpace(initiated.UploadID) == "" {
+		return errors.New("S3 did not return a multipart upload ID")
+	}
+	uploadID := initiated.UploadID
+	abort := func() {
+		abortURL := s.objectURL(key)
+		query := url.Values{}
+		query.Set("uploadId", uploadID)
+		abortURL.RawQuery = query.Encode()
+		_ = s.doSignedURLReader(ctx, http.MethodDelete, abortURL, "", bytes.NewReader(nil), 0)
+	}
+
+	parts := make([]s3MultipartPart, 0, partCount)
+	for partNumber := int64(1); partNumber <= partCount; partNumber++ {
+		offset := (partNumber - 1) * partSize
+		length := partSize
+		if remaining := size - offset; remaining < length {
+			length = remaining
+		}
+		partURL := s.objectURL(key)
+		query := url.Values{}
+		query.Set("partNumber", strconv.FormatInt(partNumber, 10))
+		query.Set("uploadId", uploadID)
+		partURL.RawQuery = query.Encode()
+		section := io.NewSectionReader(readerAt, offset, length)
+		headers, _, err := s.doSignedURLReaderResponse(ctx, http.MethodPut, partURL, "application/octet-stream", section, length)
+		if err != nil {
+			abort()
+			return fmt.Errorf("upload multipart part %d: %w", partNumber, err)
+		}
+		etag := strings.TrimSpace(headers.Get("ETag"))
+		if etag == "" {
+			abort()
+			return fmt.Errorf("S3 returned no ETag for multipart part %d", partNumber)
+		}
+		parts = append(parts, s3MultipartPart{PartNumber: int(partNumber), ETag: etag})
+	}
+
+	completeBody, err := xml.Marshal(s3MultipartCompletion{Parts: parts})
+	if err != nil {
+		abort()
+		return err
+	}
+	completeURL := s.objectURL(key)
+	completeQuery := url.Values{}
+	completeQuery.Set("uploadId", uploadID)
+	completeURL.RawQuery = completeQuery.Encode()
+	_, responseBody, err := s.doSignedURLReaderResponse(ctx, http.MethodPost, completeURL, "application/xml", bytes.NewReader(completeBody), int64(len(completeBody)))
+	if err != nil {
+		abort()
+		return fmt.Errorf("complete multipart upload: %w", err)
+	}
+	var completionError s3MultipartCompletionError
+	if xml.Unmarshal(responseBody, &completionError) == nil && completionError.Code != "" {
+		abort()
+		return fmt.Errorf("complete multipart upload failed: %s: %s", completionError.Code, completionError.Message)
 	}
 	return nil
 }
