@@ -49,7 +49,7 @@ function Settings(){
  };
  const confirmEmailChange=async()=>{
   setEmailBusy(true);setEmailError("");setEmailMessage("");
-  try{const r=await fetch("/api/account/email/confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:emailToken})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось подтвердить email");setEmailMessage(d.message||"Email изменён");setEmailToken("");setNewEmail("");await loadProfile();}
+  try{const r=await fetch("/api/account/email/confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:emailToken})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось подтвердить email");setEmailMessage(d.message||"Email изменён");setEmailToken("");setNewEmail("");setUser(old=>old?{...old,email:d.email}:old);}
   catch(e){setEmailError(e instanceof Error?e.message:"Ошибка подтверждения");}
   finally{setEmailBusy(false);}
  };
