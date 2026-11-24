@@ -198,7 +198,7 @@ func goalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
   _=json.NewEncoder(w).Encode(item); return
  }
  if err!=pgx.ErrNoRows { http.Error(w,`{"error":"Не удалось проверить повтор операции"}`,500); return }
- if goalStatus=="paused"||goalStatus=="completed" { http.Error(w,`{"error":"Пополнение или снятие недоступно для приостановленной или завершённой цели"}`,409); return }
+ if goalStatus=="paused"||(goalStatus=="completed"&&in.Type=="contribution") { http.Error(w,`{"error":"Операция недоступна для приостановленной или завершённой цели"}`,409); return }
  if in.Type=="withdrawal" {
   var sufficient bool
   err=tx.QueryRow(r.Context(),`SELECT g.starting_amount+COALESCE(SUM(CASE WHEN e.entry_type='contribution' THEN e.amount ELSE -e.amount END),0) >= $2::numeric FROM goals g LEFT JOIN goal_entries e ON e.goal_id=g.id WHERE g.id=$1 GROUP BY g.id`,goalID,in.Amount).Scan(&sufficient)
