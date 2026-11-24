@@ -29,8 +29,7 @@ func emailIdentityHash(email string)string{sum:=sha256.Sum256([]byte(strings.ToL
 
 func deleteUserData(ctx context.Context,database *pgxpool.Pool,userID int64,allowOwnerAlone bool)([]string,error){
  tx,err:=database.Begin(ctx);if err!=nil{return nil,err};defer tx.Rollback(ctx)
- var email string
- if err:=tx.QueryRow(ctx,`SELECT email FROM users WHERE id=$1 FOR UPDATE`,userID).Scan(&email);err!=nil{return nil,err}
+ if err:=tx.QueryRow(ctx,`SELECT id FROM users WHERE id=$1 FOR UPDATE`,userID).Scan(&userID);err!=nil{return nil,err}
  _,err=tx.Exec(ctx,`DELETE FROM family_invitations WHERE LOWER(email)=LOWER($1)`,email);if err!=nil{return nil,err}
  keys:=make([]string,0)
  var avatar pgtype.Text
@@ -70,7 +69,7 @@ func deleteAccountHandler(w http.ResponseWriter,r *http.Request,database *pgxpoo
  store,err:=newS3Store();if err!=nil{http.Error(w,`{"error":"Удаление аккаунта временно недоступно: не настроено защищённое хранилище журнала удаления"}`,503);return}
  ledger:=deletionLedgerEntry{UserID:userID,EmailHash:emailIdentityHash(email),UserCreatedAt:userCreatedAt,DeletedAt:time.Now().UTC()}
  body,err:=json.Marshal(ledger);if err!=nil{http.Error(w,`{"error":"Не удалось подготовить журнал удаления"}`,500);return}
- ledgerKey:="deletion-ledger/"+strconv.FormatInt(userID,10)+"-"+ledger.EmailHash+".json"
+ ledgerKey:="deletion-ledger/"+strconv.FormatInt(userID,10)+"-"+ledger.UserCreatedAt.UTC().Format("20060102T150405.000000000Z")+".json"
  if err:=store.put(r.Context(),ledgerKey,"application/json",body);err!=nil{http.Error(w,`{"error":"Не удалось сохранить защищённый журнал удаления"}`,503);return}
  keys,err:=deleteUserData(r.Context(),database,userID,false)
  if err!=nil{_ = store.delete(r.Context(),ledgerKey);if errors.Is(err,errFamilyOwnerAlone){http.Error(w,`{"error":"Вы единственный участник семейного бюджета. Перед удалением аккаунта добавьте другого участника и передайте ему владение."}`,409);return};http.Error(w,`{"error":"Не удалось удалить аккаунт"}`,500);return}
