@@ -11,7 +11,20 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var accountAmountPattern = regexp.MustCompile("^-?(?:0|[1-9][0-9]{0,17})(?:\\.[0-9]{1,2})?$")
+var accountAmountPattern = regexp.MustCompile(`^-?(?:0|[1-9][0-9]{0,17})(?:\.[0-9]{1,2})?package main
+
+import (
+	"encoding/json"
+	"net/http"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+var accountAmountPattern = )
 
 type accountPayload struct {
 	Name           string `json:"name"`
