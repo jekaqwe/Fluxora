@@ -108,15 +108,16 @@ func dailyBackupExists() bool {
 
 func startBackupScheduler() {
  go func() {
-  // If the service was offline at 03:00 UTC, create the missing daily archive on startup.
-  if !dailyBackupExists() { runDailyBackup() }
+  // Check immediately on startup, then retry every 15 minutes. This covers
+  // transient S3/network failures instead of waiting until the next day.
+  const retryInterval = 15 * time.Minute
   for {
-   now := time.Now().UTC()
-   next := time.Date(now.Year(), now.Month(), now.Day(), 3, 0, 0, 0, time.UTC)
-   if !next.After(now) { next = next.AddDate(0, 0, 1) }
-   timer := time.NewTimer(time.Until(next))
+   if !dailyBackupExists() {
+    runDailyBackup()
+   }
+
+   timer := time.NewTimer(retryInterval)
    <-timer.C
-   runDailyBackup()
   }
  }()
 }
