@@ -22,6 +22,7 @@ var errFamilyOwnerAlone=errors.New("владелец является единс
 type deletionLedgerEntry struct {
  UserID int64 `json:"user_id"`
  EmailHash string `json:"email_hash"`
+ UserCreatedAt time.Time `json:"user_created_at"`
  DeletedAt time.Time `json:"deleted_at"`
 }
 func emailIdentityHash(email string)string{sum:=sha256.Sum256([]byte(strings.ToLower(strings.TrimSpace(email))));return hex.EncodeToString(sum[:])}
@@ -63,11 +64,11 @@ func deleteAccountHandler(w http.ResponseWriter,r *http.Request,database *pgxpoo
  r.Body=http.MaxBytesReader(w,r.Body,12<<10);var input struct{Password string `json:"password"`;Confirmation string `json:"confirmation"`}
  if err:=json.NewDecoder(r.Body).Decode(&input);err!=nil{http.Error(w,`{"error":"Некорректные данные"}`,400);return}
  if input.Confirmation!="DELETE"||strings.TrimSpace(input.Password)==""{http.Error(w,`{"error":"Введите пароль и подтверждение DELETE"}`,400);return}
- var email,passwordHash string
- if err:=database.QueryRow(r.Context(),`SELECT email,password_hash FROM users WHERE id=$1`,userID).Scan(&email,&passwordHash);err!=nil{http.Error(w,`{"error":"Пользователь не найден"}`,404);return}
+ var email,passwordHash string;var userCreatedAt time.Time
+ if err:=database.QueryRow(r.Context(),`SELECT email,password_hash,created_at FROM users WHERE id=$1`,userID).Scan(&email,&passwordHash,&userCreatedAt);err!=nil{http.Error(w,`{"error":"Пользователь не найден"}`,404);return}
  if bcrypt.CompareHashAndPassword([]byte(passwordHash),[]byte(input.Password))!=nil{http.Error(w,`{"error":"Неверный пароль"}`,401);return}
  store,err:=newS3Store();if err!=nil{http.Error(w,`{"error":"Удаление аккаунта временно недоступно: не настроено защищённое хранилище журнала удаления"}`,503);return}
- ledger:=deletionLedgerEntry{UserID:userID,EmailHash:emailIdentityHash(email),DeletedAt:time.Now().UTC()}
+ ledger:=deletionLedgerEntry{UserID:userID,EmailHash:emailIdentityHash(email),UserCreatedAt:userCreatedAt,DeletedAt:time.Now().UTC()}
  body,err:=json.Marshal(ledger);if err!=nil{http.Error(w,`{"error":"Не удалось подготовить журнал удаления"}`,500);return}
  ledgerKey:="deletion-ledger/"+strconv.FormatInt(userID,10)+"-"+ledger.EmailHash+".json"
  if err:=store.put(r.Context(),ledgerKey,"application/json",body);err!=nil{http.Error(w,`{"error":"Не удалось сохранить защищённый журнал удаления"}`,503);return}
@@ -86,10 +87,10 @@ func applyDeletionLedger(ctx context.Context,database *pgxpool.Pool)error{
  for _,key:=range keys{
   raw,err:=store.get(ctx,key);if err!=nil{log.Printf("deletion ledger read failed %s: %v",key,err);continue}
   var entry deletionLedgerEntry;if err:=json.Unmarshal(raw,&entry);err!=nil{log.Printf("invalid deletion ledger entry %s: %v",key,err);continue}
-  var email string
-  err=database.QueryRow(ctx,`SELECT email FROM users WHERE id=$1`,entry.UserID).Scan(&email)
+  var email string;var createdAt time.Time
+  err=database.QueryRow(ctx,`SELECT email,created_at FROM users WHERE id=$1`,entry.UserID).Scan(&email,&createdAt)
   if err==pgx.ErrNoRows{continue};if err!=nil{return err}
-  if emailIdentityHash(email)!=entry.EmailHash{log.Printf("deletion ledger identity mismatch for user id %d",entry.UserID);continue}
+  if !createdAt.Equal(entry.UserCreatedAt){log.Printf("deletion ledger account incarnation mismatch for user id %d",entry.UserID);continue}
   if _,err:=deleteUserData(ctx,database,entry.UserID,true);err!=nil{return err}
   log.Printf("deletion ledger reapplied for user id %d",entry.UserID)
  }
