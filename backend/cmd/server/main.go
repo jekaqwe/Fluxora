@@ -85,6 +85,12 @@ func main() {
 	})
 
 	// Финансовая аналитика
+	http.HandleFunc("/api/budgets", func(w http.ResponseWriter, r *http.Request) {
+		budgetsHandler(w, r, db)
+	})
+	http.HandleFunc("/api/budgets/", func(w http.ResponseWriter, r *http.Request) {
+		budgetsHandler(w, r, db)
+	})
 	http.HandleFunc("/api/analytics", func(w http.ResponseWriter, r *http.Request) {
 		analyticsHandler(w, r, db)
 	})
