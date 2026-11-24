@@ -96,14 +96,6 @@ func validateTransactionPayload(input *transactionPayload) (time.Time, *int64, s
 	return parsedDate, transferID, ""
 }
 
-func ensureOwnedAccount(ctx interface{ Done() <-chan struct{} }, q interface {
-	QueryRow(context.Context, string, ...any) pgx.Row
-}, userID, accountID int64) bool {
-	var exists bool
-	err := q.QueryRow(context.Background(), "SELECT EXISTS (SELECT 1 FROM accounts WHERE id = $1 AND user_id = $2)", accountID, userID).Scan(&exists)
-	return err == nil && exists
-}
-
 func transactionsHandler(w http.ResponseWriter, r *http.Request, database *pgxpool.Pool) {
 	if r.URL.Path != "/api/transactions" {
 		transactionItemHandler(w, r, database)
