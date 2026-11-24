@@ -83,8 +83,16 @@ func debtItemHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Poo
   in.Name=strings.TrimSpace(in.Name);in.Comment=strings.TrimSpace(in.Comment)
   if in.Name==""||len([]rune(in.Name))>160||(in.Status!="open"&&in.Status!="closed")||len([]rune(in.Comment))>1000{http.Error(w,`{"error":"Проверьте поля долга"}`,400);return}
   var due any;if in.DueDate!=""{d,e:=time.Parse("2006-01-02",in.DueDate);if e!=nil{http.Error(w,`{"error":"Некорректная дата возврата"}`,400);return};due=d}
-  tag,err:=database.Exec(r.Context(),`UPDATE debts SET name=$3,due_date=$4,comment=$5,status=$6,updated_at=NOW() WHERE id=$1 AND user_id=$2`,id,userID,in.Name,due,in.Comment,in.Status)
-  if err!=nil{http.Error(w,`{"error":"Не удалось обновить долг"}`,500);return};if tag.RowsAffected()==0{http.Error(w,`{"error":"Долг не найден"}`,404);return};_=json.NewEncoder(w).Encode(map[string]bool{"success":true})
+  tx,err:=database.Begin(r.Context());if err!=nil{http.Error(w,`{"error":"Не удалось начать обновление долга"}`,500);return};defer tx.Rollback(r.Context())
+  var initialAmount string
+  err=tx.QueryRow(r.Context(),`SELECT initial_amount::text FROM debts WHERE id=$1 AND user_id=$2 FOR UPDATE`,id,userID).Scan(&initialAmount)
+  if err==pgx.ErrNoRows{http.Error(w,`{"error":"Долг не найден"}`,404);return};if err!=nil{http.Error(w,`{"error":"Не удалось проверить долг"}`,500);return}
+  var hasOutstanding bool
+  if err:=tx.QueryRow(r.Context(),`SELECT $1::numeric>COALESCE(SUM(amount),0) FROM debt_payments WHERE debt_id=$2 AND user_id=$3`,initialAmount,id,userID).Scan(&hasOutstanding);err!=nil{http.Error(w,`{"error":"Не удалось проверить остаток долга"}`,500);return}
+  if in.Status=="open"&&!hasOutstanding{http.Error(w,`{"error":"Полностью погашенный долг нельзя снова открыть"}`,409);return}
+  tag,err:=tx.Exec(r.Context(),`UPDATE debts SET name=$3,due_date=$4,comment=$5,status=$6,updated_at=NOW() WHERE id=$1 AND user_id=$2`,id,userID,in.Name,due,in.Comment,in.Status)
+  if err!=nil{http.Error(w,`{"error":"Не удалось обновить долг"}`,500);return};if tag.RowsAffected()==0{http.Error(w,`{"error":"Долг не найден"}`,404);return}
+  if err:=tx.Commit(r.Context());err!=nil{http.Error(w,`{"error":"Не удалось завершить обновление долга"}`,500);return};_=json.NewEncoder(w).Encode(map[string]bool{"success":true})
  default:w.Header().Set("Allow","PATCH, DELETE");http.Error(w,`{"error":"Метод не поддерживается"}`,405)
  }
 }
