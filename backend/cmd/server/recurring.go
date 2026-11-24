@@ -162,13 +162,16 @@ func processOneRecurring(ctx context.Context,database *pgxpool.Pool,id int64,tod
  err=tx.QueryRow(ctx,`SELECT user_id,account_id,title,operation_type,amount::text,category,frequency,next_date,end_date FROM recurring_operations WHERE id=$1 AND status='active' FOR UPDATE`,id).Scan(&userID,&accountID,&title,&kind,&amount,&category,&frequency,&next,&end)
  if err!=nil{return}
  next=next.UTC();if end!=nil{v:=end.UTC();end=&v}
+ missedCount:=0
  for next.Before(today){
+    if missedCount>0{_,_=tx.Exec(ctx,`INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) VALUES($1,'recurring_missed','Есть пропущенные регулярные операции',$2,'recurring',$3)`,userID,title+" · пропущено дат: "+strconv.Itoa(missedCount),id)}
   if end!=nil&&next.After(*end){_,_=tx.Exec(ctx,`UPDATE recurring_operations SET status='completed',updated_at=NOW() WHERE id=$1`,id);_ = tx.Commit(ctx);return}
   tag,err:=tx.Exec(ctx,`INSERT INTO recurring_occurrences(recurring_id,user_id,occurrence_date) VALUES($1,$2,$3) ON CONFLICT(recurring_id,occurrence_date) DO NOTHING`,id,userID,next)
   if err!=nil{log.Printf("recurring missed date: %v",err);return}
-  if tag.RowsAffected()>0{_,_=tx.Exec(ctx,`INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) VALUES($1,'recurring_missed','Пропущена регулярная операция',$2,'recurring',$3)`,userID,title+" · "+next.Format("02.01.2006"),id)}
+  if tag.RowsAffected()>0{missedCount++}
   next=nextRecurringDate(next,frequency)
  }
+ if missedCount>0{_,_=tx.Exec(ctx,`INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) VALUES($1,'recurring_missed','Есть пропущенные регулярные операции',$2,'recurring',$3)`,userID,title+" · пропущено дат: "+strconv.Itoa(missedCount),id)}
  if next.Equal(today){
   if end!=nil&&next.After(*end){_,_=tx.Exec(ctx,`UPDATE recurring_operations SET status='completed',updated_at=NOW() WHERE id=$1`,id);_=tx.Commit(ctx);return}
   key:="recurring:"+strconv.FormatInt(id,10)+":"+next.Format("2006-01-02")
