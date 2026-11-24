@@ -38,7 +38,7 @@ type familyGoalResponse struct {
  CreatedBy *int64 `json:"createdBy,omitempty"`
  CreatedAt time.Time `json:"createdAt"`
 }
-type familyGoalEntryPayload struct { Amount string `json:"amount"`;Comment string `json:"comment"`;IdempotencyKey string `json:"idempotencyKey"`;TransactionID int64 `json:"transactionId"` }
+type familyGoalEntryPayload struct { Amount string `json:"amount"`;Comment string `json:"comment"`;IdempotencyKey string `json:"idempotencyKey"`;AccountID int64 `json:"accountId"`;TransactionID int64 `json:"transactionId"` }
 type familyGoalEntryResponse struct { ID int64 `json:"id"`;Amount string `json:"amount"`;Comment string `json:"comment"`;Author string `json:"author"`;CreatedAt time.Time `json:"createdAt"` }
 
 func familyGoalsHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool,userID int64){
@@ -101,7 +101,7 @@ func familyGoalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pg
  if r.Method!=http.MethodPost{w.Header().Set("Allow","GET, POST");http.Error(w,`{"error":"Метод не поддерживается"}`,405);return}
  r.Body=http.MaxBytesReader(w,r.Body,12<<10);var in familyGoalEntryPayload;if err:=json.NewDecoder(r.Body).Decode(&in);err!=nil{http.Error(w,`{"error":"Некорректные данные"}`,400);return}
  in.Amount=strings.TrimSpace(in.Amount);in.Comment=strings.TrimSpace(in.Comment);in.IdempotencyKey=strings.TrimSpace(in.IdempotencyKey)
- if !validGoalAmount(in.Amount,false)||len([]rune(in.Comment))>500||in.IdempotencyKey==""||len(in.IdempotencyKey)>100{http.Error(w,`{"error":"Проверьте сумму, комментарий и ключ операции"}`,400);return}
+ if !validGoalAmount(in.Amount,false)||len([]rune(in.Comment))>500||in.IdempotencyKey==""||len(in.IdempotencyKey)>60{http.Error(w,`{"error":"Проверьте сумму, комментарий и ключ операции"}`,400);return}
  tx,err:=database.Begin(r.Context());if err!=nil{http.Error(w,`{"error":"Не удалось начать пополнение"}`,500);return};defer tx.Rollback(r.Context())
  var status string;if err:=tx.QueryRow(r.Context(),`SELECT status FROM family_goals WHERE id=$1 AND family_id=$2 FOR UPDATE`,goalID,familyID).Scan(&status);err!=nil{http.Error(w,`{"error":"Семейная цель не найдена"}`,404);return}
  var item familyGoalEntryResponse
@@ -109,6 +109,16 @@ func familyGoalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pg
  if err==nil{if e:=tx.Commit(r.Context());e!=nil{http.Error(w,`{"error":"Не удалось завершить пополнение"}`,500);return};_=json.NewEncoder(w).Encode(item);return}
  if err!=pgx.ErrNoRows{http.Error(w,`{"error":"Не удалось проверить повтор пополнения"}`,500);return}
  if status=="paused"||status=="completed"{http.Error(w,`{"error":"Пополнение недоступно для приостановленной или завершённой цели"}`,409);return}
+ if in.AccountID>0&&in.TransactionID>0{http.Error(w,`{"error":"Укажите счёт или готовую операцию, но не оба поля"}`,400);return}
+ if in.AccountID>0{
+  var exists bool;if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM accounts WHERE id=$1 AND user_id=$2)`,in.AccountID,userID).Scan(&exists);err!=nil||!exists{http.Error(w,`{"error":"Личный счёт не найден"}`,400);return}
+  var goalTitle string;if err:=tx.QueryRow(r.Context(),`SELECT title FROM family_goals WHERE id=$1 AND family_id=$2`,goalID,familyID).Scan(&goalTitle);err!=nil{http.Error(w,`{"error":"Семейная цель не найдена"}`,404);return}
+  transactionKey:="family-goal:"+strconv.FormatInt(familyID,10)+":"+strconv.FormatInt(userID,10)+":"+in.IdempotencyKey
+  var transactionID int64
+  err=tx.QueryRow(r.Context(),`INSERT INTO transactions(user_id,account_id,title,operation_type,amount,category,operation_date,comment,idempotency_key) VALUES($1,$2,$3,'expense',$4::numeric,'Семейные цели',CURRENT_DATE,$5,$6) ON CONFLICT(user_id,idempotency_key) DO UPDATE SET idempotency_key=EXCLUDED.idempotency_key RETURNING id`,userID,in.AccountID,"Вклад в семейную цель: "+goalTitle,in.Amount,in.Comment,transactionKey).Scan(&transactionID)
+  if err!=nil{http.Error(w,`{"error":"Не удалось создать финансовую операцию"}`,500);return}
+  in.TransactionID=transactionID
+ }
  if in.TransactionID>0{var exists bool;if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM transactions WHERE id=$1 AND user_id=$2)`,in.TransactionID,userID).Scan(&exists);err!=nil||!exists{http.Error(w,`{"error":"Связанная операция не найдена"}`,400);return}}
  var author string;_=tx.QueryRow(r.Context(),`SELECT first_name||' '||last_name FROM users WHERE id=$1`,userID).Scan(&author)
  _,err=tx.Exec(r.Context(),`INSERT INTO family_goal_entries(goal_id,family_id,author_user_id,amount,comment,transaction_id,idempotency_key) VALUES($1,$2,$3,$4::numeric,$5,NULLIF($6,0),$7)`,goalID,familyID,userID,in.Amount,in.Comment,in.TransactionID,in.IdempotencyKey)
