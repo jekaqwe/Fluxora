@@ -65,6 +65,7 @@ function Settings(){
      setDeleteMessage(data.message||"Аккаунт удалён");
      setDeletePassword("");setDeleteConfirmation("");
      if(data.cleanupWarning||data.ledgerWarning){window.alert(data.message||"Аккаунт удалён, но требуется внимание к резервным копиям или файлам.");}
+     window.location.assign("/");
    }catch(error){setDeleteError(error instanceof Error?error.message:"Ошибка удаления аккаунта");}
    finally{setDeleteBusy(false);}
  };
