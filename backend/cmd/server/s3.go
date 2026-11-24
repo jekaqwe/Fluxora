@@ -101,15 +101,16 @@ func (s *s3Store) doSigned(ctx context.Context, method, key, contentType string,
 	dateStamp := now.Format("20060102")
 	amzDate := now.Format("20060102T150405Z")
 	payloadHash := sha256Hex(data)
-	canonicalHeaders := "host:" + u.Host + "\n"
-	signedHeaders := "host"
+	canonicalHeaders := ""
+	signedHeaders := ""
 	if contentType != "" {
 		canonicalHeaders += "content-type:" + contentType + "\n"
-		signedHeaders += ";content-type"
+		signedHeaders = "content-type;"
 	}
+	canonicalHeaders += "host:" + u.Host + "\n"
+	signedHeaders += "host;x-amz-content-sha256;x-amz-date"
 	canonicalHeaders += "x-amz-content-sha256:" + payloadHash + "\n"
 	canonicalHeaders += "x-amz-date:" + amzDate + "\n"
-	signedHeaders += ";x-amz-content-sha256;x-amz-date"
 	canonicalRequest := method + "\n" + u.EscapedPath() + "\n\n" + canonicalHeaders + "\n" + signedHeaders + "\n" + payloadHash
 	scope := dateStamp + "/" + s.region + "/s3/aws4_request"
 	stringToSign := "AWS4-HMAC-SHA256\n" + amzDate + "\n" + scope + "\n" + sha256Hex([]byte(canonicalRequest))
