@@ -154,14 +154,16 @@ func processOneRecurring(ctx context.Context,database *pgxpool.Pool,id int64,tod
  next=next.UTC();if end!=nil{v:=end.UTC();end=&v}
  for next.Before(today){
   if end!=nil&&next.After(*end){_,_=tx.Exec(ctx,`UPDATE recurring_operations SET status='completed',updated_at=NOW() WHERE id=$1`,id);_ = tx.Commit(ctx);return}
-  _,err=tx.Exec(ctx,`INSERT INTO recurring_occurrences(recurring_id,user_id,occurrence_date) VALUES($1,$2,$3) ON CONFLICT(recurring_id,occurrence_date) DO NOTHING`,id,userID,next)
-  if err!=nil{log.Printf("recurring missed date: %v",err);return};next=nextRecurringDate(next,frequency)
+  tag,err:=tx.Exec(ctx,`INSERT INTO recurring_occurrences(recurring_id,user_id,occurrence_date) VALUES($1,$2,$3) ON CONFLICT(recurring_id,occurrence_date) DO NOTHING`,id,userID,next)
+  if err!=nil{log.Printf("recurring missed date: %v",err);return}
+  if tag.RowsAffected()>0{_,_=tx.Exec(ctx,`INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) VALUES($1,'recurring_missed','Пропущена регулярная операция',$2,'recurring',$3)`,userID,title+" · "+next.Format("02.01.2006"),id)}
+  next=nextRecurringDate(next,frequency)
  }
  if next.Equal(today){
   if end!=nil&&next.After(*end){_,_=tx.Exec(ctx,`UPDATE recurring_operations SET status='completed',updated_at=NOW() WHERE id=$1`,id);_=tx.Commit(ctx);return}
   key:="recurring:"+strconv.FormatInt(id,10)+":"+next.Format("2006-01-02")
   _,err=tx.Exec(ctx,`INSERT INTO transactions(user_id,account_id,title,operation_type,amount,category,operation_date,comment,idempotency_key) VALUES($1,$2,$3,$4,$5::numeric,$6,$7,'Автоматическая регулярная операция',$8) ON CONFLICT(user_id,idempotency_key) DO NOTHING`,userID,accountID,title,kind,amount,category,next,key)
-  if err!=nil{log.Printf("recurring create transaction: %v",err);return};next=nextRecurringDate(next,frequency)
+  if err!=nil{log.Printf("recurring create transaction: %v",err);return};_,_=tx.Exec(ctx,`INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) VALUES($1,'recurring_created','Создана регулярная операция',$2,'recurring',$3)`,userID,title+" · "+next.Format("02.01.2006"),id);next=nextRecurringDate(next,frequency)
  }
  status:="active";if end!=nil&&next.After(*end){status="completed"}
  _,err=tx.Exec(ctx,`UPDATE recurring_operations SET next_date=$2,status=$3,updated_at=NOW() WHERE id=$1`,id,next,status)
