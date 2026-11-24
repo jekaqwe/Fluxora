@@ -39,6 +39,17 @@ function App() {
 
   useEffect(() => { localStorage.setItem("fluxora_current_page", currentPage); }, [currentPage]);
   useEffect(() => {
+    if (!isAuthenticated) return;
+    fetch("/api/settings/preferences")
+      .then((response) => response.ok ? response.json() : null)
+      .then((preferences) => {
+        if (!preferences?.theme) return;
+        document.documentElement.dataset.theme = preferences.theme;
+        localStorage.setItem("fluxora_theme", preferences.theme);
+      })
+      .catch(() => {});
+  }, [isAuthenticated]);
+  useEffect(() => {
     fetch("/api/me")
       .then((response) => { if (!response.ok) throw new Error("Unauthorized"); return response.json(); })
       .then(() => setIsAuthenticated(true))
