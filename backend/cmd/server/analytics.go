@@ -42,6 +42,7 @@ type analyticsResponse struct {
  PreviousExpense string `json:"previousExpense"`
  PreviousNet string `json:"previousNet"`
  BalanceTrend []analyticsBalancePoint `json:"balanceTrend"`
+ Insights []string `json:"insights"`
 	AverageExpense string                `json:"averageExpense"`
 	Categories    []analyticsCategory    `json:"categories"`
 	Trend         []analyticsPoint       `json:"trend"`
@@ -95,7 +96,7 @@ func analyticsHandler(w http.ResponseWriter, r *http.Request, database *pgxpool.
 	}
 
 	result := analyticsResponse{Period: period, From: from.Format("2006-01-02"), To: to.AddDate(0, 0, -1).Format("2006-01-02"),
-		Categories: make([]analyticsCategory, 0), Trend: make([]analyticsPoint, 0), Largest: make([]analyticsTransaction, 0), BalanceTrend: make([]analyticsBalancePoint, 0)}
+		Categories: make([]analyticsCategory, 0), Trend: make([]analyticsPoint, 0), Largest: make([]analyticsTransaction, 0), BalanceTrend: make([]analyticsBalancePoint, 0), Insights: make([]string, 0)}
 	err = database.QueryRow(r.Context(), `
 		SELECT
 			COALESCE(SUM(amount) FILTER (WHERE operation_type = 'income'), 0)::text,
@@ -228,5 +229,10 @@ func analyticsHandler(w http.ResponseWriter, r *http.Request, database *pgxpool.
 		result.Largest = append(result.Largest, item)
 	}
 	largestRows.Close()
+ if result.Net != "0" && result.Net != "0.00" {
+  if len(result.Net)>0 && result.Net[0]=='-' { result.Insights=append(result.Insights,"За выбранный период расходы превысили доходы.") } else { result.Insights=append(result.Insights,"За выбранный период доходы превышают расходы.") }
+ }
+ if len(result.Categories)>0 { result.Insights=append(result.Insights,"Самая затратная категория: "+result.Categories[0].Name+".") }
+ if result.AverageExpense!="0" && result.AverageExpense!="0.00" { result.Insights=append(result.Insights,"Средний расход на одну операцию: "+result.AverageExpense+" ₽.") }
 	_ = json.NewEncoder(w).Encode(result)
 }
