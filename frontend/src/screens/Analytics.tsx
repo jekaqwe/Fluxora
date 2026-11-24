@@ -8,6 +8,8 @@ type Category = { name: string; amount: string; count: number };
 type Point = { date: string; income: string; expense: string };
 type Large = { title: string; amount: string; date: string };
 type BalancePoint = { date:string; balance:string };
+type CategoryBudget = {id:number;category:string;monthlyLimit:string;spent:string;remaining:string};
+const toCents=(value:string)=>{const [whole,fraction=""]=value.split(".");return BigInt(whole||"0")*100n+BigInt((fraction+"00").slice(0,2));};
 type AnalyticsData = {
   period: string; from: string; to: string; income: string; expense: string; net: string;
   averageExpense: string; categories: Category[]; trend: Point[]; largest: Large[];
@@ -33,6 +35,11 @@ function Analytics() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [budgets,setBudgets]=useState<CategoryBudget[]>([]);
+  const [budgetCategory,setBudgetCategory]=useState("");
+  const [budgetAmount,setBudgetAmount]=useState("");
+  const [budgetError,setBudgetError]=useState("");
+  const [budgetBusy,setBudgetBusy]=useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,6 +62,15 @@ function Analytics() {
     return () => { cancelled = true; };
   }, [period, from, to]);
 
+  const loadBudgets=async()=>{try{const r=await fetch("/api/budgets");const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось загрузить бюджеты");setBudgets(d);}catch(e){setBudgetError(e instanceof Error?e.message:"Ошибка бюджетов");}};
+  useEffect(()=>{void loadBudgets();},[]);
+  const saveBudget=async()=>{
+    setBudgetBusy(true);setBudgetError("");
+    try{const r=await fetch("/api/budgets",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({category:budgetCategory,amount:budgetAmount.replace(",","." )})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось сохранить бюджет");setBudgetCategory("");setBudgetAmount("");await loadBudgets();}
+    catch(e){setBudgetError(e instanceof Error?e.message:"Ошибка сохранения бюджета");}
+    finally{setBudgetBusy(false);}
+  };
+  const removeBudget=async(id:number)=>{try{const r=await fetch(`/api/budgets/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить бюджет");setBudgets(old=>old.filter(x=>x.id!==id));}catch(e){setBudgetError(e instanceof Error?e.message:"Ошибка удаления бюджета");}};
   const totalExpenses = useMemo(() => data?.categories.reduce((sum, item) => sum + BigInt(item.amount.split(".")[0] || "0") * 100n + BigInt((item.amount.split(".")[1] || "").padEnd(2,"0").slice(0,2)), 0n) ?? 0n, [data]);
   const categoryShares = useMemo(() => {
     if (!data?.categories.length || totalExpenses === 0n) return [];
@@ -92,6 +108,18 @@ function Analytics() {
     </div>}
     {loading && <div className="empty-note">Загружаем аналитику…</div>}
     {error && <p role="alert" style={{color:"#f87171",fontSize:12}}>{error}</p>}
+    <Panel title="Бюджеты категорий" subtitle="Месячные лимиты расходов по выбранным категориям">
+      <div className="pure-grid three" style={{marginBottom:14}}>
+        <label className="form-label">Категория<input className="pure-input" value={budgetCategory} onChange={e=>setBudgetCategory(e.target.value)} maxLength={80} placeholder="Например, Продукты"/></label>
+        <label className="form-label">Лимит на месяц, ₽<input className="pure-input" value={budgetAmount} onChange={e=>setBudgetAmount(e.target.value)} placeholder="0.00"/></label>
+        <div className="form-row" style={{alignItems:"end"}}><button className="pure-button" disabled={budgetBusy||!budgetCategory.trim()||!/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(budgetAmount)||toCents(budgetAmount.replace(",","."))<=0n} onClick={()=>void saveBudget()}>{budgetBusy?"Сохранение…":"Сохранить лимит"}</button></div>
+      </div>
+      {budgets.length===0?<div className="empty-note">Бюджеты не заданы. Добавьте лимит для категории, чтобы следить за расходами месяца.</div>:<div className="transaction-list">{budgets.map(b=>{const spent=toCents(b.spent),limit=toCents(b.monthlyLimit);const percent=limit>0n?Number(spent*10000n/limit)/100:0;const width=Math.max(0,Math.min(100,percent));return <div className="transaction-row" key={b.id} style={{gridTemplateColumns:"minmax(0,1fr) auto auto"}}>
+        <span className="transaction-copy"><strong>{b.category}</strong><small>{formatAmount(b.spent)} из {formatAmount(b.monthlyLimit)} · {percent.toFixed(1).replace(".",",")}%</small><span className="progress-track" style={{display:"block",marginTop:7}}><span className="progress-fill" style={{width:width+"%",background:percent>100?"#ef6b78":undefined}}/></span><small className={spent>limit?"negative":"muted"}>{spent>limit?"Превышение: "+formatAmount((spent-limit).toString()):"Осталось: "+formatAmount(b.remaining)}</small></span>
+        <button className="pure-button ghost" aria-label="Удалить бюджет" onClick={()=>void removeBudget(b.id)}>Удалить</button>
+      </div>})}</div>}
+      {budgetError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{budgetError}</p>}
+    </Panel>
     {data && <>
       <div className="pure-grid three">
         <Stat label="Расходы" value={formatAmount(data.expense)} tone="violet" icon={<ArrowUpRight size={17}/>}/>
