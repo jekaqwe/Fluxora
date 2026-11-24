@@ -155,6 +155,15 @@ func transactionsHandler(w http.ResponseWriter, r *http.Request, database *pgxpo
 			return
 		}
 		defer tx.Rollback(r.Context())
+		var linkedToDebt bool
+		if err := tx.QueryRow(r.Context(), "SELECT EXISTS (SELECT 1 FROM debt_payments WHERE transaction_id = $1 AND user_id = $2)", id, userID).Scan(&linkedToDebt); err != nil {
+			http.Error(w, `{"error":"Не удалось проверить связь с платежом по долгу"}`, http.StatusInternalServerError)
+			return
+		}
+		if linkedToDebt {
+			http.Error(w, `{"error":"Эта операция связана с платежом по долгу. Измените платёж в разделе долгов, чтобы сохранить финансовую историю."}`, http.StatusConflict)
+			return
+		}
 		var exists bool
 		if err := tx.QueryRow(r.Context(), "SELECT EXISTS (SELECT 1 FROM accounts WHERE id = $1 AND user_id = $2)", input.AccountID, userID).Scan(&exists); err != nil || !exists {
 			http.Error(w, `{"error":"Исходный счёт не найден"}`, http.StatusBadRequest)
@@ -229,6 +238,15 @@ func transactionItemHandler(w http.ResponseWriter, r *http.Request, database *pg
 	}
 	switch r.Method {
 	case http.MethodDelete:
+		var linkedToDebt bool
+		if err := database.QueryRow(r.Context(), "SELECT EXISTS (SELECT 1 FROM debt_payments WHERE transaction_id = $1 AND user_id = $2)", id, userID).Scan(&linkedToDebt); err != nil {
+			http.Error(w, `{"error":"Не удалось проверить связь с платежом по долгу"}`, http.StatusInternalServerError)
+			return
+		}
+		if linkedToDebt {
+			http.Error(w, `{"error":"Эта операция связана с платежом по долгу. Измените платёж в разделе долгов, чтобы сохранить финансовую историю."}`, http.StatusConflict)
+			return
+		}
 		tag, err := database.Exec(r.Context(), "DELETE FROM transactions WHERE id = $1 AND user_id = $2", id, userID)
 		if err != nil {
 			http.Error(w, `{"error":"Не удалось удалить операцию"}`, http.StatusInternalServerError)
