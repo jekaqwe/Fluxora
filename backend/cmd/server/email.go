@@ -15,6 +15,7 @@ import (
  "net/smtp"
  "os"
  "strings"
+ "time"
  "github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -22,14 +23,17 @@ func sendEmailChangeMessage(to,token string)error{
  host:=strings.TrimSpace(os.Getenv("SMTP_HOST"));port:=strings.TrimSpace(os.Getenv("SMTP_PORT"));from:=strings.TrimSpace(os.Getenv("SMTP_FROM"))
  username:=os.Getenv("SMTP_USER");password:=os.Getenv("SMTP_PASSWORD")
  if host==""||from==""{return errors.New("SMTP is not configured")};if port==""{port="587"}
+ fromAddress,err:=mail.ParseAddress(from);if err!=nil{return errors.New("SMTP_FROM is not a valid email address")}
  subject:=base64.StdEncoding.EncodeToString([]byte("Подтверждение нового email Fluxora"))
  body:="From: "+from+"\r\nTo: "+to+"\r\nSubject: =?UTF-8?B?"+subject+"?=\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n"+
   "Для подтверждения нового адреса в Fluxora введите этот код в настройках аккаунта:\r\n\r\n"+token+"\r\n\r\nКод действует 30 минут. Если вы не запрашивали смену email, проигнорируйте письмо.\r\n"
- client,err:=smtp.Dial(net.JoinHostPort(host,port));if err!=nil{return err};defer client.Close()
+ conn,err:=net.DialTimeout("tcp",net.JoinHostPort(host,port),15*time.Second);if err!=nil{return err}
+ _=conn.SetDeadline(time.Now().Add(30*time.Second))
+ client,err:=smtp.NewClient(conn,host);if err!=nil{_ = conn.Close();return err};defer client.Close()
  if ok,_:=client.Extension("STARTTLS");!ok{return errors.New("SMTP server does not support STARTTLS")}
  if err:=client.StartTLS(&tls.Config{ServerName:host,MinVersion:tls.VersionTLS12});err!=nil{return err}
  if username!=""{if err:=client.Auth(smtp.PlainAuth("",username,password,host));err!=nil{return err}}
- if err:=client.Mail(from);err!=nil{return err};if err:=client.Rcpt(to);err!=nil{return err}
+ if err:=client.Mail(fromAddress.Address);err!=nil{return err};if err:=client.Rcpt(to);err!=nil{return err}
  writer,err:=client.Data();if err!=nil{return err};if _,err:=io.WriteString(writer,body);err!=nil{_ = writer.Close();return err};if err:=writer.Close();err!=nil{return err}
  return client.Quit()
 }
