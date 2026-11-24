@@ -60,8 +60,8 @@ function Settings(){
      const data=await response.json();
      if(!response.ok)throw new Error(data.error||"Не удалось удалить аккаунт");
      setDeleteMessage(data.message||"Аккаунт удалён");
+     setDeletePassword("");setDeleteConfirmation("");
      if(data.cleanupWarning||data.ledgerWarning){window.alert(data.message||"Аккаунт удалён, но требуется внимание к резервным копиям или файлам.");}
-     window.location.reload();
    }catch(error){setDeleteError(error instanceof Error?error.message:"Ошибка удаления аккаунта");}
    finally{setDeleteBusy(false);}
  };
@@ -145,7 +145,7 @@ function Settings(){
  <label className="setting-field">Введите DELETE для подтверждения<input value={deleteConfirmation} onChange={e=>setDeleteConfirmation(e.target.value)} placeholder="DELETE"/></label>
  <button type="button" className="pure-button" disabled={deleteBusy||!deletePassword||deleteConfirmation!=="DELETE"} onClick={()=>void deleteAccount()}>{deleteBusy?"Удаление…":"Безвозвратно удалить аккаунт"}</button>
  {deleteError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{deleteError}</p>}
- {deleteMessage&&<p role="status">{deleteMessage}</p>}
+ {deleteMessage&&<><p role="status">{deleteMessage}</p><button type="button" className="pure-button secondary" onClick={()=>window.location.reload()}>Вернуться ко входу</button></>}
  </div></>}
  {section==="notifications"&&<>{[["operations","Уведомления об операциях","Сообщать о новых доходах и расходах"],["goals","Прогресс целей","Напоминать о важных этапах накоплений"],["family","Семейные события","Получать обновления общего бюджета"]].map(([k,t,d])=><div className="toggle-row" key={k}><span><strong>{t}</strong><br/><small className="muted">{d}</small></span><button type="button" aria-label={t} aria-pressed={isOn(k)} className={`toggle ${isOn(k)?"on":""}`} onClick={()=>toggle(k)}/></div>)}</>}
  {section==="appearance"&&<><div className="toggle-row"><span><strong>Тема оформления</strong><br/><small className="muted">Выберите внешний вид интерфейса</small></span></div><div className="filter-pills">{["light","dark","auto"].map(t=><button key={t} className={`filter-pill ${theme===t?"active":""}`} onClick={()=>{setTheme(t);localStorage.setItem("fluxora_theme",t);}}>{t==="light"?"Светлая":t==="dark"?"Тёмная":"Авто"}</button>)}</div><p className="muted" style={{fontSize:10,marginTop:12}}>Выбор темы сохраняется в этом браузере. Полная тёмная тема будет добавлена отдельно.</p></>}
