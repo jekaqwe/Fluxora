@@ -25,23 +25,92 @@ type importCSVRow struct {
  Comment string `json:"comment"`
  Errors []string `json:"errors"`
 }
-func parseImportCSV(data []byte)([]importCSVRow,error){
- // Fluxora exports UTF-8 CSV with a BOM for spreadsheet compatibility.
- // Remove it before parsing so an exported file can be imported unchanged.
+func csvHeaderKey(value string) string {
+ value = strings.ToLower(strings.TrimSpace(value))
+ replacer := strings.NewReplacer(" ", "", "_", "", "-", "", ".", "")
+ return replacer.Replace(value)
+}
+
+func csvSuggestedMapping(headers []string) map[string]string {
+ aliases := map[string][]string{
+  "date": {"date", "operationdate", "дата", "датоперации"},
+  "title": {"title", "name", "description", "название", "наименование", "описание"},
+  "type": {"type", "kind", "operationtype", "тип", "видоперации"},
+  "amount": {"amount", "sum", "value", "сумма", "значение"},
+  "category": {"category", "категория"},
+  "accountId": {"accountid", "account", "accountname", "счет", "счёт", "счетid", "счётid", "основнойсчет"},
+  "transferAccountId": {"transferaccountid", "transferaccount", "счетперевода", "счётперевода", "счетполучения", "счётполучения"},
+  "comment": {"comment", "note", "комментарий", "примечание"},
+ }
+ normalized := make(map[string]string, len(headers))
+ for _, header := range headers {
+  normalized[csvHeaderKey(header)] = header
+ }
+ result := make(map[string]string)
+ for field, choices := range aliases {
+  for _, alias := range choices {
+   if header, ok := normalized[csvHeaderKey(alias)]; ok {
+    result[field] = header
+    break
+   }
+  }
+ }
+ return result
+}
+
+func parseCSVHeaders(data []byte) ([]string, error) {
  data = []byte(strings.TrimPrefix(string(data), "\uFEFF"))
- reader:=csv.NewReader(strings.NewReader(string(data)));reader.FieldsPerRecord=-1
- header,err:=reader.Read();if err!=nil{return nil,err}
- required:=[]string{"date","title","type","amount","category","accountId","transferAccountId","comment"}
- indexes:=map[string]int{}
- for i,h:=range header{indexes[strings.TrimSpace(h)]=i}
- for _,h:=range required{if _,ok:=indexes[h];!ok{return nil,fmt.Errorf("Отсутствует колонка %s",h)}}
- rows:=make([]importCSVRow,0)
- for line:=2;;line++{
-  record,err:=reader.Read();if err==io.EOF{break};if err!=nil{return nil,fmt.Errorf("Строка %d: %v",line,err)}
-  value:=func(key string)string{idx:=indexes[key];if idx>=len(record){return ""};v:=strings.TrimSpace(record[idx]);if len(v)>1&&v[0]==39&&strings.ContainsRune("=+-@",rune(v[1])){v=v[1:]};return v}
-  accountID,_:=strconv.ParseInt(value("accountId"),10,64);transferID,_:=strconv.ParseInt(value("transferAccountId"),10,64)
-  rows=append(rows,importCSVRow{Date:value("date"),Title:value("title"),Type:value("type"),Amount:value("amount"),Category:value("category"),AccountID:accountID,TransferAccountID:transferID,Comment:value("comment"),Errors:[]string{}})
-  if len(rows)>=5000{return nil,fmt.Errorf("Файл содержит больше 5000 строк")}
+ reader := csv.NewReader(strings.NewReader(string(data)))
+ reader.FieldsPerRecord = -1
+ header, err := reader.Read()
+ if err != nil { return nil, err }
+ for i := range header { header[i] = strings.TrimSpace(header[i]) }
+ return header, nil
+}
+
+func parseImportCSV(data []byte) ([]importCSVRow, error) {
+ return parseImportCSVWithMapping(data, nil)
+}
+
+func parseImportCSVWithMapping(data []byte, mapping map[string]string) ([]importCSVRow, error) {
+ headers, err := parseCSVHeaders(data)
+ if err != nil { return nil, err }
+ suggested := csvSuggestedMapping(headers)
+ if mapping == nil { mapping = suggested }
+ indexes := make(map[string]int, len(headers))
+ for i, header := range headers { indexes[header] = i }
+ fields := []string{"date", "title", "type", "amount", "category", "accountId", "transferAccountId", "comment"}
+ required := map[string]bool{"date":true,"title":true,"type":true,"amount":true,"category":true,"accountId":true}
+ resolved := make(map[string]int, len(fields))
+ for _, field := range fields {
+  source := strings.TrimSpace(mapping[field])
+  if source == "" {
+   if required[field] { return nil, fmt.Errorf("Не выбрана колонка для поля %s", field) }
+   continue
+  }
+  index, ok := indexes[source]
+  if !ok { return nil, fmt.Errorf("Колонка %q для поля %s не найдена", source, field) }
+  resolved[field] = index
+ }
+ reader := csv.NewReader(strings.NewReader(strings.TrimPrefix(string(data), "\uFEFF")))
+ reader.FieldsPerRecord = -1
+ if _, err := reader.Read(); err != nil { return nil, err }
+ rows := make([]importCSVRow, 0)
+ for line := 2; ; line++ {
+  record, err := reader.Read()
+  if err == io.EOF { break }
+  if err != nil { return nil, fmt.Errorf("Строка %d: %v", line, err) }
+  value := func(key string) string {
+   idx, ok := resolved[key]
+   if !ok || idx >= len(record) { return "" }
+   v := strings.TrimSpace(record[idx])
+   if len(v)>1 && v[0]==39 && strings.ContainsRune("=+-@", rune(v[1])) { v=v[1:] }
+   return v
+  }
+  accountID, _ := strconv.ParseInt(value("accountId"),10,64)
+  transferID, _ := strconv.ParseInt(value("transferAccountId"),10,64)
+  rows = append(rows, importCSVRow{Date:value("date"),Title:value("title"),Type:value("type"),Amount:value("amount"),Category:value("category"),AccountID:accountID,TransferAccountID:transferID,Comment:value("comment"),Errors:[]string{}})
+  if len(rows)>=5000 { return nil, fmt.Errorf("Файл содержит больше 5000 строк") }
  }
  return rows,nil
 }
@@ -71,13 +140,17 @@ func csvHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool){
   _,_=w.Write([]byte{0xEF,0xBB,0xBF});writer:=csv.NewWriter(w);_=writer.Write([]string{"date","title","type","amount","category","accountId","transferAccountId","comment"})
   for rows.Next(){var record []string;var date,title,kind,amount,category,comment string;var account,transfer int64;if err:=rows.Scan(&date,&title,&kind,&amount,&category,&account,&transfer,&comment);err!=nil{return};record=[]string{date,safeCSVCell(title),kind,amount,safeCSVCell(category),strconv.FormatInt(account,10),strconv.FormatInt(transfer,10),safeCSVCell(comment)};_=writer.Write(record)}
   writer.Flush()
- case "/api/import/preview","/api/import/confirm":
+ case "/api/import/headers","/api/import/preview","/api/import/confirm":
   if r.Method!=http.MethodPost{w.Header().Set("Allow","POST");http.Error(w,`{"error":"Метод не поддерживается"}`,405);return}
   r.Body=http.MaxBytesReader(w,r.Body,6<<20);if err:=r.ParseMultipartForm(6<<20);err!=nil{http.Error(w,`{"error":"Файл слишком большой или некорректный"}`,400);return}
   file,header,err:=r.FormFile("file");if err!=nil{http.Error(w,`{"error":"Выберите CSV-файл"}`,400);return};defer file.Close()
   if header.Size>5<<20{http.Error(w,`{"error":"Максимальный размер файла 5 МБ"}`,400);return}
   data,err:=io.ReadAll(io.LimitReader(file,(5<<20)+1));if err!=nil||len(data)>5<<20{http.Error(w,`{"error":"Не удалось прочитать CSV-файл"}`,400);return}
-  items,err:=parseImportCSV(data);if err!=nil{w.Header().Set("Content-Type","application/json");w.WriteHeader(http.StatusBadRequest);_=json.NewEncoder(w).Encode(map[string]string{"error":"Ошибка CSV: "+err.Error()});return}
+  headers,headerErr:=parseCSVHeaders(data);if headerErr!=nil{w.Header().Set("Content-Type","application/json");w.WriteHeader(http.StatusBadRequest);_=json.NewEncoder(w).Encode(map[string]string{"error":"Ошибка CSV: "+headerErr.Error()});return}
+  if r.URL.Path=="/api/import/headers"{_=json.NewEncoder(w).Encode(map[string]any{"headers":headers,"suggestedMapping":csvSuggestedMapping(headers)});return}
+  mapping:=map[string]string(nil)
+  if raw:=strings.TrimSpace(r.FormValue("mapping"));raw!=""{if err:=json.Unmarshal([]byte(raw),&mapping);err!=nil{http.Error(w,`{"error":"Некорректная карта колонок"}`,400);return}}
+  items,err:=parseImportCSVWithMapping(data,mapping);if err!=nil{w.Header().Set("Content-Type","application/json");w.WriteHeader(http.StatusBadRequest);_=json.NewEncoder(w).Encode(map[string]string{"error":"Ошибка CSV: "+err.Error()});return}
   valid:=0
   seenRows:=make(map[string]struct{},len(items))
   for i:=range items {
