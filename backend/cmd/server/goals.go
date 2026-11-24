@@ -36,7 +36,6 @@ type goalResponse struct {
  DueDate *string `json:"dueDate,omitempty"`
  Priority string `json:"priority"`
  Status string `json:"status"`
- ImageURL *string `json:"imageUrl,omitempty"`
  CreatedAt time.Time `json:"createdAt"`
 }
 type goalEntryPayload struct {
