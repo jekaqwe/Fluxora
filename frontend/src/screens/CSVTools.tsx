@@ -145,7 +145,7 @@ export default function CSVTools({ accounts, onImported }: { accounts: Account[]
       {file && headers.length > 0 && (
         <div className="empty-note" style={{ marginTop: 14 }}>
           <div className="form-row" style={{ marginBottom: 10 }}><Columns3 size={16} /><strong>Сопоставление колонок</strong><small className="muted">{file.name}</small></div>
-          {format === "tinkoff" && <p className="muted" style={{ fontSize: 12 }}>Формат Tinkoff распознан. Для суммы используется «Сумма в валюте счёта», чтобы импортировать сумму в валюте счёта Fluxora. Строки со статусом «Ошибка» будут пропущены. Тип определяется по знаку суммы.</p>}
+          {format === "tinkoff" && <p className="muted" style={{ fontSize: 12 }}>Формат Tinkoff распознан. Для суммы используется «Сумма в валюте счёта», то есть сумма в валюте счёта Fluxora. Строки со статусом «Ошибка» пропускаются. Тип определяется по знаку суммы. Переводы между своими счетами пока попадут как расход или доход: выписка не содержит ID второго счёта Fluxora.</p>}
           <div className="pure-grid two">
             {fields.map(field => (
               <label className="form-label" key={field.key}>
