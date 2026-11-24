@@ -15,7 +15,7 @@ export default function Notifications(){
  return <div className="pure-page">
   <PageHeading title="Уведомления" subtitle={`Непрочитанных: ${unread}`} action={<button className="pure-button" disabled={!unread} onClick={()=>void readAll()}><CheckCheck size={15}/>Прочитать все</button>}/>
   <Panel title="Центр уведомлений">
-   {items.length===0?<div className="empty-note">Пока уведомлений нет.</div>:<div className="transaction-list">{items.map(item=><div className="transaction-row" key={item.id} style={{opacity:item.readAt?.6:1}}>
+   {items.length===0?<div className="empty-note">Пока уведомлений нет.</div>:<div className="transaction-list">{items.map(item=><div className="transaction-row" key={item.id} style={{opacity:item.readAt?0.6:1}}>
     <span className={`transaction-icon ${item.readAt?"":"mint"}`}><Bell size={16}/></span>
     <span className="transaction-copy"><strong>{item.title}</strong><small>{item.message} · {new Date(item.createdAt).toLocaleString("ru-RU")}</small></span>
     {!item.readAt&&<button className="pure-button ghost" aria-label="Прочитать" onClick={()=>void read(item.id)}><Check size={14}/></button>}
