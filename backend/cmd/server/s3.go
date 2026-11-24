@@ -232,11 +232,13 @@ func (s *s3Store) putReaderMultipartWithPartSize(ctx context.Context, key, conte
 	}
 	uploadID := initiated.UploadID
 	abort := func() {
+		abortCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 		abortURL := s.objectURL(key)
 		query := url.Values{}
 		query.Set("uploadId", uploadID)
 		abortURL.RawQuery = query.Encode()
-		_ = s.doSignedURLReader(ctx, http.MethodDelete, abortURL, "", bytes.NewReader(nil), 0)
+		_ = s.doSignedURLReader(abortCtx, http.MethodDelete, abortURL, "", bytes.NewReader(nil), 0)
 	}
 
 	parts := make([]s3MultipartPart, 0, partCount)
