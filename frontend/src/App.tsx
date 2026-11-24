@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Home, ArrowLeftRight, ChartNoAxesCombined, Target, Users, UserRound, Settings as SettingsIcon, LogOut, Menu, X, WalletCards } from "lucide-react";
+import { Home, ArrowLeftRight, ChartNoAxesCombined, Target, Users, UserRound, Settings as SettingsIcon, LogOut, Menu, X, WalletCards, HandCoins } from "lucide-react";
 import HomeScreen from "./screens/Home";
+import Debts from "./screens/Debts";
 import Operations from "./screens/Operations";
 import Accounts from "./screens/Accounts";
 import Analytics from "./screens/Analytics";
@@ -12,13 +13,14 @@ import Auth from "./screens/Auth";
 import logo from "./assets/fluxora-logo.png";
 import "./App.css";
 
-type PageKey = "home" | "operations" | "accounts" | "analytics" | "goals" | "family" | "profile" | "settings";
+type PageKey = "home" | "operations" | "accounts" | "analytics" | "goals" | "debts" | "family" | "profile" | "settings";
 const navigation = [
   { id: "home", label: "Главная", icon: Home },
   { id: "operations", label: "Операции", icon: ArrowLeftRight },
   { id: "accounts", label: "Счета", icon: WalletCards },
   { id: "analytics", label: "Аналитика", icon: ChartNoAxesCombined },
   { id: "goals", label: "Цели", icon: Target },
+  { id: "debts", label: "Долги", icon: HandCoins },
   { id: "family", label: "Семья", icon: Users },
   { id: "profile", label: "Профиль", icon: UserRound },
   { id: "settings", label: "Настройки", icon: SettingsIcon },
@@ -67,6 +69,7 @@ function App() {
     case "accounts": page = <Accounts />; break;
     case "analytics": page = <Analytics />; break;
     case "goals": page = <Goals />; break;
+    case "debts": page = <Debts />; break;
     case "family": page = <Family />; break;
     case "profile": page = <Profile />; break;
     case "settings": page = <Settings />; break;
