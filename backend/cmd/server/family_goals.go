@@ -137,7 +137,7 @@ func familyGoalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pg
   err=tx.QueryRow(r.Context(),`INSERT INTO transactions(user_id,account_id,title,operation_type,amount,category,operation_date,comment,idempotency_key) VALUES($1,$2,$3,$4,$5::numeric,'Семейные цели',CURRENT_DATE,$6,$7) ON CONFLICT(user_id,idempotency_key) DO UPDATE SET idempotency_key=EXCLUDED.idempotency_key RETURNING id`,userID,in.AccountID,transactionTitle,operationType,in.Amount,in.Comment,transactionKey).Scan(&transactionID)
   if err!=nil{http.Error(w,`{"error":"Не удалось создать финансовую операцию"}`,500);return}
   var transactionMatches bool
-  if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM transactions WHERE id=$1 AND user_id=$2 AND account_id=$3 AND amount=$4::numeric AND operation_type=$6 AND category='Семейные цели' AND comment=$5)`,transactionID,userID,in.AccountID,in.Amount,in.Comment,operationType).Scan(&transactionMatches);err!=nil{http.Error(w,`{"error":"Не удалось проверить связанную операцию"}`,500);return}
+  if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM transactions WHERE id=$1 AND user_id=$2 AND account_id=$3 AND amount=$4::numeric AND operation_type=$6 AND category='Семейные цели' AND comment=$5 AND title=$7)`,transactionID,userID,in.AccountID,in.Amount,in.Comment,operationType,transactionTitle).Scan(&transactionMatches);err!=nil{http.Error(w,`{"error":"Не удалось проверить связанную операцию"}`,500);return}
   if !transactionMatches{http.Error(w,`{"error":"Ключ операции уже использован для другой финансовой записи"}`,409);return}
   in.TransactionID=transactionID
  }
