@@ -33,6 +33,9 @@ type analyticsResponse struct {
 	Income        string                 `json:"income"`
 	Expense       string                 `json:"expense"`
 	Net           string                 `json:"net"`
+ PreviousIncome string `json:"previousIncome"`
+ PreviousExpense string `json:"previousExpense"`
+ PreviousNet string `json:"previousNet"`
 	AverageExpense string                `json:"averageExpense"`
 	Categories    []analyticsCategory    `json:"categories"`
 	Trend         []analyticsPoint       `json:"trend"`
@@ -101,6 +104,22 @@ func analyticsHandler(w http.ResponseWriter, r *http.Request, database *pgxpool.
 		http.Error(w, `{"error":"Не удалось рассчитать аналитику"}`, http.StatusInternalServerError)
 		return
 	}
+
+ periodDuration := to.Sub(from)
+ previousFrom := from.Add(-periodDuration)
+ err = database.QueryRow(r.Context(), `
+  SELECT
+   COALESCE(SUM(amount) FILTER (WHERE operation_type = 'income'), 0)::text,
+   COALESCE(SUM(amount) FILTER (WHERE operation_type = 'expense'), 0)::text,
+   (COALESCE(SUM(amount) FILTER (WHERE operation_type = 'income'), 0) -
+    COALESCE(SUM(amount) FILTER (WHERE operation_type = 'expense'), 0))::text
+  FROM transactions
+  WHERE user_id = $1 AND operation_date >= $2::date AND operation_date < $3::date
+ `, userID, previousFrom, from).Scan(&result.PreviousIncome, &result.PreviousExpense, &result.PreviousNet)
+ if err != nil {
+  http.Error(w, `{"error":"Не удалось рассчитать предыдущий период"}`, http.StatusInternalServerError)
+  return
+ }
 
 	categoryRows, err := database.Query(r.Context(), `
 		SELECT category, SUM(amount)::text, COUNT(*)
