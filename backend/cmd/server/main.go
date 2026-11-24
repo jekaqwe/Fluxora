@@ -125,6 +125,14 @@ func main() {
 		notificationsHandler(w, r, db)
 	})
 
+	// Импорт и экспорт CSV
+	http.HandleFunc("/api/export.csv", func(w http.ResponseWriter, r *http.Request) {
+		csvHandler(w, r, db)
+	})
+	http.HandleFunc("/api/import/", func(w http.ResponseWriter, r *http.Request) {
+		csvHandler(w, r, db)
+	})
+
 	// Смена пароля
 	http.HandleFunc("/api/account/password", func(w http.ResponseWriter, r *http.Request) {
 		passwordChangeHandler(w, r, db)
