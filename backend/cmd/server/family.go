@@ -186,6 +186,12 @@ func familyTransactionsHandler(w http.ResponseWriter,r *http.Request,database *p
 created:=true
  if err==pgx.ErrNoRows{created=false;err=database.QueryRow(r.Context(),`SELECT t.id,t.title,t.operation_type,t.amount::text,t.category,t.operation_date::text,t.comment,CASE WHEN u.id IS NULL THEN 'Удалённый участник' ELSE u.first_name||' '||u.last_name END,t.created_at FROM family_transactions t LEFT JOIN users u ON u.id=t.author_user_id WHERE t.family_id=$3 AND t.author_user_id=$1 AND t.idempotency_key=$2`,userID,in.IdempotencyKey,family.ID).Scan(&item.ID,&item.Title,&item.Type,&item.Amount,&item.Category,&item.Date,&item.Comment,&item.Author,&item.CreatedAt)}
  if err!=nil{http.Error(w,`{"error":"Не удалось сохранить семейную операцию"}`,500);return}
+ if !created {
+  var samePayload bool
+  err=database.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM family_transactions WHERE id=$1 AND family_id=$2 AND author_user_id=$3 AND operation_type=$4 AND title=$5 AND amount=$6::numeric AND category=$7 AND operation_date=$8::date AND comment=$9)`,item.ID,family.ID,userID,in.Type,in.Title,in.Amount,in.Category,date,in.Comment).Scan(&samePayload)
+  if err!=nil{http.Error(w,`{"error":"Не удалось проверить повтор семейной операции"}`,500);return}
+  if !samePayload{http.Error(w,`{"error":"Ключ идемпотентности уже использован для другой операции"}`,409);return}
+ }
  if created{_,_=database.Exec(r.Context(),`INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) SELECT user_id,'family_activity','Новая семейная операция',$2,'family_transaction',$3 FROM family_members WHERE family_id=$1 AND user_id<>$4`,family.ID,in.Title,item.ID,userID)}
  w.WriteHeader(201);_=json.NewEncoder(w).Encode(item)
 }
