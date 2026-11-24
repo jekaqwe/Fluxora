@@ -231,11 +231,11 @@ func transactionItemHandler(w http.ResponseWriter, r *http.Request, database *pg
 	case http.MethodDelete:
 		var linkedToDebt bool
 		if err := database.QueryRow(r.Context(), "SELECT EXISTS (SELECT 1 FROM debt_payments WHERE transaction_id = $1 AND user_id = $2) OR EXISTS (SELECT 1 FROM goal_entries WHERE transaction_id = $1 AND user_id = $2) OR EXISTS (SELECT 1 FROM family_goal_entries WHERE transaction_id = $1 AND author_user_id = $2)", id, userID).Scan(&linkedToDebt); err != nil {
-			http.Error(w, `{"error":"Не удалось проверить связь с платежом по долгу"}`, http.StatusInternalServerError)
+			http.Error(w, `{"error":"Не удалось проверить связь с историей долга или цели"}`, http.StatusInternalServerError)
 			return
 		}
 		if linkedToDebt {
-			http.Error(w, `{"error":"Эта операция связана с платежом по долгу. Измените платёж в разделе долгов, чтобы сохранить финансовую историю."}`, http.StatusConflict)
+			http.Error(w, `{"error":"Эта операция связана с историей долга или цели и защищена от отдельного изменения, чтобы не нарушить финансовые данные."}`, http.StatusConflict)
 			return
 		}
 		tag, err := database.Exec(r.Context(), "DELETE FROM transactions WHERE id = $1 AND user_id = $2", id, userID)
