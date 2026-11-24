@@ -50,7 +50,7 @@ function Accounts() {
       const response = await fetch("/api/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, type, initialBalance: balance }),
+        body: JSON.stringify({ name, type, initialBalance: balance.replace(",", ".") }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Не удалось создать счёт");
@@ -64,8 +64,16 @@ function Accounts() {
     }
   };
 
-  const total = items.reduce((sum, item) => sum + Number(item.initialBalance), 0);
-  const totalText = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" }).format(total);
+  const totalCents = items.reduce((sum, item) => {
+    const negative = item.initialBalance.startsWith("-");
+    const [wholePart, fractionPart = ""] = item.initialBalance.replace("-", "").split(".");
+    const value = BigInt(wholePart) * 100n + BigInt((fractionPart + "00").slice(0, 2));
+    return sum + (negative ? -value : value);
+  }, 0n);
+  const absoluteCents = totalCents < 0n ? -totalCents : totalCents;
+  const totalText = (totalCents < 0n ? "−" : "") +
+    new Intl.NumberFormat("ru-RU").format(absoluteCents / 100n) + "," +
+    (absoluteCents % 100n).toString().padStart(2, "0") + " ₽";
 
   return <div className="pure-page">
     <PageHeading title="Счета" subtitle="Ваши деньги в одном месте"/>
