@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowDownLeft, ArrowUpRight, Wallet, TrendingUp } from "lucide-react";
-import { PageHeading, Panel, Stat, Donut, LineChart, BarChart } from "./ui";
+import { PageHeading, Panel, Stat, Donut, LineChart } from "./ui";
 import "./Pure.css";
 
 type Period = "week" | "month" | "year" | "custom";
