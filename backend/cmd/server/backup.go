@@ -14,6 +14,7 @@ func runDailyBackup(){
  databaseURL:=strings.TrimSpace(os.Getenv("DATABASE_URL"));if databaseURL==""{log.Println("backup: DATABASE_URL is not configured");return}
  store,err:=newS3Store();if err!=nil{log.Printf("backup: S3 is not configured: %v",err);return}
  ctx,cancel:=context.WithTimeout(context.Background(),2*time.Hour);defer cancel()
+ store.client.Timeout=2*time.Hour
  command:=exec.CommandContext(ctx,"pg_dump","--format=custom","--no-owner","--no-acl","--dbname",databaseURL)
  dump,err:=command.Output();if err!=nil{log.Printf("backup: pg_dump failed: %v",err);return}
  if len(dump)==0{log.Println("backup: pg_dump returned an empty archive");return}
