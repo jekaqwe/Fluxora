@@ -38,7 +38,7 @@ func csvSuggestedMapping(headers []string) map[string]string {
   "type": {"type", "kind", "operationtype", "тип", "видоперации"},
   "amount": {"amount", "sum", "value", "сумма", "значение"},
   "category": {"category", "категория"},
-  "accountId": {"accountid", "account", "accountname", "счет", "счёт", "счетid", "счётid", "основнойсчет"},
+  "accountId": {"accountid", "account", "счет", "счёт", "счетid", "счётid", "основнойсчет"},
   "transferAccountId": {"transferaccountid", "transferaccount", "счетперевода", "счётперевода", "счетполучения", "счётполучения"},
   "comment": {"comment", "note", "комментарий", "примечание"},
  }
@@ -135,8 +135,10 @@ func parseImportCSVWithMapping(data []byte, mapping map[string]string) ([]import
   transferID, _ := strconv.ParseInt(value("transferAccountId"),10,64)
   amount:=value("amount")
   if detectCSVDelimiter(data)==';' { amount=strings.ReplaceAll(amount,",",".") }
+  if len(rows) >= 5000 {
+   return nil, fmt.Errorf("Файл содержит больше 5000 строк")
+  }
   rows = append(rows, importCSVRow{Date:value("date"),Title:value("title"),Type:value("type"),Amount:amount,Category:value("category"),AccountID:accountID,TransferAccountID:transferID,Comment:value("comment"),Errors:[]string{}})
-  if len(rows)>=5000 { return nil, fmt.Errorf("Файл содержит больше 5000 строк") }
  }
  return rows,nil
 }
