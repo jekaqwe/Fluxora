@@ -6,9 +6,10 @@ import "./Pure.css";
 type Priority="low"|"medium"|"high";
 type Goal={id:number;title:string;description:string;targetAmount:string;startingAmount:string;currentAmount:string;dueDate?:string;priority:Priority;status:"active"|"paused"|"completed";createdAt:string};
 type Entry={id:number;type:"contribution"|"withdrawal";amount:string;comment:string;createdAt:string;transactionId?:number};
-const toCents=(value:string)=>{const [whole,fraction=""]=value.split(".");return BigInt(whole||"0")*100n+BigInt((fraction+"00").slice(0,2));};
-const money=(value:string)=>{const negative=value.startsWith("-");const abs=value.replace("-","");const cents=toCents(abs);return (negative?"−":"")+new Intl.NumberFormat("ru-RU").format(cents/100n)+","+(cents%100n).toString().padStart(2,"0")+" ₽";};
-const validAmount=(value:string)=>/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(value)&&toCents(value.replace(",","."))>0n;
+const toCents=(value:string)=>{const negative=value.startsWith("-");const [whole,fraction=""]=value.replace("-","").replace(",",".").split(".");const cents=BigInt(whole||"0")*100n+BigInt((fraction+"00").slice(0,2));return negative?-cents:cents;};
+const moneyCents=(value:bigint)=>{const negative=value<0n;const abs=negative?-value:value;return (negative?"−":"")+new Intl.NumberFormat("ru-RU").format(abs/100n)+","+(abs%100n).toString().padStart(2,"0")+" ₽";};
+const money=(value:string)=>moneyCents(toCents(value));
+const validAmount=(value:string)=>/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(value)&&toCents(value)>0n;
 
 function Goals(){
  const [goals,setGoals]=useState<Goal[]>([]);
@@ -59,7 +60,7 @@ function Goals(){
 
  return <div className="pure-page">
   <PageHeading title="Цели" subtitle="Планируйте накопления и приближайте мечты" action={<button className="pure-button" onClick={()=>{resetForm();setShow(true);}}><Plus size={16}/>Создать цель</button>}/>
-  <div className="pure-grid two"><Stat label="Всего накоплено" value={money((total/100n).toString()+"."+ (total%100n).toString().padStart(2,"0"))} change="По всем целям" icon={<Target size={17}/>}/><Stat label="Активные цели" value={String(active)} change="Ваш план накоплений" tone="mint"/></div>
+  <div className="pure-grid two"><Stat label="Всего накоплено" value={moneyCents(total)} change="По всем целям" icon={<Target size={17}/>}/><Stat label="Активные цели" value={String(active)} change="Ваш план накоплений" tone="mint"/></div>
   {show&&<Panel title={editingId===null?"Новая цель":"Изменить цель"}>
    <div className="pure-grid two">
     <label className="form-label">Название<input className="pure-input" value={title} onChange={e=>setTitle(e.target.value)} maxLength={120} placeholder="Например, Путешествие"/></label>
@@ -81,7 +82,7 @@ function Goals(){
       <div className="form-row" style={{justifyContent:"space-between"}}><h3>{g.title}</h3><span className="muted">{g.priority==="high"?"Высокий":g.priority==="low"?"Низкий":"Средний"}</span></div>
       <p>{g.description||"Цель накоплений"}</p><strong style={{fontSize:21}}>{pct.toFixed(1).replace(".",",")}%</strong>
       <div className="goal-meta"><span>{money(g.currentAmount)}</span><span>{money(g.targetAmount)}</span></div><Progress value={pct}/>
-      <div className="goal-meta"><span>Срок: {g.dueDate||"не задан"}</span><span>{money((targetCents>current?targetCents-current:0n)/100n+"."+(targetCents>current?targetCents-current:0n)%100n)}</span></div>
+      <div className="goal-meta"><span>Срок: {g.dueDate||"не задан"}</span><span>{moneyCents(targetCents>current?targetCents-current:0n)}</span></div>
       <span className="muted">{g.status==="paused"?"Приостановлена":g.status==="completed"?"Завершена":"Активна"}</span>
       <div className="form-row" style={{marginTop:10,flexWrap:"wrap"}}>
        <button className="pure-button secondary" onClick={()=>{setEntryGoalId(g.id);setEntryType("contribution");}} disabled={g.status!=="active"}>Пополнить</button>
