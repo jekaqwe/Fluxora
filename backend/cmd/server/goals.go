@@ -44,6 +44,7 @@ type goalEntryPayload struct {
  Amount string `json:"amount"`
  Comment string `json:"comment"`
  TransactionID int64 `json:"transactionId"`
+ AccountID int64 `json:"accountId"`
  IdempotencyKey string `json:"idempotencyKey"`
 }
 type goalEntryResponse struct {
@@ -171,7 +172,7 @@ func goalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
  r.Body=http.MaxBytesReader(w,r.Body,16<<10); var in goalEntryPayload
  if err:=json.NewDecoder(r.Body).Decode(&in); err!=nil { http.Error(w,`{"error":"Некорректные данные"}`,400); return }
  in.Type=strings.TrimSpace(in.Type); in.Amount=strings.TrimSpace(in.Amount); in.Comment=strings.TrimSpace(in.Comment); in.IdempotencyKey=strings.TrimSpace(in.IdempotencyKey)
- if (in.Type!="contribution"&&in.Type!="withdrawal")||!validGoalAmount(in.Amount,false)||len([]rune(in.Comment))>500||in.IdempotencyKey==""||len(in.IdempotencyKey)>100 {
+ if (in.Type!="contribution"&&in.Type!="withdrawal")||!validGoalAmount(in.Amount,false)||len([]rune(in.Comment))>500||in.IdempotencyKey==""||len(in.IdempotencyKey)>60 {
   http.Error(w,`{"error":"Проверьте тип, сумму, комментарий и ключ операции"}`,400); return
  }
  tx,err:=database.Begin(r.Context()); if err!=nil { http.Error(w,`{"error":"Не удалось начать операцию"}`,500); return }; defer tx.Rollback(r.Context())
@@ -192,6 +193,19 @@ func goalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
   if err!=nil||!sufficient { http.Error(w,`{"error":"Недостаточно средств в цели для снятия"}`,409); return }
  }
  var linked any
+ if in.AccountID>0&&in.TransactionID>0{http.Error(w,`{"error":"Укажите счёт или готовую операцию, но не оба поля"}`,400);return}
+ if in.AccountID>0{
+  var accountExists bool
+  if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM accounts WHERE id=$1 AND user_id=$2)`,in.AccountID,userID).Scan(&accountExists);err!=nil||!accountExists{http.Error(w,`{"error":"Счёт не найден"}`,400);return}
+  var goalTitle string
+  if err:=tx.QueryRow(r.Context(),`SELECT title FROM goals WHERE id=$1 AND user_id=$2`,goalID,userID).Scan(&goalTitle);err!=nil{http.Error(w,`{"error":"Цель не найдена"}`,404);return}
+  txType:="expense";if in.Type=="withdrawal"{txType="income"}
+  txKey:="goal-entry:"+strconv.FormatInt(userID,10)+":"+in.IdempotencyKey
+  var transactionID int64
+  err=tx.QueryRow(r.Context(),`INSERT INTO transactions(user_id,account_id,title,operation_type,amount,category,operation_date,comment,idempotency_key) VALUES($1,$2,$3,$4,$5::numeric,'Цели',CURRENT_DATE,$6,$7) ON CONFLICT(user_id,idempotency_key) DO UPDATE SET idempotency_key=EXCLUDED.idempotency_key RETURNING id`,userID,in.AccountID,map[bool]string{true:"Снятие из цели: ",false:"Пополнение цели: "}[in.Type=="withdrawal"]+goalTitle,txType,in.Amount,in.Comment,txKey).Scan(&transactionID)
+  if err!=nil{http.Error(w,`{"error":"Не удалось создать связанную финансовую операцию"}`,500);return}
+  linked=transactionID
+ }
  if in.TransactionID>0 {
   var exists bool
   if err:=tx.QueryRow(r.Context(),"SELECT EXISTS(SELECT 1 FROM transactions WHERE id=$1 AND user_id=$2)",in.TransactionID,userID).Scan(&exists); err!=nil||!exists { http.Error(w,`{"error":"Связанная операция не найдена"}`,400); return }
