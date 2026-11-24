@@ -4,6 +4,7 @@ import (
  "context"
  "encoding/json"
  "errors"
+ "fmt"
  "log"
  "net/http"
  "strconv"
@@ -94,8 +95,8 @@ func applyDeletionLedger(ctx context.Context,database *pgxpool.Pool)error{
  store,err:=newS3Store();if err!=nil{return err}
  keys,err:=store.listKeys(ctx,"deletion-ledger/committed/");if err!=nil{return err}
  for _,key:=range keys{
-  raw,err:=store.get(ctx,key);if err!=nil{log.Printf("deletion ledger read failed %s: %v",key,err);continue}
-  var entry deletionLedgerEntry;if err:=json.Unmarshal(raw,&entry);err!=nil{log.Printf("invalid deletion ledger entry %s: %v",key,err);continue};if entry.Status!="committed"{log.Printf("uncommitted deletion ledger entry ignored: %s",key);continue}
+  raw,err:=store.get(ctx,key);if err!=nil{return fmt.Errorf("read committed deletion ledger %s: %w",key,err)}
+  var entry deletionLedgerEntry;if err:=json.Unmarshal(raw,&entry);err!=nil{return fmt.Errorf("decode committed deletion ledger %s: %w",key,err)};if entry.Status!="committed"{return fmt.Errorf("deletion ledger %s is not committed",key)}
   var createdAt time.Time
   err=database.QueryRow(ctx,`SELECT created_at FROM users WHERE id=$1`,entry.UserID).Scan(&createdAt)
   if err==pgx.ErrNoRows{continue};if err!=nil{return err}
