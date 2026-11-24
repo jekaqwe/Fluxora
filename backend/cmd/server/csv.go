@@ -73,12 +73,31 @@ func csvHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool){
   data,err:=io.ReadAll(io.LimitReader(file,(5<<20)+1));if err!=nil||len(data)>5<<20{http.Error(w,`{"error":"Не удалось прочитать CSV-файл"}`,400);return}
   items,err:=parseImportCSV(data);if err!=nil{w.Header().Set("Content-Type","application/json");w.WriteHeader(http.StatusBadRequest);_=json.NewEncoder(w).Encode(map[string]string{"error":"Ошибка CSV: "+err.Error()});return}
   valid:=0
-  for i:=range items{validateImportRow(&items[i]);if len(items[i].Errors)==0{
-   var source,destination bool
-   _=database.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM accounts WHERE id=$1 AND user_id=$2)`,items[i].AccountID,userID).Scan(&source)
-   if !source{items[i].Errors=append(items[i].Errors,"Счёт не найден")}
-   if items[i].Type=="transfer"{_=database.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM accounts WHERE id=$1 AND user_id=$2)`,items[i].TransferAccountID,userID).Scan(&destination);if !destination{items[i].Errors=append(items[i].Errors,"Счёт получения не найден")}}
-  };if len(items[i].Errors)==0{valid++}}
+  seenRows:=make(map[string]struct{},len(items))
+  for i:=range items {
+   row:=&items[i]
+   validateImportRow(row)
+   if len(row.Errors)==0 {
+    var source,destination bool
+    _=database.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM accounts WHERE id=$1 AND user_id=$2)`,row.AccountID,userID).Scan(&source)
+    if !source { row.Errors=append(row.Errors,"Счёт не найден") }
+    if row.Type=="transfer" {
+     _=database.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM accounts WHERE id=$1 AND user_id=$2)`,row.TransferAccountID,userID).Scan(&destination)
+     if !destination { row.Errors=append(row.Errors,"Счёт получения не найден") }
+    }
+   }
+   if len(row.Errors)==0 {
+    fingerprint:=fmt.Sprintf("%s|%s|%s|%s|%s|%d|%d|%s",row.Date,strings.ToLower(row.Title),row.Type,normalizeCSVAmount(row.Amount),strings.ToLower(row.Category),row.AccountID,row.TransferAccountID,row.Comment)
+    if _,ok:=seenRows[fingerprint];ok { row.Errors=append(row.Errors,"Повтор этой строки в CSV-файле") } else { seenRows[fingerprint]=struct{}{} }
+   }
+   if len(row.Errors)==0 {
+    date,_:=time.Parse("2006-01-02",row.Date)
+    var duplicate bool
+    err:=database.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM transactions WHERE user_id=$1 AND operation_date=$2 AND LOWER(title)=LOWER($3) AND operation_type=$4 AND amount=$5::numeric AND LOWER(category)=LOWER($6) AND account_id=$7 AND COALESCE(transfer_account_id,0)=$8 AND comment=$9)`,userID,date,row.Title,row.Type,row.Amount,row.Category,row.AccountID,row.TransferAccountID,row.Comment).Scan(&duplicate)
+    if err!=nil { row.Errors=append(row.Errors,"Не удалось проверить дубликаты") } else if duplicate { row.Errors=append(row.Errors,"Такая операция уже существует") }
+   }
+   if len(row.Errors)==0 { valid++ }
+  }
   if r.URL.Path=="/api/import/preview"{_=json.NewEncoder(w).Encode(map[string]any{"rows":items,"valid":valid,"invalid":len(items)-valid});return}
   if valid!=len(items)||len(items)==0{http.Error(w,`{"error":"Импорт отменён: исправьте ошибки в предварительном просмотре"}`,400);return}
   sum:=sha256.Sum256(data);fileKey:=hex.EncodeToString(sum[:])
@@ -101,5 +120,10 @@ func parseOptionalDate(v string)(any,error){if strings.TrimSpace(v)==""{return n
 func safeCSVCell(value string) string {
  trimmed:=strings.TrimLeft(value," \t\r\n")
  if trimmed!=""&&strings.ContainsRune("=+-@",rune(trimmed[0])) { return "'"+value }
+ return value
+}
+
+func normalizeCSVAmount(value string) string {
+ if strings.Contains(value,".") { value=strings.TrimRight(strings.TrimRight(value,"0"),".") }
  return value
 }
