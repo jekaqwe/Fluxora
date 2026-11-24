@@ -8,6 +8,7 @@ type Dashboard = { totalBalance:string; monthIncome:string; monthExpense:string;
 type Category = { name:string; amount:string; count:number };
 type Point = { date:string; income:string; expense:string };
 type Analytics = { categories:Category[]; trend:Point[] };
+type Goal = { id:number; title:string; currentAmount:string; targetAmount:string; status:"active"|"paused"|"completed" };
 const money = (value:string) => {
   const negative=value.startsWith("-");
   const [whole,fraction=""]=value.replace("-","").split(".");
@@ -15,18 +16,20 @@ const money = (value:string) => {
   return (negative?"−":"")+new Intl.NumberFormat("ru-RU").format(cents/100n)+","+(cents%100n).toString().padStart(2,"0")+" ₽";
 };
 const colors=["#3478f6","#78c9ee","#8e7cf4","#ffb56e","#08a47f","#ef8b8b"];
+const toCents=(value:string)=>{const [whole,fraction=""]=value.split(".");return BigInt(whole||"0")*100n+BigInt((fraction+"00").slice(0,2));};
 
 function Home() {
   const [dashboard,setDashboard]=useState<Dashboard|null>(null);
   const [analytics,setAnalytics]=useState<Analytics|null>(null);
+  const [activeGoal,setActiveGoal]=useState<Goal|null>(null);
   const [error,setError]=useState("");
   useEffect(()=>{
     let cancelled=false;
-    Promise.all([fetch("/api/dashboard"),fetch("/api/analytics?period=month")])
-      .then(async([a,b])=>{
-        const [summary,stats]=await Promise.all([a.json(),b.json()]);
-        if(!a.ok||!b.ok)throw new Error(summary.error||stats.error||"Не удалось загрузить главную страницу");
-        if(!cancelled){setDashboard(summary);setAnalytics(stats);}
+    Promise.all([fetch("/api/dashboard"),fetch("/api/analytics?period=month"),fetch("/api/goals")])
+      .then(async([a,b,c])=>{
+        const [summary,stats,goals]=await Promise.all([a.json(),b.json(),c.json()]);
+        if(!a.ok||!b.ok||!c.ok)throw new Error(summary.error||stats.error||goals.error||"Не удалось загрузить главную страницу");
+        if(!cancelled){setDashboard(summary);setAnalytics(stats);setActiveGoal((goals as Goal[]).find(goal=>goal.status==="active")||null);}
       })
       .catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:"Ошибка загрузки");});
     return()=>{cancelled=true;};
@@ -50,6 +53,10 @@ function Home() {
         <Stat label="Расходы за месяц" value={money(dashboard.monthExpense)} tone="violet" icon={<ArrowUpRight size={17}/>}/>
         <Stat label="Разница за месяц" value={money(dashboard.monthNet)} tone="blue" icon={<Wallet size={17}/>}/>
       </div>
+      {activeGoal&&<Panel title="Активная цель" subtitle="Ваш текущий план накоплений">
+        <div className="legend-row"><strong>{activeGoal.title}</strong><strong>{money(activeGoal.currentAmount)} / {money(activeGoal.targetAmount)}</strong></div>
+        <div className="progress-track" style={{marginTop:12}}><div className="progress-fill" style={{width:Math.min(100,Number(toCents(activeGoal.currentAmount)*10000n/toCents(activeGoal.targetAmount))/100)+"%"}}/></div>
+      </Panel>}
       <div className="pure-grid two" style={{marginTop:16}}>
         <Panel title="Динамика расходов" subtitle="По дням текущего месяца">
           {trend.length?<LineChart values={trendValues.map(v=>Math.max(4,Math.round(v/max*100)))} labels={labels}/>:<div className="empty-note">За этот месяц операций пока нет.</div>}
