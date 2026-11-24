@@ -4,7 +4,7 @@ import { PageHeading, Panel, Stat, Progress } from "./ui";
 import "./Pure.css";
 
 type Priority="low"|"medium"|"high";
-type Goal={id:number;title:string;description:string;targetAmount:string;startingAmount:string;currentAmount:string;dueDate?:string;priority:Priority;status:"active"|"paused"|"completed";createdAt:string};
+type Goal={id:number;title:string;description:string;targetAmount:string;startingAmount:string;currentAmount:string;dueDate?:string;priority:Priority;status:"active"|"paused"|"completed";createdAt:string;imageUrl?:string};
 type Entry={id:number;type:"contribution"|"withdrawal";amount:string;comment:string;createdAt:string;transactionId?:number};
 const toCents=(value:string)=>{const negative=value.startsWith("-");const [whole,fraction=""]=value.replace("-","").replace(",",".").split(".");const cents=BigInt(whole||"0")*100n+BigInt((fraction+"00").slice(0,2));return negative?-cents:cents;};
 const moneyCents=(value:bigint)=>{const negative=value<0n;const abs=negative?-value:value;return (negative?"−":"")+new Intl.NumberFormat("ru-RU").format(abs/100n)+","+(abs%100n).toString().padStart(2,"0")+" ₽";};
