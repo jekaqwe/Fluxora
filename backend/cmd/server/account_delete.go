@@ -43,6 +43,11 @@ func deleteUserData(ctx context.Context,database *pgxpool.Pool,userID int64,allo
   err=tx.QueryRow(ctx,`SELECT user_id FROM family_members WHERE family_id=$1 AND user_id<>$2 ORDER BY CASE role WHEN 'admin' THEN 0 ELSE 1 END,joined_at,id LIMIT 1 FOR UPDATE`,familyID.Int64,userID).Scan(&successor)
   if err==pgx.ErrNoRows{
    if !allowOwnerAlone{return nil,errFamilyOwnerAlone}
+   familyGoalRows,queryErr:=tx.Query(ctx,`SELECT image_key FROM family_goals WHERE family_id=$1 AND image_key IS NOT NULL`,familyID.Int64)
+   if queryErr!=nil{return nil,queryErr}
+   for familyGoalRows.Next(){var key string;if scanErr:=familyGoalRows.Scan(&key);scanErr!=nil{familyGoalRows.Close();return nil,scanErr};if key!=""{keys=append(keys,key)}}
+   if rowsErr:=familyGoalRows.Err();rowsErr!=nil{familyGoalRows.Close();return nil,rowsErr}
+   familyGoalRows.Close()
    if _,err:=tx.Exec(ctx,`DELETE FROM families WHERE id=$1`,familyID.Int64);err!=nil{return nil,err}
   }else if err!=nil{return nil,err
   }else{
