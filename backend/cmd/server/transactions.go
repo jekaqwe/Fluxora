@@ -229,8 +229,19 @@ func transactionItemHandler(w http.ResponseWriter, r *http.Request, database *pg
 	}
 	switch r.Method {
 	case http.MethodDelete:
+		tx, err := database.Begin(r.Context())
+		if err != nil {
+			http.Error(w, `{"error":"Не удалось начать удаление операции"}`, http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback(r.Context())
+		var lockedID int64
+		if err := tx.QueryRow(r.Context(), "SELECT id FROM transactions WHERE id = $1 AND user_id = $2 FOR UPDATE", id, userID).Scan(&lockedID); err != nil {
+			http.Error(w, `{"error":"Операция не найдена"}`, http.StatusNotFound)
+			return
+		}
 		var linkedToDebt bool
-		if err := database.QueryRow(r.Context(), "SELECT EXISTS (SELECT 1 FROM debt_payments WHERE transaction_id = $1 AND user_id = $2) OR EXISTS (SELECT 1 FROM goal_entries WHERE transaction_id = $1 AND user_id = $2) OR EXISTS (SELECT 1 FROM family_goal_entries WHERE transaction_id = $1 AND author_user_id = $2)", id, userID).Scan(&linkedToDebt); err != nil {
+		if err := tx.QueryRow(r.Context(), "SELECT EXISTS (SELECT 1 FROM debt_payments WHERE transaction_id = $1 AND user_id = $2) OR EXISTS (SELECT 1 FROM goal_entries WHERE transaction_id = $1 AND user_id = $2) OR EXISTS (SELECT 1 FROM family_goal_entries WHERE transaction_id = $1 AND author_user_id = $2)", id, userID).Scan(&linkedToDebt); err != nil {
 			http.Error(w, `{"error":"Не удалось проверить связь с историей долга или цели"}`, http.StatusInternalServerError)
 			return
 		}
@@ -238,13 +249,12 @@ func transactionItemHandler(w http.ResponseWriter, r *http.Request, database *pg
 			http.Error(w, `{"error":"Эта операция связана с историей долга или цели и защищена от отдельного изменения, чтобы не нарушить финансовые данные."}`, http.StatusConflict)
 			return
 		}
-		tag, err := database.Exec(r.Context(), "DELETE FROM transactions WHERE id = $1 AND user_id = $2", id, userID)
-		if err != nil {
+		if _, err := tx.Exec(r.Context(), "DELETE FROM transactions WHERE id = $1 AND user_id = $2", id, userID); err != nil {
 			http.Error(w, `{"error":"Не удалось удалить операцию"}`, http.StatusInternalServerError)
 			return
 		}
-		if tag.RowsAffected() == 0 {
-			http.Error(w, `{"error":"Операция не найдена"}`, http.StatusNotFound)
+		if err := tx.Commit(r.Context()); err != nil {
+			http.Error(w, `{"error":"Не удалось завершить удаление операции"}`, http.StatusInternalServerError)
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
@@ -267,6 +277,11 @@ func transactionItemHandler(w http.ResponseWriter, r *http.Request, database *pg
 			return
 		}
 		defer tx.Rollback(r.Context())
+		var lockedID int64
+		if err := tx.QueryRow(r.Context(), "SELECT id FROM transactions WHERE id = $1 AND user_id = $2 FOR UPDATE", id, userID).Scan(&lockedID); err != nil {
+			http.Error(w, `{"error":"Операция не найдена"}`, http.StatusNotFound)
+			return
+		}
 		var linkedToDebt bool
 		if err := tx.QueryRow(r.Context(), "SELECT EXISTS (SELECT 1 FROM debt_payments WHERE transaction_id = $1 AND user_id = $2) OR EXISTS (SELECT 1 FROM goal_entries WHERE transaction_id = $1 AND user_id = $2) OR EXISTS (SELECT 1 FROM family_goal_entries WHERE transaction_id = $1 AND author_user_id = $2)", id, userID).Scan(&linkedToDebt); err != nil {
 			http.Error(w, `{"error":"Не удалось проверить связь с историей долга или цели"}`, http.StatusInternalServerError)
