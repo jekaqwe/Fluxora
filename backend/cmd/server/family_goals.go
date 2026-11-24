@@ -148,6 +148,11 @@ func familyGoalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pg
   }
   in.TransactionID=linkedID
  }
+ if in.TransactionID>0{
+  var alreadyLinked bool
+  if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM goal_entries WHERE transaction_id=$1 UNION ALL SELECT 1 FROM family_goal_entries WHERE transaction_id=$1)`,in.TransactionID).Scan(&alreadyLinked);err!=nil{http.Error(w,`{"error":"Не удалось проверить связанную операцию"}`,500);return}
+  if alreadyLinked{http.Error(w,`{"error":"Эта финансовая операция уже связана с другой целью"}`,409);return}
+ }
  var author string;_=tx.QueryRow(r.Context(),`SELECT first_name||' '||last_name FROM users WHERE id=$1`,userID).Scan(&author)
  _,err=tx.Exec(r.Context(),`INSERT INTO family_goal_entries(goal_id,family_id,author_user_id,amount,entry_type,comment,transaction_id,idempotency_key) VALUES($1,$2,$3,$4::numeric,$5,$6,NULLIF($7,0),$8)`,goalID,familyID,userID,in.Amount,in.EntryType,in.Comment,in.TransactionID,in.IdempotencyKey)
  if err!=nil{http.Error(w,`{"error":"Не удалось сохранить пополнение"}`,500);return}
