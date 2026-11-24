@@ -1,4 +1,14 @@
-function Family() {
-  return null;
+import { Plus, Users, ShoppingCart, Home as HomeIcon } from "lucide-react";
+import { PageHeading, Panel, Stat, Progress, money } from "./ui";
+import "./Pure.css";
+const members=[{name:"Иван Петров",role:"Администратор",share:50,initials:"ИП"},{name:"Анна Петрова",role:"Участник",share:30,initials:"АП"},{name:"Дмитрий Петров",role:"Участник",share:20,initials:"ДП"}];
+function Family(){
+ return <div className="pure-page"><PageHeading title="Семья" subtitle="Общий бюджет и финансовые планы семьи" action={<button className="pure-button" onClick={()=>alert("Приглашения участников появятся после подключения семейного API.")}><Plus size={16}/>Пригласить участника</button>}/>
+ <div className="pure-grid three"><Stat label="Семейный баланс" value="210 000 ₽" change="+12,5%" icon={<HomeIcon size={17}/>}/><Stat label="Расходы за месяц" value="68 450 ₽" change="В рамках бюджета" tone="violet"/><Stat label="Участники" value="3 человека" change="Семейное пространство" tone="mint" icon={<Users size={17}/>}/></div>
+ <div className="pure-grid two" style={{marginTop:16}}><Panel title="Участники семьи" subtitle="Демонстрационный состав"><div>{members.map(m=><div className="member-row" key={m.name}><div className="member-avatar">{m.initials}</div><div className="member-copy"><strong>{m.name}</strong><small>{m.role}</small></div><div style={{width:95}}><Progress value={m.share}/><small className="muted">{m.share}% расходов</small></div></div>)}</div></Panel>
+ <Panel title="Общие цели" subtitle="Копите вместе"><div className="member-row"><div className="transaction-icon"><HomeIcon size={17}/></div><div className="member-copy"><strong>Семейный отпуск</strong><small>62 000 ₽ из 100 000 ₽</small><Progress value={62}/></div><strong>62%</strong></div><div className="member-row"><div className="transaction-icon mint"><HomeIcon size={17}/></div><div className="member-copy"><strong>Ремонт дома</strong><small>45 000 ₽ из 150 000 ₽</small><Progress value={30} color="mint"/></div><strong>30%</strong></div></Panel></div>
+ <div className="pure-grid two" style={{marginTop:16}}><Panel title="Распределение бюджета"><div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span className="muted" style={{fontSize:11}}>Использовано 68 450 ₽</span><strong style={{fontSize:12}}>68%</strong></div><Progress value={68}/><div className="legend-row" style={{marginTop:16}}><span>Остаток семейного бюджета</span><strong className="positive">31 550 ₽</strong></div></Panel><Panel title="Последние семейные траты"><div className="transaction-row"><span className="transaction-icon"><ShoppingCart size={16}/></span><span className="transaction-copy"><strong>Продукты</strong><small>Иван · Сегодня</small></span><strong className="transaction-amount negative">−2 450 ₽</strong></div><div className="transaction-row"><span className="transaction-icon mint"><HomeIcon size={16}/></span><span className="transaction-copy"><strong>Коммунальные услуги</strong><small>Анна · Вчера</small></span><strong className="transaction-amount negative">−5 200 ₽</strong></div></Panel></div>
+ <p className="muted" style={{fontSize:10,marginTop:14}}>Участники, роли и совместные траты пока демонстрационные. Для совместной работы потребуется семейная модель на сервере.</p>
+ </div>;
 }
 export default Family;
