@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -313,4 +312,3 @@ func deleteAvatarHandler(w http.ResponseWriter, r *http.Request, database *pgxpo
 	_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
 }
 
-var _ = pgx.ErrNoRows
