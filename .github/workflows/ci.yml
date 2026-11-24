@@ -75,7 +75,9 @@ jobs:
           pg_dump --format=custom --no-owner --no-acl --dbname "$DATABASE_URL" --file /tmp/fluxora-ci.dump
           createdb -h localhost -U fluxora_test fluxora_restore_test
           pg_restore --clean --if-exists --no-owner --no-acl --dbname "$RESTORE_URL" /tmp/fluxora-ci.dump
-          restored="$(psql "$RESTORE_URL" -Atc "SELECT to_regclass('public.category_budgets') IS NOT NULL AND (SELECT COUNT(*)=1 FROM users WHERE username='ci_restore')")"
+          psql "$RESTORE_URL" -v ON_ERROR_STOP=1 -c "INSERT INTO category_budgets(user_id,category,monthly_limit) SELECT id,'Food',100 FROM users WHERE username='ci_restore' ON CONFLICT (user_id, (lower(category))) DO UPDATE SET monthly_limit=EXCLUDED.monthly_limit"
+          psql "$RESTORE_URL" -v ON_ERROR_STOP=1 -c "INSERT INTO category_budgets(user_id,category,monthly_limit) SELECT id,'food',150 FROM users WHERE username='ci_restore' ON CONFLICT (user_id, (lower(category))) DO UPDATE SET monthly_limit=EXCLUDED.monthly_limit"
+          restored="$(psql "$RESTORE_URL" -Atc "SELECT to_regclass('public.category_budgets') IS NOT NULL AND (SELECT COUNT(*)=1 FROM users WHERE username='ci_restore') AND (SELECT COUNT(*)=1 FROM category_budgets WHERE user_id=(SELECT id FROM users WHERE username='ci_restore')) AND (SELECT monthly_limit=150 FROM category_budgets WHERE user_id=(SELECT id FROM users WHERE username='ci_restore'))")"
           test "$restored" = "t"
 
   frontend:
