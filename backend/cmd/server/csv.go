@@ -63,7 +63,7 @@ func csvHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool){
   if err!=nil{http.Error(w,`Не удалось подготовить экспорт`,500);return};defer rows.Close()
   w.Header().Set("Content-Type","text/csv; charset=utf-8");w.Header().Set("Content-Disposition",`attachment; filename="fluxora-transactions.csv"`)
   _,_=w.Write([]byte{0xEF,0xBB,0xBF});writer:=csv.NewWriter(w);_=writer.Write([]string{"date","title","type","amount","category","accountId","transferAccountId","comment"})
-  for rows.Next(){var record []string;var date,title,kind,amount,category,comment string;var account,transfer int64;if err:=rows.Scan(&date,&title,&kind,&amount,&category,&account,&transfer,&comment);err!=nil{return};record=[]string{date,title,kind,amount,category,strconv.FormatInt(account,10),strconv.FormatInt(transfer,10),comment};_=writer.Write(record)}
+  for rows.Next(){var record []string;var date,title,kind,amount,category,comment string;var account,transfer int64;if err:=rows.Scan(&date,&title,&kind,&amount,&category,&account,&transfer,&comment);err!=nil{return};record=[]string{date,safeCSVCell(title),kind,amount,safeCSVCell(category),strconv.FormatInt(account,10),strconv.FormatInt(transfer,10),safeCSVCell(comment)};_=writer.Write(record)}
   writer.Flush()
  case "/api/import/preview","/api/import/confirm":
   if r.Method!=http.MethodPost{w.Header().Set("Allow","POST");http.Error(w,`{"error":"Метод не поддерживается"}`,405);return}
@@ -97,3 +97,9 @@ func csvHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool){
 func parseIntDefault(v string)int64{n,_:=strconv.ParseInt(v,10,64);return n}
 
 func parseOptionalDate(v string)(any,error){if strings.TrimSpace(v)==""{return nil,nil};d,err:=time.Parse("2006-01-02",v);if err!=nil{return nil,err};return d,nil}
+
+func safeCSVCell(value string) string {
+ trimmed:=strings.TrimLeft(value," \t\r\n")
+ if trimmed!=""&&strings.ContainsRune("=+-@",rune(trimmed[0])) { return "'"+value }
+ return value
+}
