@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, Coffee, ShoppingBag, Car, Plus, X, Utensils } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Coffee, ShoppingBag, Car, Plus, X } from "lucide-react";
 import { PageHeading, Panel, Stat, money } from "./ui";
 import "./Pure.css";
 type Tx={id:number;name:string;category:string;amount:number;date:string;kind:"Доходы"|"Расходы"};
