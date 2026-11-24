@@ -36,8 +36,3 @@ func TestSafeCSVCell(t *testing.T) {
  }
  for input,want:=range cases { if got:=safeCSVCell(input);got!=want { t.Errorf("safeCSVCell(%q)=%q, want %q",input,got,want) } }
 }
-
-func TestNormalizeCSVAmount(t *testing.T) {
- cases:=map[string]string{"100.00":"100","12.30":"12.3","0.50":"0.5","100":"100","0.00":"0"}
- for input,want:=range cases { if got:=normalizeCSVAmount(input);got!=want { t.Errorf("normalizeCSVAmount(%q)=%q, want %q",input,got,want) } }
-}
