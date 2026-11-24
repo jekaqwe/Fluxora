@@ -50,6 +50,16 @@ function App() {
       .catch(() => {});
   }, [isAuthenticated]);
   useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const update = () => {
+      if (localStorage.getItem("fluxora_theme") === "auto") {
+        document.documentElement.dataset.theme = media.matches ? "dark" : "light";
+      }
+    };
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  useEffect(() => {
     fetch("/api/me")
       .then((response) => { if (!response.ok) throw new Error("Unauthorized"); return response.json(); })
       .then(() => setIsAuthenticated(true))
