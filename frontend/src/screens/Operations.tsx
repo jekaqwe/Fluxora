@@ -3,6 +3,7 @@ import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Coffee, ShoppingBag, Car, 
 import { PageHeading, Panel, Stat } from "./ui";
 import "./Pure.css";
 import RecurringPanel from "./RecurringPanel";
+import CSVTools from "./CSVTools";
 
 type OperationType = "income" | "expense" | "transfer";
 type Account = { id: number; name: string; type: string; initialBalance: string; currency: "RUB" };
@@ -154,6 +155,7 @@ function Operations() {
       </>}
     </Panel>}
     <RecurringPanel accounts={accounts}/>
+    <CSVTools accounts={accounts} onImported={()=>void load()}/>
     <Panel title="История операций" subtitle={`${visible.length} записей`}>
       <div className="form-row" style={{justifyContent:"space-between",marginBottom:16,flexWrap:"wrap"}}>
         <div className="filter-pills">{[["all","Все"],["income","Доходы"],["expense","Расходы"],["transfer","Переводы"]].map(([key,label])=><button key={key} className={`filter-pill ${filter===key?"active":""}`} onClick={()=>setFilter(key)}>{label}</button>)}</div>
