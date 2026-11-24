@@ -147,9 +147,7 @@ func goalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
   if err!=nil { http.Error(w,`{"error":"Не удалось загрузить историю"}`,500); return }
   defer rows.Close(); items:=make([]goalEntryResponse,0)
   for rows.Next() {
-   var goalStatus string
- if err:=tx.QueryRow(r.Context(),"SELECT status FROM goals WHERE id=$1 AND user_id=$2 FOR UPDATE",goalID,userID).Scan(&goalStatus); err!=nil { http.Error(w,`{"error":"Цель не найдена"}`,404); return }
- var item goalEntryResponse; var txID pgtype.Int8
+   var item goalEntryResponse; var txID pgtype.Int8
    if err:=rows.Scan(&item.ID,&item.Type,&item.Amount,&item.Comment,&txID,&item.CreatedAt); err!=nil { http.Error(w,`{"error":"Ошибка чтения истории"}`,500); return }
    if txID.Valid { value:=txID.Int64; item.TransactionID=&value }; items=append(items,item)
   }
@@ -158,9 +156,13 @@ func goalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
  if r.Method!=http.MethodPost { w.Header().Set("Allow","GET, POST"); http.Error(w,`{"error":"Метод не поддерживается"}`,405); return }
  r.Body=http.MaxBytesReader(w,r.Body,16<<10); var in goalEntryPayload
  if err:=json.NewDecoder(r.Body).Decode(&in); err!=nil { http.Error(w,`{"error":"Некорректные данные"}`,400); return }
- in.Type=strings.TrimSpace(in.Type); in.Amount=strings.TrimSpace(in.Amount); in.Comment=strings.TrimSpace(in.Comment)
- if (in.Type!="contribution"&&in.Type!="withdrawal")||!validGoalAmount(in.Amount,false)||len([]rune(in.Comment))>500||strings.TrimSpace(in.IdempotencyKey)==""||len(in.IdempotencyKey)>100 { http.Error(w,`{"error":"Проверьте тип, сумму и комментарий"}`,400); return }
+ in.Type=strings.TrimSpace(in.Type); in.Amount=strings.TrimSpace(in.Amount); in.Comment=strings.TrimSpace(in.Comment); in.IdempotencyKey=strings.TrimSpace(in.IdempotencyKey)
+ if (in.Type!="contribution"&&in.Type!="withdrawal")||!validGoalAmount(in.Amount,false)||len([]rune(in.Comment))>500||in.IdempotencyKey==""||len(in.IdempotencyKey)>100 {
+  http.Error(w,`{"error":"Проверьте тип, сумму, комментарий и ключ операции"}`,400); return
+ }
  tx,err:=database.Begin(r.Context()); if err!=nil { http.Error(w,`{"error":"Не удалось начать операцию"}`,500); return }; defer tx.Rollback(r.Context())
+ var goalStatus string
+ if err:=tx.QueryRow(r.Context(),"SELECT status FROM goals WHERE id=$1 AND user_id=$2 FOR UPDATE",goalID,userID).Scan(&goalStatus); err!=nil { http.Error(w,`{"error":"Цель не найдена"}`,404); return }
  var item goalEntryResponse; var txID pgtype.Int8
  err=tx.QueryRow(r.Context(),`SELECT id,entry_type,amount::text,comment,transaction_id,created_at FROM goal_entries WHERE user_id=$1 AND idempotency_key=$2`,userID,in.IdempotencyKey).Scan(&item.ID,&item.Type,&item.Amount,&item.Comment,&txID,&item.CreatedAt)
  if err==nil {
@@ -169,19 +171,18 @@ func goalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
   _=json.NewEncoder(w).Encode(item); return
  }
  if err!=pgx.ErrNoRows { http.Error(w,`{"error":"Не удалось проверить повтор операции"}`,500); return }
- 
- if goalStatus=="paused" || goalStatus=="completed" { http.Error(w,`{"error":"Пополнение или снятие недоступно для приостановленной или завершённой цели"}`,409); return }
+ if goalStatus=="paused"||goalStatus=="completed" { http.Error(w,`{"error":"Пополнение или снятие недоступно для приостановленной или завершённой цели"}`,409); return }
  if in.Type=="withdrawal" {
   var sufficient bool
-  err:=tx.QueryRow(r.Context(),`SELECT g.starting_amount+COALESCE(SUM(CASE WHEN e.entry_type='contribution' THEN e.amount ELSE -e.amount END),0) >= $2::numeric FROM goals g LEFT JOIN goal_entries e ON e.goal_id=g.id WHERE g.id=$1 GROUP BY g.id`,goalID,in.Amount).Scan(&sufficient)
-  if err!=nil || !sufficient { http.Error(w,`{"error":"Недостаточно средств в цели для снятия"}`,409); return }
+  err=tx.QueryRow(r.Context(),`SELECT g.starting_amount+COALESCE(SUM(CASE WHEN e.entry_type='contribution' THEN e.amount ELSE -e.amount END),0) >= $2::numeric FROM goals g LEFT JOIN goal_entries e ON e.goal_id=g.id WHERE g.id=$1 GROUP BY g.id`,goalID,in.Amount).Scan(&sufficient)
+  if err!=nil||!sufficient { http.Error(w,`{"error":"Недостаточно средств в цели для снятия"}`,409); return }
  }
- var exists bool
  var linked any
  if in.TransactionID>0 {
-  if err:=tx.QueryRow(r.Context(),"SELECT EXISTS(SELECT 1 FROM transactions WHERE id=$1 AND user_id=$2)",in.TransactionID,userID).Scan(&exists); err!=nil||!exists { http.Error(w,`{"error":"Связанная операция не найдена"}`,400); return }; linked=in.TransactionID
+  var exists bool
+  if err:=tx.QueryRow(r.Context(),"SELECT EXISTS(SELECT 1 FROM transactions WHERE id=$1 AND user_id=$2)",in.TransactionID,userID).Scan(&exists); err!=nil||!exists { http.Error(w,`{"error":"Связанная операция не найдена"}`,400); return }
+  linked=in.TransactionID
  }
- var item goalEntryResponse; var txID pgtype.Int8
  err=tx.QueryRow(r.Context(),`
   INSERT INTO goal_entries(goal_id,user_id,entry_type,amount,comment,transaction_id,idempotency_key)
   VALUES($1,$2,$3,$4::numeric,$5,$6,$7)
