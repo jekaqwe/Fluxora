@@ -202,6 +202,7 @@ func goalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
    WHEN status='completed' THEN 'active' ELSE status END,updated_at=NOW() WHERE id=$1
  `,goalID)
  if err!=nil { http.Error(w,`{"error":"Не удалось обновить прогресс цели"}`,500); return }
+ _,_=tx.Exec(r.Context(),`INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) VALUES($1,'goal_entry','Обновлён прогресс цели',$2,'goal',$3)`,userID,in.Type+" · "+in.Amount+" ₽",goalID)
  if err:=tx.Commit(r.Context()); err!=nil { http.Error(w,`{"error":"Не удалось завершить операцию"}`,500); return }
  w.WriteHeader(201); _=json.NewEncoder(w).Encode(item)
 }
