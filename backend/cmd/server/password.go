@@ -27,7 +27,6 @@ func passwordChangeHandler(w http.ResponseWriter, r *http.Request, database *pgx
  defer tx.Rollback(r.Context())
  if _, err := tx.Exec(r.Context(), "UPDATE users SET password_hash = $2 WHERE id = $1", userID, string(nextHash)); err != nil { http.Error(w, `{"error":"Не удалось сохранить новый пароль"}`, http.StatusInternalServerError); return }
  if _, err := tx.Exec(r.Context(), "DELETE FROM sessions WHERE user_id = $1 AND token_hash <> $2", userID, sessionHash); err != nil { http.Error(w, `{"error":"Не удалось завершить остальные сессии"}`, http.StatusInternalServerError); return }
- _, _ = tx.Exec(r.Context(), "INSERT INTO notifications(user_id,notification_type,title,message,related_type) VALUES($1,'account_password','Пароль изменён','Пароль аккаунта успешно обновлён. Остальные сессии завершены.','account')", userID)
  if err := tx.Commit(r.Context()); err != nil { http.Error(w, `{"error":"Не удалось завершить смену пароля"}`, http.StatusInternalServerError); return }
  _ = json.NewEncoder(w).Encode(map[string]string{"message":"Пароль успешно изменён. Остальные сессии завершены."})
 }
