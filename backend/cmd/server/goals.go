@@ -38,6 +38,7 @@ type goalEntryPayload struct {
  Amount string `json:"amount"`
  Comment string `json:"comment"`
  TransactionID int64 `json:"transactionId"`
+ IdempotencyKey string `json:"idempotencyKey"`
 }
 type goalEntryResponse struct {
  ID int64 `json:"id"`
@@ -173,10 +174,14 @@ func goalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
  }
  var item goalEntryResponse; var txID pgtype.Int8
  err=tx.QueryRow(r.Context(),`
-  INSERT INTO goal_entries(goal_id,user_id,entry_type,amount,comment,transaction_id)
-  VALUES($1,$2,$3,$4::numeric,$5,$6)
+  INSERT INTO goal_entries(goal_id,user_id,entry_type,amount,comment,transaction_id,idempotency_key)
+  VALUES($1,$2,$3,$4::numeric,$5,$6,$7)
+  ON CONFLICT(user_id,idempotency_key) DO NOTHING
   RETURNING id,entry_type,amount::text,comment,transaction_id,created_at
- `,goalID,userID,in.Type,in.Amount,in.Comment,linked).Scan(&item.ID,&item.Type,&item.Amount,&item.Comment,&txID,&item.CreatedAt)
+ `,goalID,userID,in.Type,in.Amount,in.Comment,linked,in.IdempotencyKey).Scan(&item.ID,&item.Type,&item.Amount,&item.Comment,&txID,&item.CreatedAt)
+ if err==pgx.ErrNoRows {
+  err=tx.QueryRow(r.Context(),`SELECT id,entry_type,amount::text,comment,transaction_id,created_at FROM goal_entries WHERE user_id=$1 AND idempotency_key=$2`,userID,in.IdempotencyKey).Scan(&item.ID,&item.Type,&item.Amount,&item.Comment,&txID,&item.CreatedAt)
+ }
  if err!=nil { http.Error(w,`{"error":"Не удалось сохранить запись"}`,500); return }
  if txID.Valid { value:=txID.Int64; item.TransactionID=&value }
  _,err=tx.Exec(r.Context(),`
