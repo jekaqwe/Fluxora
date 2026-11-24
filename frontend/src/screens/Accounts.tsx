@@ -108,7 +108,7 @@ function Accounts() {
   };
 
   const totalCents = items.reduce((sum, item) => {
-    const negative = item.initialBalance.startsWith("-");
+    const negative = item.currentBalance.startsWith("-");
     const [wholePart, fractionPart = ""] = item.currentBalance.replace("-", "").split(".");
     const value = BigInt(wholePart) * 100n + BigInt((fractionPart + "00").slice(0, 2));
     return sum + (negative ? -value : value);
@@ -121,7 +121,7 @@ function Accounts() {
   return <div className="pure-page">
     <PageHeading title="Счета" subtitle="Ваши деньги в одном месте"/>
     <div className="pure-grid two">
-      <Panel title="Общий начальный баланс" subtitle="Сумма начальных балансов всех ваших счетов">
+      <Panel title="Общий баланс" subtitle="Сумма текущих остатков на всех ваших счетах">
         <div style={{ fontSize: 30, fontWeight: 700 }}>{totalText}</div>
         <p className="muted" style={{ fontSize: 11 }}>{items.length} {items.length === 1 ? "счёт" : "счетов"}</p>
       </Panel>
@@ -132,7 +132,7 @@ function Accounts() {
         <button type="button" className="pure-button" style={{ marginTop: 14 }} disabled={saving || !name.trim() || !/^-?(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(balance)} onClick={() => void create()}><Plus size={16}/>{saving ? "Сохранение…" : "Добавить счёт"}</button>
       </Panel>
     </div>
-    <Panel title="Мои счета" subtitle="Начальные балансы в рублях">
+    <Panel title="Мои счета" subtitle="Текущие остатки и начальные балансы в рублях">
       {loading ? <div className="empty-note">Загружаем счета…</div> : items.length === 0 ? <div className="empty-note">Счетов пока нет. Создайте первый, чтобы начать вести баланс.</div> :
         <div className="transaction-list">{items.map(item => <div className="transaction-row" key={item.id}>
           <span className="transaction-icon mint"><WalletCards size={16}/></span>
