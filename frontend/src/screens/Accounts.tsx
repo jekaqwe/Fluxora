@@ -28,6 +28,10 @@ function Accounts() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editType, setEditType] = useState<Account["type"]>("bank");
+  const [editBalance, setEditBalance] = useState("0");
 
   const load = async () => {
     try {
@@ -64,6 +68,44 @@ function Accounts() {
     }
   };
 
+  const beginEdit = (item: Account) => {
+    setEditingId(item.id);
+    setEditName(item.name);
+    setEditType(item.type);
+    setEditBalance(item.initialBalance);
+  };
+
+  const saveEdit = async () => {
+    if (editingId === null) return;
+    setError("");
+    try {
+      const response = await fetch(`/api/accounts/${editingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editName, type: editType, initialBalance: editBalance.replace(",", ".") }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Не удалось обновить счёт");
+      setItems(old => old.map(item => item.id === data.id ? data : item));
+      setEditingId(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ошибка обновления счёта");
+    }
+  };
+
+  const removeAccount = async (id: number) => {
+    if (!window.confirm("Удалить счёт? Его история операций также будет удалена.")) return;
+    setError("");
+    try {
+      const response = await fetch(`/api/accounts/${id}`, { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Не удалось удалить счёт");
+      setItems(old => old.filter(item => item.id !== id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ошибка удаления счёта");
+    }
+  };
+
   const totalCents = items.reduce((sum, item) => {
     const negative = item.initialBalance.startsWith("-");
     const [wholePart, fractionPart = ""] = item.initialBalance.replace("-", "").split(".");
@@ -93,9 +135,17 @@ function Accounts() {
       {loading ? <div className="empty-note">Загружаем счета…</div> : items.length === 0 ? <div className="empty-note">Счетов пока нет. Создайте первый, чтобы начать вести баланс.</div> :
         <div className="transaction-list">{items.map(item => <div className="transaction-row" key={item.id}>
           <span className="transaction-icon mint"><WalletCards size={16}/></span>
-          <span className="transaction-copy"><strong>{item.name}</strong><small>{accountTypes[item.type]}</small></span>
-          <strong className="transaction-amount">{item.initialBalance} ₽</strong>
-          <span className="transaction-date">Начальный</span>
+          {editingId === item.id ? <div className="transaction-copy" style={{ display: "grid", gap: 6 }}>
+            <input className="pure-input" value={editName} onChange={e => setEditName(e.target.value)} aria-label="Название счёта"/>
+            <select className="pure-select" value={editType} onChange={e => setEditType(e.target.value as Account["type"])}>{Object.entries(accountTypes).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
+            <input className="pure-input" value={editBalance} onChange={e => setEditBalance(e.target.value)} aria-label="Начальный баланс"/>
+            <div className="form-row"><button type="button" className="pure-button" onClick={() => void saveEdit()}>Сохранить</button><button type="button" className="pure-button ghost" onClick={() => setEditingId(null)}>Отмена</button></div>
+          </div> : <>
+            <span className="transaction-copy"><strong>{item.name}</strong><small>{accountTypes[item.type]}</small></span>
+            <strong className="transaction-amount">{item.initialBalance} ₽</strong>
+            <span className="transaction-date">Начальный</span>
+            <div className="form-row"><button type="button" className="pure-button secondary" onClick={() => beginEdit(item)}>Изменить</button><button type="button" className="pure-button ghost" onClick={() => void removeAccount(item.id)}>Удалить</button></div>
+          </>}
         </div>)}</div>}
     </Panel>
     {error && <p role="alert" style={{ color: "#f87171", fontSize: 12 }}>{error}</p>}
