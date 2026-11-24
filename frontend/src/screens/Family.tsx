@@ -69,6 +69,10 @@ function Family(){
   try{const r=await fetch(`/api/family/transactions/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить операцию");setTransactions(old=>old.filter(x=>x.id!==id));await load();}
   catch(e){setError(e instanceof Error?e.message:"Ошибка удаления");}
  };
+ const updateRole=async(id:number,role:"admin"|"member")=>{
+  try{const r=await fetch(`/api/family/members/${id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({role})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось изменить роль");await load();}
+  catch(e){setError(e instanceof Error?e.message:"Ошибка роли");}
+ };
  const removeMember=async(id:number)=>{
   if(!window.confirm("Удалить участника из семейного бюджета?"))return;
   try{const r=await fetch(`/api/family/members/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить участника");await load();}
@@ -106,7 +110,7 @@ function Family(){
      {members.map(m=><div className="member-row" key={m.id}>
       <div className="member-avatar">{(m.firstName[0]||"").toUpperCase()}{(m.lastName[0]||"").toUpperCase()}</div>
       <div className="member-copy"><strong>{m.firstName} {m.lastName}</strong><small>{m.role==="owner"?"Владелец":m.role==="admin"?"Администратор":"Участник"} · @{m.username}</small></div>
-      {(family.role==="owner"||family.role==="admin")&&m.role!=="owner"&&<button className="pure-button ghost" aria-label="Удалить участника" onClick={()=>void removeMember(m.id)}><Trash2 size={14}/></button>}
+      {family.role==="owner"&&m.role!=="owner"&&<select className="pure-select" aria-label="Роль участника" value={m.role} onChange={e=>void updateRole(m.id,e.target.value as "admin"|"member")}><option value="member">Участник</option><option value="admin">Администратор</option></select>}{(family.role==="owner"||family.role==="admin")&&m.role!=="owner"&&<button className="pure-button ghost" aria-label="Удалить участника" onClick={()=>void removeMember(m.id)}><Trash2 size={14}/></button>}
      </div>)}
      {family.role!=="owner"&&<button className="pure-button ghost" style={{marginTop:12}} onClick={()=>void leave()}><LogOut size={14}/>Покинуть семью</button>}
     </Panel>
