@@ -58,7 +58,8 @@ func csvHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool){
  switch r.URL.Path{
  case "/api/export.csv":
   if r.Method!=http.MethodGet{w.Header().Set("Allow","GET");http.Error(w,`{"error":"Метод не поддерживается"}`,405);return}
-  rows,err:=database.Query(r.Context(),`SELECT operation_date::text,title,operation_type,amount::text,category,account_id,COALESCE(transfer_account_id,0),comment FROM transactions WHERE user_id=$1 AND ($2='' OR operation_date >= $2::date) AND ($3='' OR operation_date <= $3::date) AND ($4::bigint=0 OR account_id=$4 OR transfer_account_id=$4) ORDER BY operation_date,id`,userID,r.URL.Query().Get("from"),r.URL.Query().Get("to"),parseIntDefault(r.URL.Query().Get("accountId")))
+  fromValue,errFrom:=parseOptionalDate(r.URL.Query().Get("from"));toValue,errTo:=parseOptionalDate(r.URL.Query().Get("to"));if errFrom!=nil||errTo!=nil{http.Error(w,`{"error":"Некорректный период экспорта"}`,400);return}
+  rows,err:=database.Query(r.Context(),`SELECT operation_date::text,title,operation_type,amount::text,category,account_id,COALESCE(transfer_account_id,0),comment FROM transactions WHERE user_id=$1 AND ($2::date IS NULL OR operation_date >= $2::date) AND ($3::date IS NULL OR operation_date <= $3::date) AND ($4::bigint=0 OR account_id=$4 OR transfer_account_id=$4) ORDER BY operation_date,id`,userID,fromValue,toValue,parseIntDefault(r.URL.Query().Get("accountId")))
   if err!=nil{http.Error(w,`Не удалось подготовить экспорт`,500);return};defer rows.Close()
   w.Header().Set("Content-Type","text/csv; charset=utf-8");w.Header().Set("Content-Disposition",`attachment; filename="fluxora-transactions.csv"`)
   _,_=w.Write([]byte{0xEF,0xBB,0xBF});writer:=csv.NewWriter(w);_=writer.Write([]string{"date","title","type","amount","category","accountId","transferAccountId","comment"})
@@ -70,7 +71,7 @@ func csvHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool){
   file,header,err:=r.FormFile("file");if err!=nil{http.Error(w,`{"error":"Выберите CSV-файл"}`,400);return};defer file.Close()
   if header.Size>5<<20{http.Error(w,`{"error":"Максимальный размер файла 5 МБ"}`,400);return}
   data,err:=io.ReadAll(io.LimitReader(file,(5<<20)+1));if err!=nil||len(data)>5<<20{http.Error(w,`{"error":"Не удалось прочитать CSV-файл"}`,400);return}
-  items,err:=parseImportCSV(data);if err!=nil{http.Error(w,`{"error":"Ошибка CSV: "+err.Error()+"}`,400);return}
+  items,err:=parseImportCSV(data);if err!=nil{http.Error(w,"{\\"error\\":\\"Ошибка CSV: "+err.Error()+"\\"}",400);return}
   valid:=0
   for i:=range items{validateImportRow(&items[i]);if len(items[i].Errors)==0{
    var source,destination bool
@@ -94,3 +95,5 @@ func csvHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool){
  }
 }
 func parseIntDefault(v string)int64{n,_:=strconv.ParseInt(v,10,64);return n}
+
+func parseOptionalDate(v string)(any,error){if strings.TrimSpace(v)==""{return nil,nil};d,err:=time.Parse("2006-01-02",v);if err!=nil{return nil,err};return d,nil}
