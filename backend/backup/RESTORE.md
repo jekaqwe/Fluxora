@@ -2,7 +2,7 @@
 
 ## Backup schedule
 
-The backend creates a PostgreSQL custom-format archive every day at 03:00 UTC.
+The backend creates a PostgreSQL custom-format archive every day at 03:00 UTC. If the service was offline at that time, it checks for the current day's archive on startup and creates it when missing.
 
 - S3 prefix: `backups/postgres/`
 - File name: `YYYY-MM-DD.dump`
