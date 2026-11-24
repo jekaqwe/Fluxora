@@ -28,6 +28,11 @@ const formatCents = (value: bigint) => {
   return (negative ? "−" : "") + new Intl.NumberFormat("ru-RU").format(absolute / 100n) +
     "," + (absolute % 100n).toString().padStart(2, "0") + " ₽";
 };
+const isPositiveAmount = (value: string) => {
+  if (!/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(value)) return false;
+  const [whole, fraction = ""] = value.replace(",", ".").split(".");
+  return BigInt(whole) * 100n + BigInt((fraction + "00").slice(0, 2)) > 0n;
+};
 const localDate = () => {
   const now = new Date();
   return [now.getFullYear(), String(now.getMonth() + 1).padStart(2, "0"), String(now.getDate()).padStart(2, "0")].join("-");
@@ -130,7 +135,7 @@ function Operations() {
           {kind === "transfer" && <label className="form-label">На какой счёт<select className="pure-select" value={transferAccountId} onChange={e => setTransferAccountId(e.target.value)}>{accounts.filter(a => String(a.id) !== accountId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>}
           <label className="form-label">Комментарий<input className="pure-input" value={comment} onChange={e => setComment(e.target.value)} maxLength={1000}/></label>
         </div>
-        <div className="form-row" style={{marginTop:14}}><button className="pure-button" disabled={saving || !title.trim() || !/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(amount) || (kind === "transfer" && (!transferAccountId || transferAccountId === accountId))} onClick={() => void add()}>{saving ? "Сохранение…" : "Сохранить операцию"}</button><button className="pure-button ghost" onClick={() => setShowForm(false)}><X size={15}/>Отмена</button></div>
+        <div className="form-row" style={{marginTop:14}}><button className="pure-button" disabled={saving || !title.trim() || !isPositiveAmount(amount) || (kind === "transfer" && (!transferAccountId || transferAccountId === accountId))} onClick={() => void add()}>{saving ? "Сохранение…" : "Сохранить операцию"}</button><button className="pure-button ghost" onClick={() => setShowForm(false)}><X size={15}/>Отмена</button></div>
       </>}
     </Panel>}
     <Panel title="История операций" subtitle={`${visible.length} записей`}>
