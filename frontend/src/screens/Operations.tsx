@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Coffee, ShoppingBag, Car, Plus, X, Trash2 } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Coffee, ShoppingBag, Car, Plus, X, Trash2, Pencil } from "lucide-react";
 import { PageHeading, Panel, Stat } from "./ui";
 import "./Pure.css";
 
@@ -55,6 +55,7 @@ function Operations() {
   const [comment, setComment] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   const load = async () => {
     try {
@@ -83,25 +84,38 @@ function Operations() {
     setError("");
     setSaving(true);
     try {
-      const response = await fetch("/api/transactions", {
-        method: "POST",
+      const response = await fetch(editingId === null ? "/api/transactions" : `/api/transactions/${editingId}`, {
+        method: editingId === null ? "POST" : "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title, type: kind, amount: amount.replace(",", "."), category, date,
           accountId: Number(accountId),
           transferAccountId: kind === "transfer" ? Number(transferAccountId) : 0,
-          comment, idempotencyKey: crypto.randomUUID(),
+          comment, ...(editingId === null ? { idempotencyKey: crypto.randomUUID() } : {}),
         }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Не удалось сохранить операцию");
-      setItems(old => [data, ...old.filter(item => item.id !== data.id)]);
-      setTitle(""); setAmount(""); setComment(""); setShowForm(false);
+      setItems(old => editingId === null ? [data, ...old.filter(item => item.id !== data.id)] : old.map(item => item.id === data.id ? data : item));
+      setTitle(""); setAmount(""); setComment(""); setShowForm(false); setEditingId(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка сохранения");
     } finally {
       setSaving(false);
     }
+  };
+
+  const beginEdit = (item: Tx) => {
+    setEditingId(item.id);
+    setTitle(item.title);
+    setKind(item.type);
+    setAmount(item.amount);
+    setCategory(item.category);
+    setDate(item.date);
+    setAccountId(String(item.accountId));
+    setTransferAccountId(item.transferAccountId ? String(item.transferAccountId) : "");
+    setComment(item.comment);
+    setShowForm(true);
   };
 
   const remove = async (id: number) => {
@@ -135,7 +149,7 @@ function Operations() {
           {kind === "transfer" && <label className="form-label">На какой счёт<select className="pure-select" value={transferAccountId} onChange={e => setTransferAccountId(e.target.value)}>{accounts.filter(a => String(a.id) !== accountId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>}
           <label className="form-label">Комментарий<input className="pure-input" value={comment} onChange={e => setComment(e.target.value)} maxLength={1000}/></label>
         </div>
-        <div className="form-row" style={{marginTop:14}}><button className="pure-button" disabled={saving || !title.trim() || !isPositiveAmount(amount) || (kind === "transfer" && (!transferAccountId || transferAccountId === accountId))} onClick={() => void add()}>{saving ? "Сохранение…" : "Сохранить операцию"}</button><button className="pure-button ghost" onClick={() => setShowForm(false)}><X size={15}/>Отмена</button></div>
+        <div className="form-row" style={{marginTop:14}}><button className="pure-button" disabled={saving || !title.trim() || !isPositiveAmount(amount) || (kind === "transfer" && (!transferAccountId || transferAccountId === accountId))} onClick={() => void add()}>{saving ? "Сохранение…" : editingId === null ? "Сохранить операцию" : "Сохранить изменения"}</button><button className="pure-button ghost" onClick={() => {setShowForm(false);setEditingId(null);}}><X size={15}/>Отмена</button></div>
       </>}
     </Panel>}
     <Panel title="История операций" subtitle={`${visible.length} записей`}>
@@ -154,7 +168,7 @@ function Operations() {
           <span className="transaction-copy"><strong>{item.title}</strong><small>{item.category} · {typeLabels[item.type]} · {isTransfer ? account + " → " + (destination || "счёт") : account}</small></span>
           <strong className={`transaction-amount ${isIncome ? "positive" : isTransfer ? "" : "negative"}`}>{isIncome ? "+" : isTransfer ? "↔ " : "−"}{item.amount} ₽</strong>
           <span className="transaction-date">{item.date}</span>
-          <button type="button" className="pure-button ghost" aria-label="Удалить операцию" onClick={() => void remove(item.id)}><Trash2 size={14}/></button>
+          <button type="button" className="pure-button ghost" aria-label="Изменить операцию" onClick={() => beginEdit(item)}><Pencil size={14}/></button><button type="button" className="pure-button ghost" aria-label="Удалить операцию" onClick={() => void remove(item.id)}><Trash2 size={14}/></button>
         </div>;
       })}{visible.length===0&&<div className="empty-note">Операций по выбранным условиям не найдено.</div>}</div>
     </Panel>
