@@ -206,7 +206,7 @@ func (s *s3Store) putReaderMultipartWithPartSize(ctx context.Context, key, conte
 	if !ok {
 		return errors.New("multipart S3 upload requires a seekable ReaderAt source")
 	}
-	if size <= s3SinglePutLimit || size > s3MaximumObjectSize || partSize < 5*1024*1024 {
+	if size <= 0 || size > s3MaximumObjectSize || partSize < 5*1024*1024 {
 		return errors.New("invalid multipart S3 upload size")
 	}
 	partCount := (size + partSize - 1) / partSize
