@@ -70,3 +70,19 @@ func TestS3PutReaderUploadsSeekableStream(t *testing.T) {
  }
  if received != payload { t.Fatalf("uploaded body = %q, want %q", received, payload) }
 }
+
+func TestBuildS3CanonicalRequestUsesSingleHeaderSeparator(t *testing.T) {
+	headers := "host:storage.example\n" +
+		"x-amz-content-sha256:abc123\n" +
+		"x-amz-date:20261124T120000Z\n"
+	got := buildS3CanonicalRequest(http.MethodGet, "/bucket/object", "", headers,
+		"host;x-amz-content-sha256;x-amz-date", "abc123")
+	want := "GET\n/bucket/object\n\n" +
+		"host:storage.example\n" +
+		"x-amz-content-sha256:abc123\n" +
+		"x-amz-date:20261124T120000Z\n" +
+		"host;x-amz-content-sha256;x-amz-date\nabc123"
+	if got != want {
+		t.Fatalf("canonical request mismatch:\n got: %q\nwant: %q", got, want)
+	}
+}
