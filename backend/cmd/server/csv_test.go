@@ -32,7 +32,7 @@ func TestSafeCSVCell(t *testing.T) {
   "+cmd":"'+cmd",
   "-cmd":"'-cmd",
   "ordinary text":"ordinary text",
-  "":""
+  "":"",
  }
  for input,want:=range cases { if got:=safeCSVCell(input);got!=want { t.Errorf("safeCSVCell(%q)=%q, want %q",input,got,want) } }
 }
