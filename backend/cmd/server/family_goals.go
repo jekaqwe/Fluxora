@@ -38,8 +38,8 @@ type familyGoalResponse struct {
  CreatedBy *int64 `json:"createdBy,omitempty"`
  CreatedAt time.Time `json:"createdAt"`
 }
-type familyGoalEntryPayload struct { Amount string `json:"amount"`;Comment string `json:"comment"`;IdempotencyKey string `json:"idempotencyKey"`;AccountID int64 `json:"accountId"`;TransactionID int64 `json:"transactionId"` }
-type familyGoalEntryResponse struct { ID int64 `json:"id"`;Amount string `json:"amount"`;Comment string `json:"comment"`;Author string `json:"author"`;CreatedAt time.Time `json:"createdAt"` }
+type familyGoalEntryPayload struct { Amount string `json:"amount"`;Comment string `json:"comment"`;EntryType string `json:"entryType"`;IdempotencyKey string `json:"idempotencyKey"`;AccountID int64 `json:"accountId"`;TransactionID int64 `json:"transactionId"` }
+type familyGoalEntryResponse struct { ID int64 `json:"id"`;Amount string `json:"amount"`;EntryType string `json:"entryType"`;Comment string `json:"comment"`;Author string `json:"author"`;CreatedAt time.Time `json:"createdAt"` }
 
 func familyGoalsHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool,userID int64){
  family,err:=loadFamily(database,userID);if err!=nil{http.Error(w,`{"error":"Семейный бюджет не найден"}`,404);return}
@@ -47,7 +47,7 @@ func familyGoalsHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
  if path=="/api/family/goals"{
   switch r.Method{
   case http.MethodGet:
-   rows,err:=database.Query(r.Context(),`SELECT g.id,g.title,g.description,g.target_amount::text,g.starting_amount::text,(g.starting_amount+COALESCE(SUM(e.amount),0))::text,g.due_date::text,g.priority,g.status,g.image_key,g.created_by,g.created_at FROM family_goals g LEFT JOIN family_goal_entries e ON e.goal_id=g.id WHERE g.family_id=$1 GROUP BY g.id ORDER BY g.created_at DESC,g.id DESC`,family.ID)
+   rows,err:=database.Query(r.Context(),`SELECT g.id,g.title,g.description,g.target_amount::text,g.starting_amount::text,(g.starting_amount+COALESCE(SUM(CASE WHEN e.entry_type='withdrawal' THEN -e.amount ELSE e.amount END),0))::text,g.due_date::text,g.priority,g.status,g.image_key,g.created_by,g.created_at FROM family_goals g LEFT JOIN family_goal_entries e ON e.goal_id=g.id WHERE g.family_id=$1 GROUP BY g.id ORDER BY g.created_at DESC,g.id DESC`,family.ID)
    if err!=nil{http.Error(w,`{"error":"Не удалось загрузить семейные цели"}`,500);return};defer rows.Close();items:=make([]familyGoalResponse,0)
    var store *s3Store
    for rows.Next(){var x familyGoalResponse;var due,image *string;var creator pgtype.Int8;if err:=rows.Scan(&x.ID,&x.Title,&x.Description,&x.TargetAmount,&x.StartingAmount,&x.CurrentAmount,&due,&x.Priority,&x.Status,&image,&creator,&x.CreatedAt);err!=nil{http.Error(w,`{"error":"Ошибка чтения семейных целей"}`,500);return};x.DueDate=due;if creator.Valid{v:=creator.Int64;x.CreatedBy=&v};if image!=nil&&*image!=""{if store==nil{store,_=newS3Store()};if store!=nil{if url,e:=store.presignGet(*image,7*24*time.Hour);e==nil{x.ImageURL=&url}}};items=append(items,x)}
@@ -93,15 +93,15 @@ func familyGoalsHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
 func familyGoalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool,userID,familyID,goalID int64){
  w.Header().Set("Content-Type","application/json");w.Header().Set("Cache-Control","no-store")
  if r.Method==http.MethodGet{
-  rows,err:=database.Query(r.Context(),`SELECT e.id,e.amount::text,e.comment,COALESCE(u.first_name||' '||u.last_name,'Удалённый участник'),e.created_at FROM family_goal_entries e LEFT JOIN users u ON u.id=e.author_user_id WHERE e.goal_id=$1 AND e.family_id=$2 ORDER BY e.created_at DESC,e.id DESC`,goalID,familyID)
+  rows,err:=database.Query(r.Context(),`SELECT e.id,e.amount::text,e.entry_type,e.comment,COALESCE(u.first_name||' '||u.last_name,'Удалённый участник'),e.created_at FROM family_goal_entries e LEFT JOIN users u ON u.id=e.author_user_id WHERE e.goal_id=$1 AND e.family_id=$2 ORDER BY e.created_at DESC,e.id DESC`,goalID,familyID)
   if err!=nil{http.Error(w,`{"error":"Не удалось загрузить историю цели"}`,500);return};defer rows.Close();items:=make([]familyGoalEntryResponse,0)
-  for rows.Next(){var x familyGoalEntryResponse;if err:=rows.Scan(&x.ID,&x.Amount,&x.Comment,&x.Author,&x.CreatedAt);err!=nil{http.Error(w,`{"error":"Ошибка истории цели"}`,500);return};items=append(items,x)}
+  for rows.Next(){var x familyGoalEntryResponse;if err:=rows.Scan(&x.ID,&x.Amount,&x.EntryType,&x.Comment,&x.Author,&x.CreatedAt);err!=nil{http.Error(w,`{"error":"Ошибка истории цели"}`,500);return};items=append(items,x)}
   _=json.NewEncoder(w).Encode(items);return
  }
  if r.Method!=http.MethodPost{w.Header().Set("Allow","GET, POST");http.Error(w,`{"error":"Метод не поддерживается"}`,405);return}
  r.Body=http.MaxBytesReader(w,r.Body,12<<10);var in familyGoalEntryPayload;if err:=json.NewDecoder(r.Body).Decode(&in);err!=nil{http.Error(w,`{"error":"Некорректные данные"}`,400);return}
- in.Amount=strings.TrimSpace(in.Amount);in.Comment=strings.TrimSpace(in.Comment);in.IdempotencyKey=strings.TrimSpace(in.IdempotencyKey)
- if !validGoalAmount(in.Amount,false)||len([]rune(in.Comment))>500||in.IdempotencyKey==""||len(in.IdempotencyKey)>40||in.AccountID<0||in.TransactionID<0{http.Error(w,`{"error":"Проверьте сумму, комментарий, счёт и ключ операции"}`,400);return}
+ in.Amount=strings.TrimSpace(in.Amount);in.Comment=strings.TrimSpace(in.Comment);in.EntryType=strings.TrimSpace(in.EntryType);in.IdempotencyKey=strings.TrimSpace(in.IdempotencyKey);if in.EntryType==""{in.EntryType="contribution"}
+ if !validGoalAmount(in.Amount,false)||(in.EntryType!="contribution"&&in.EntryType!="withdrawal")||len([]rune(in.Comment))>500||in.IdempotencyKey==""||len(in.IdempotencyKey)>40||in.AccountID<0||in.TransactionID<0{http.Error(w,`{"error":"Проверьте сумму, комментарий, счёт и ключ операции"}`,400);return}
  tx,err:=database.Begin(r.Context());if err!=nil{http.Error(w,`{"error":"Не удалось начать пополнение"}`,500);return};defer tx.Rollback(r.Context())
  var status string;if err:=tx.QueryRow(r.Context(),`SELECT status FROM family_goals WHERE id=$1 AND family_id=$2 FOR UPDATE`,goalID,familyID).Scan(&status);err!=nil{http.Error(w,`{"error":"Семейная цель не найдена"}`,404);return}
  var item familyGoalEntryResponse
@@ -110,48 +110,50 @@ func familyGoalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pg
   var samePayload bool
   err=tx.QueryRow(r.Context(),`SELECT EXISTS(
    SELECT 1 FROM family_goal_entries e
-   WHERE e.id=$1 AND e.goal_id=$2 AND e.family_id=$3 AND e.author_user_id=$4 AND e.amount=$5::numeric AND e.comment=$6
+   WHERE e.id=$1 AND e.goal_id=$2 AND e.family_id=$3 AND e.author_user_id=$4 AND e.amount=$5::numeric AND e.entry_type=$6 AND e.comment=$7
    AND (
-    ($7::bigint>0 AND EXISTS(SELECT 1 FROM transactions t WHERE t.id=e.transaction_id AND t.user_id=$4 AND t.account_id=$7 AND t.amount=$5::numeric AND t.operation_type='expense'))
-    OR ($8::bigint>0 AND e.transaction_id=$8)
-    OR ($7::bigint=0 AND $8::bigint=0 AND e.transaction_id IS NULL)
+    ($8::bigint>0 AND EXISTS(SELECT 1 FROM transactions t WHERE t.id=e.transaction_id AND t.user_id=$4 AND t.account_id=$8 AND t.amount=$5::numeric AND t.operation_type=CASE WHEN $6='withdrawal' THEN 'income' ELSE 'expense' END))
+    OR ($9::bigint>0 AND e.transaction_id=$9)
+    OR ($8::bigint=0 AND $9::bigint=0 AND e.transaction_id IS NULL)
    )
-  )`,item.ID,goalID,familyID,userID,in.Amount,in.Comment,in.AccountID,in.TransactionID).Scan(&samePayload)
+  )`,item.ID,goalID,familyID,userID,in.Amount,in.EntryType,in.Comment,in.AccountID,in.TransactionID).Scan(&samePayload)
   if err!=nil{http.Error(w,`{"error":"Не удалось проверить повтор пополнения"}`,500);return}
   if !samePayload{http.Error(w,`{"error":"Ключ идемпотентности уже использован для другого пополнения"}`,409);return}
   if e:=tx.Commit(r.Context());e!=nil{http.Error(w,`{"error":"Не удалось завершить пополнение"}`,500);return}
   _=json.NewEncoder(w).Encode(item);return
  }
  if err!=pgx.ErrNoRows{http.Error(w,`{"error":"Не удалось проверить повтор пополнения"}`,500);return}
- if status=="paused"||status=="completed"{http.Error(w,`{"error":"Пополнение недоступно для приостановленной или завершённой цели"}`,409);return}
+ if status=="paused"||status=="completed"{http.Error(w,`{"error":"Операция недоступна для приостановленной или завершённой цели"}`,409);return}
  if in.AccountID>0&&in.TransactionID>0{http.Error(w,`{"error":"Укажите счёт или готовую операцию, но не оба поля"}`,400);return}
  if in.AccountID>0{
   var exists bool;if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM accounts WHERE id=$1 AND user_id=$2)`,in.AccountID,userID).Scan(&exists);err!=nil||!exists{http.Error(w,`{"error":"Личный счёт не найден"}`,400);return}
   var goalTitle string;if err:=tx.QueryRow(r.Context(),`SELECT title FROM family_goals WHERE id=$1 AND family_id=$2`,goalID,familyID).Scan(&goalTitle);err!=nil{http.Error(w,`{"error":"Семейная цель не найдена"}`,404);return}
   transactionKey:="family-goal:"+strconv.FormatInt(familyID,10)+":"+strconv.FormatInt(userID,10)+":"+in.IdempotencyKey
+  operationType:="expense";transactionTitle:="Вклад в семейную цель: "+goalTitle
+  if in.EntryType=="withdrawal"{operationType="income";transactionTitle="Вывод из семейной цели: "+goalTitle}
   var transactionID int64
-  err=tx.QueryRow(r.Context(),`INSERT INTO transactions(user_id,account_id,title,operation_type,amount,category,operation_date,comment,idempotency_key) VALUES($1,$2,$3,'expense',$4::numeric,'Семейные цели',CURRENT_DATE,$5,$6) ON CONFLICT(user_id,idempotency_key) DO UPDATE SET idempotency_key=EXCLUDED.idempotency_key RETURNING id`,userID,in.AccountID,"Вклад в семейную цель: "+goalTitle,in.Amount,in.Comment,transactionKey).Scan(&transactionID)
+  err=tx.QueryRow(r.Context(),`INSERT INTO transactions(user_id,account_id,title,operation_type,amount,category,operation_date,comment,idempotency_key) VALUES($1,$2,$3,$4,$5::numeric,'Семейные цели',CURRENT_DATE,$6,$7) ON CONFLICT(user_id,idempotency_key) DO UPDATE SET idempotency_key=EXCLUDED.idempotency_key RETURNING id`,userID,in.AccountID,transactionTitle,operationType,in.Amount,in.Comment,transactionKey).Scan(&transactionID)
   if err!=nil{http.Error(w,`{"error":"Не удалось создать финансовую операцию"}`,500);return}
   var transactionMatches bool
-  if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM transactions WHERE id=$1 AND user_id=$2 AND account_id=$3 AND amount=$4::numeric AND operation_type='expense' AND category='Семейные цели' AND comment=$5)`,transactionID,userID,in.AccountID,in.Amount,in.Comment).Scan(&transactionMatches);err!=nil{http.Error(w,`{"error":"Не удалось проверить связанную операцию"}`,500);return}
+  if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM transactions WHERE id=$1 AND user_id=$2 AND account_id=$3 AND amount=$4::numeric AND operation_type=$5 AND category='Семейные цели' AND comment=$5)`,transactionID,userID,in.AccountID,in.Amount,in.Comment,operationType).Scan(&transactionMatches);err!=nil{http.Error(w,`{"error":"Не удалось проверить связанную операцию"}`,500);return}
   if !transactionMatches{http.Error(w,`{"error":"Ключ операции уже использован для другой финансовой записи"}`,409);return}
   in.TransactionID=transactionID
  }
  if in.TransactionID>0{
   var linkedID int64
-  if err:=tx.QueryRow(r.Context(),`SELECT id FROM transactions WHERE id=$1 AND user_id=$2 AND amount=$3::numeric AND operation_type='expense' FOR UPDATE`,in.TransactionID,userID,in.Amount).Scan(&linkedID);err!=nil{
+  if err:=tx.QueryRow(r.Context(),`SELECT id FROM transactions WHERE id=$1 AND user_id=$2 AND amount=$3::numeric AND operation_type=CASE WHEN $4='withdrawal' THEN 'income' ELSE 'expense' END FOR UPDATE`,in.TransactionID,userID,in.Amount,in.EntryType).Scan(&linkedID);err!=nil{
    http.Error(w,`{"error":"Связанная операция не найдена или её сумма и тип не совпадают с пополнением"}`,400);return
   }
   in.TransactionID=linkedID
  }
  var author string;_=tx.QueryRow(r.Context(),`SELECT first_name||' '||last_name FROM users WHERE id=$1`,userID).Scan(&author)
- _,err=tx.Exec(r.Context(),`INSERT INTO family_goal_entries(goal_id,family_id,author_user_id,amount,comment,transaction_id,idempotency_key) VALUES($1,$2,$3,$4::numeric,$5,NULLIF($6,0),$7)`,goalID,familyID,userID,in.Amount,in.Comment,in.TransactionID,in.IdempotencyKey)
+ _,err=tx.Exec(r.Context(),`INSERT INTO family_goal_entries(goal_id,family_id,author_user_id,amount,entry_type,comment,transaction_id,idempotency_key) VALUES($1,$2,$3,$4::numeric,$5,$6,NULLIF($7,0),$8)`,goalID,familyID,userID,in.Amount,in.EntryType,in.Comment,in.TransactionID,in.IdempotencyKey)
  if err!=nil{http.Error(w,`{"error":"Не удалось сохранить пополнение"}`,500);return}
  err=tx.QueryRow(r.Context(),`SELECT id,amount::text,comment,COALESCE((SELECT first_name||' '||last_name FROM users WHERE id=$2),'Удалённый участник'),created_at FROM family_goal_entries WHERE goal_id=$1 AND author_user_id=$2 AND idempotency_key=$3`,goalID,userID,in.IdempotencyKey).Scan(&item.ID,&item.Amount,&item.Comment,&item.Author,&item.CreatedAt)
  if err!=nil{http.Error(w,`{"error":"Не удалось прочитать пополнение"}`,500);return}
- _,err=tx.Exec(r.Context(),`UPDATE family_goals SET status=CASE WHEN starting_amount+COALESCE((SELECT SUM(amount) FROM family_goal_entries WHERE goal_id=$1),0)>=target_amount THEN 'completed' ELSE status END,updated_at=NOW() WHERE id=$1`,goalID)
+ _,err=tx.Exec(r.Context(),`UPDATE family_goals SET status=CASE WHEN starting_amount+COALESCE((SELECT SUM(CASE WHEN entry_type='withdrawal' THEN -amount ELSE amount END) FROM family_goal_entries WHERE goal_id=$1),0)>=target_amount THEN 'completed' WHEN status='paused' THEN 'paused' ELSE 'active' END,updated_at=NOW() WHERE id=$1`,goalID)
  if err!=nil{http.Error(w,`{"error":"Не удалось обновить прогресс цели"}`,500);return}
- _,_=tx.Exec(r.Context(),`INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) SELECT user_id,'family_goal','Пополнение семейной цели',$2,'family_goal',$3 FROM family_members WHERE family_id=$1 AND user_id<>$4`,familyID,in.Amount+" ₽",goalID,userID)
+ _,_=tx.Exec(r.Context(),`INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) SELECT user_id,'family_goal',CASE WHEN $5='withdrawal' THEN 'Вывод из семейной цели' ELSE 'Пополнение семейной цели' END,$2,'family_goal',$3 FROM family_members WHERE family_id=$1 AND user_id<>$4`,familyID,in.Amount+" ₽",goalID,userID,in.EntryType)
  if err:=tx.Commit(r.Context());err!=nil{http.Error(w,`{"error":"Не удалось завершить пополнение"}`,500);return}
  w.WriteHeader(201);_=json.NewEncoder(w).Encode(item)
 }
