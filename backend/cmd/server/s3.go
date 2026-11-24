@@ -98,7 +98,7 @@ func (s *s3Store) put(ctx context.Context, key, contentType string, data []byte)
 	return s.doSigned(ctx, http.MethodPut, key, contentType, data)
 }
 
-const s3SinglePutLimit int64 = 5 * 1024 * 1024 * 1024
+const s3SinglePutLimit int64 = 5_000_000_000
 const s3MultipartPartSize int64 = 64 * 1024 * 1024
 const s3MaximumObjectSize int64 = 5 * 1024 * 1024 * 1024 * 1024
 
