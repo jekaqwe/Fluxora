@@ -68,7 +68,7 @@ func gamificationHandler(w http.ResponseWriter,r *http.Request,database *pgxpool
   UNION SELECT operation_date FROM family_transactions WHERE author_user_id=$1
   UNION SELECT created_at::date FROM goal_entries WHERE user_id=$1
   UNION SELECT joined_at::date FROM family_members WHERE user_id=$1
- ) activity ORDER BY activity_date DESC`,userID)
+ ) activity WHERE activity_date<=CURRENT_DATE ORDER BY activity_date DESC`,userID)
  if err!=nil{http.Error(w,`{"error":"Не удалось рассчитать активность"}`,500);return}
  dates:=make([]time.Time,0);for rows.Next(){var d time.Time;if rows.Scan(&d)==nil{dates=append(dates,d)}};rows.Close()
  streak:=0
