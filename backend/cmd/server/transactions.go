@@ -156,12 +156,12 @@ func transactionsHandler(w http.ResponseWriter, r *http.Request, database *pgxpo
 		}
 		defer tx.Rollback(r.Context())
 		var linkedToDebt bool
-		if err := tx.QueryRow(r.Context(), "SELECT EXISTS (SELECT 1 FROM debt_payments WHERE transaction_id = $1 AND user_id = $2)", id, userID).Scan(&linkedToDebt); err != nil {
+		if err := tx.QueryRow(r.Context(), "SELECT EXISTS (SELECT 1 FROM debt_payments WHERE transaction_id = $1 AND user_id = $2) OR EXISTS (SELECT 1 FROM goal_entries WHERE transaction_id = $1 AND user_id = $2) OR EXISTS (SELECT 1 FROM family_goal_entries WHERE transaction_id = $1 AND author_user_id = $2)", id, userID).Scan(&linkedToDebt); err != nil {
 			http.Error(w, `{"error":"Не удалось проверить связь с платежом по долгу"}`, http.StatusInternalServerError)
 			return
 		}
 		if linkedToDebt {
-			http.Error(w, `{"error":"Эта операция создана из платежа по долгу и защищена от отдельного изменения. Управляйте связанным долгом в разделе «Долги»."}`, http.StatusConflict)
+			http.Error(w, `{"error":"Эта операция связана с историей долга или цели и защищена от отдельного изменения, чтобы не нарушить финансовые данные."}`, http.StatusConflict)
 			return
 		}
 		var exists bool
