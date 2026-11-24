@@ -105,7 +105,7 @@ func familyGoalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pg
  tx,err:=database.Begin(r.Context());if err!=nil{http.Error(w,`{"error":"Не удалось начать пополнение"}`,500);return};defer tx.Rollback(r.Context())
  var status string;if err:=tx.QueryRow(r.Context(),`SELECT status FROM family_goals WHERE id=$1 AND family_id=$2 FOR UPDATE`,goalID,familyID).Scan(&status);err!=nil{http.Error(w,`{"error":"Семейная цель не найдена"}`,404);return}
  var item familyGoalEntryResponse
- err=tx.QueryRow(r.Context(),`SELECT e.id,e.amount::text,e.comment,COALESCE(u.first_name||' '||u.last_name,'Удалённый участник'),e.created_at FROM family_goal_entries e LEFT JOIN users u ON u.id=e.author_user_id WHERE e.family_id=$1 AND e.author_user_id=$2 AND e.idempotency_key=$3`,familyID,userID,in.IdempotencyKey).Scan(&item.ID,&item.Amount,&item.Comment,&item.Author,&item.CreatedAt)
+ err=tx.QueryRow(r.Context(),`SELECT e.id,e.amount::text,e.entry_type,e.comment,COALESCE(u.first_name||' '||u.last_name,'Удалённый участник'),e.created_at FROM family_goal_entries e LEFT JOIN users u ON u.id=e.author_user_id WHERE e.family_id=$1 AND e.author_user_id=$2 AND e.idempotency_key=$3`,familyID,userID,in.IdempotencyKey).Scan(&item.ID,&item.Amount,&item.EntryType,&item.Comment,&item.Author,&item.CreatedAt)
  if err==nil{
   var samePayload bool
   err=tx.QueryRow(r.Context(),`SELECT EXISTS(
@@ -135,7 +135,7 @@ func familyGoalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pg
   err=tx.QueryRow(r.Context(),`INSERT INTO transactions(user_id,account_id,title,operation_type,amount,category,operation_date,comment,idempotency_key) VALUES($1,$2,$3,$4,$5::numeric,'Семейные цели',CURRENT_DATE,$6,$7) ON CONFLICT(user_id,idempotency_key) DO UPDATE SET idempotency_key=EXCLUDED.idempotency_key RETURNING id`,userID,in.AccountID,transactionTitle,operationType,in.Amount,in.Comment,transactionKey).Scan(&transactionID)
   if err!=nil{http.Error(w,`{"error":"Не удалось создать финансовую операцию"}`,500);return}
   var transactionMatches bool
-  if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM transactions WHERE id=$1 AND user_id=$2 AND account_id=$3 AND amount=$4::numeric AND operation_type=$5 AND category='Семейные цели' AND comment=$5)`,transactionID,userID,in.AccountID,in.Amount,in.Comment,operationType).Scan(&transactionMatches);err!=nil{http.Error(w,`{"error":"Не удалось проверить связанную операцию"}`,500);return}
+  if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM transactions WHERE id=$1 AND user_id=$2 AND account_id=$3 AND amount=$4::numeric AND operation_type=$6 AND category='Семейные цели' AND comment=$5)`,transactionID,userID,in.AccountID,in.Amount,in.Comment,operationType).Scan(&transactionMatches);err!=nil{http.Error(w,`{"error":"Не удалось проверить связанную операцию"}`,500);return}
   if !transactionMatches{http.Error(w,`{"error":"Ключ операции уже использован для другой финансовой записи"}`,409);return}
   in.TransactionID=transactionID
  }
@@ -149,7 +149,7 @@ func familyGoalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pg
  var author string;_=tx.QueryRow(r.Context(),`SELECT first_name||' '||last_name FROM users WHERE id=$1`,userID).Scan(&author)
  _,err=tx.Exec(r.Context(),`INSERT INTO family_goal_entries(goal_id,family_id,author_user_id,amount,entry_type,comment,transaction_id,idempotency_key) VALUES($1,$2,$3,$4::numeric,$5,$6,NULLIF($7,0),$8)`,goalID,familyID,userID,in.Amount,in.EntryType,in.Comment,in.TransactionID,in.IdempotencyKey)
  if err!=nil{http.Error(w,`{"error":"Не удалось сохранить пополнение"}`,500);return}
- err=tx.QueryRow(r.Context(),`SELECT id,amount::text,comment,COALESCE((SELECT first_name||' '||last_name FROM users WHERE id=$2),'Удалённый участник'),created_at FROM family_goal_entries WHERE goal_id=$1 AND author_user_id=$2 AND idempotency_key=$3`,goalID,userID,in.IdempotencyKey).Scan(&item.ID,&item.Amount,&item.Comment,&item.Author,&item.CreatedAt)
+ err=tx.QueryRow(r.Context(),`SELECT id,amount::text,entry_type,comment,COALESCE((SELECT first_name||' '||last_name FROM users WHERE id=$2),'Удалённый участник'),created_at FROM family_goal_entries WHERE goal_id=$1 AND author_user_id=$2 AND idempotency_key=$3`,goalID,userID,in.IdempotencyKey).Scan(&item.ID,&item.Amount,&item.EntryType,&item.Comment,&item.Author,&item.CreatedAt)
  if err!=nil{http.Error(w,`{"error":"Не удалось прочитать пополнение"}`,500);return}
  _,err=tx.Exec(r.Context(),`UPDATE family_goals SET status=CASE WHEN starting_amount+COALESCE((SELECT SUM(CASE WHEN entry_type='withdrawal' THEN -amount ELSE amount END) FROM family_goal_entries WHERE goal_id=$1),0)>=target_amount THEN 'completed' WHEN status='paused' THEN 'paused' ELSE 'active' END,updated_at=NOW() WHERE id=$1`,goalID)
  if err!=nil{http.Error(w,`{"error":"Не удалось обновить прогресс цели"}`,500);return}
