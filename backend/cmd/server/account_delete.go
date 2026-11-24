@@ -33,7 +33,7 @@ func deleteUserData(ctx context.Context,database *pgxpool.Pool,userID int64,allo
  var avatar pgtype.Text
  if err:=tx.QueryRow(ctx,`SELECT avatar_key FROM users WHERE id=$1`,userID).Scan(&avatar);err!=nil{return nil,err}
  if avatar.Valid&&avatar.String!=""{keys=append(keys,avatar.String)}
- goalRows,err:=tx.Query(ctx,`SELECT image_key FROM goals WHERE user_id=$1 AND image_key IS NOT NULL`,userID);if err==nil{for goalRows.Next(){var key string;if goalRows.Scan(&key)==nil&&key!=""{keys=append(keys,key)}};goalRows.Close()}
+ goalRows,err:=tx.Query(ctx,`SELECT image_key FROM goals WHERE user_id=$1 AND image_key IS NOT NULL`,userID);if err!=nil{return nil,err};for goalRows.Next(){var key string;if err:=goalRows.Scan(&key);err!=nil{goalRows.Close();return nil,err};if key!=""{keys=append(keys,key)}};if err:=goalRows.Err();err!=nil{goalRows.Close();return nil,err};goalRows.Close()
  var familyID pgtype.Int8
  err=tx.QueryRow(ctx,`SELECT family_id FROM family_members WHERE user_id=$1 AND role='owner' LIMIT 1 FOR UPDATE`,userID).Scan(&familyID)
  if err!=nil&&err!=pgx.ErrNoRows{return nil,err}
