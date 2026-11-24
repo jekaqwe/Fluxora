@@ -77,7 +77,16 @@ func debtItemHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Poo
  if len(parts)==2&&parts[1]=="payments"{debtPaymentsHandler(w,r,database,userID,id);return};if len(parts)!=1{http.Error(w,`{"error":"Некорректный адрес"}`,400);return}
  switch r.Method{
  case http.MethodDelete:
-  tag,err:=database.Exec(r.Context(),`DELETE FROM debts WHERE id=$1 AND user_id=$2`,id,userID);if err!=nil{http.Error(w,`{"error":"Не удалось удалить долг"}`,500);return};if tag.RowsAffected()==0{http.Error(w,`{"error":"Долг не найден"}`,404);return};_=json.NewEncoder(w).Encode(map[string]bool{"success":true})
+  tx,err:=database.Begin(r.Context());if err!=nil{http.Error(w,`{"error":"Не удалось начать удаление долга"}`,500);return};defer tx.Rollback(r.Context())
+  var lockedID int64
+  err=tx.QueryRow(r.Context(),`SELECT id FROM debts WHERE id=$1 AND user_id=$2 FOR UPDATE`,id,userID).Scan(&lockedID)
+  if err==pgx.ErrNoRows{http.Error(w,`{"error":"Долг не найден"}`,404);return};if err!=nil{http.Error(w,`{"error":"Не удалось проверить долг"}`,500);return}
+  var hasPayments bool
+  if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM debt_payments WHERE debt_id=$1 AND user_id=$2)`,id,userID).Scan(&hasPayments);err!=nil{http.Error(w,`{"error":"Не удалось проверить историю платежей"}`,500);return}
+  if hasPayments{http.Error(w,`{"error":"Нельзя удалить долг с историей платежей. Закройте долг, чтобы сохранить финансовую историю."}`,http.StatusConflict);return}
+  if _,err:=tx.Exec(r.Context(),`DELETE FROM debts WHERE id=$1 AND user_id=$2`,id,userID);err!=nil{http.Error(w,`{"error":"Не удалось удалить долг"}`,500);return}
+  if err:=tx.Commit(r.Context());err!=nil{http.Error(w,`{"error":"Не удалось завершить удаление долга"}`,500);return}
+  _=json.NewEncoder(w).Encode(map[string]bool{"success":true})
  case http.MethodPatch:
   r.Body=http.MaxBytesReader(w,r.Body,16<<10);var in debtPayload
   if err:=json.NewDecoder(r.Body).Decode(&in);err!=nil{http.Error(w,`{"error":"Некорректные данные"}`,400);return}
