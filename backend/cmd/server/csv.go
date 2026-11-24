@@ -65,7 +65,7 @@ func csvSuggestedMapping(headers []string) map[string]string {
 			"date": "Дата операции",
 			"title": "Описание",
 			"type": csvTinkoffTypeMapping,
-			"amount": "Сумма операции",
+			"amount": "Сумма в валюте счёта",
 			"category": "Категория по-умолчанию",
 			"comment": "Сообщение",
 		}
@@ -249,6 +249,12 @@ func parseImportCSVWithMappingStats(data []byte, mapping map[string]string) ([]i
 
 		amountRaw := value("amount")
 		amount := normalizeImportAmount(amountRaw, tinkoff)
+		dateValue := value("date")
+		if tinkoff {
+			if parsedDate, dateErr := parseImportDate(dateValue); dateErr == nil {
+				dateValue = parsedDate.Format("2006-01-02")
+			}
+		}
 		kind := value("type")
 		if tinkoff {
 			if strings.HasPrefix(strings.TrimSpace(amountRaw), "-") {
@@ -270,7 +276,7 @@ func parseImportCSVWithMappingStats(data []byte, mapping map[string]string) ([]i
 			return nil, skipped, fmt.Errorf("Файл содержит больше 5000 строк")
 		}
 		rows = append(rows, importCSVRow{
-			Date:              value("date"),
+			Date:              dateValue,
 			Title:             value("title"),
 			Type:              kind,
 			Amount:            amount,
