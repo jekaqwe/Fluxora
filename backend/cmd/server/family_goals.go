@@ -75,7 +75,8 @@ func familyGoalsHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
  switch r.Method{
  case http.MethodDelete:
   if !canManage{http.Error(w,`{"error":"Недостаточно прав"}`,403);return}
-  _,err:=database.Exec(r.Context(),`DELETE FROM family_goals WHERE id=$1 AND family_id=$2`,id,family.ID);if err!=nil{http.Error(w,`{"error":"Не удалось удалить семейную цель"}`,500);return};_=json.NewEncoder(w).Encode(map[string]bool{"success":true})
+  var imageKey *string;_ = database.QueryRow(r.Context(),`SELECT image_key FROM family_goals WHERE id=$1 AND family_id=$2`,id,family.ID).Scan(&imageKey)
+  _,err:=database.Exec(r.Context(),`DELETE FROM family_goals WHERE id=$1 AND family_id=$2`,id,family.ID);if err!=nil{http.Error(w,`{"error":"Не удалось удалить семейную цель"}`,500);return};if imageKey!=nil&&*imageKey!=""{if store,e:=newS3Store();e==nil{if e:=store.delete(r.Context(),*imageKey);e!=nil{log.Printf("failed to delete family goal image %d: %v",id,e)}}};_=json.NewEncoder(w).Encode(map[string]bool{"success":true})
  case http.MethodPatch:
   if !canManage{http.Error(w,`{"error":"Недостаточно прав"}`,403);return}
   r.Body=http.MaxBytesReader(w,r.Body,24<<10);var in familyGoalPayload;if err:=json.NewDecoder(r.Body).Decode(&in);err!=nil{http.Error(w,`{"error":"Некорректные данные"}`,400);return}
