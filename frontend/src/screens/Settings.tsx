@@ -91,7 +91,7 @@ function Settings(){
    catch(e){setSessionError(e instanceof Error?e.message:"Ошибка сессий");}
    finally{setRevokingSessions(false);}
  };
- useEffect(()=>{fetch("/api/settings/preferences").then(r=>{if(!r.ok)throw new Error("Не удалось загрузить настройки");return r.json();}).then(data=>{setTheme(data.theme||"light");document.documentElement.dataset.theme=data.theme||"light";localStorage.setItem("fluxora_theme",data.theme||"light");const merged={...(data.notifications||{}),...(data.privacy||{})};setPrefs(merged);localStorage.setItem("fluxora_preferences",JSON.stringify(merged));}).catch(e=>console.error(e));},[]);
+ useEffect(()=>{fetch("/api/settings/preferences").then(r=>{if(!r.ok)throw new Error("Не удалось загрузить настройки");return r.json();}).then(data=>{setTheme(data.theme||"light");document.documentElement.dataset.theme=data.theme==="auto"?(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):(data.theme||"light");localStorage.setItem("fluxora_theme",data.theme||"light");const merged={...(data.notifications||{}),...(data.privacy||{})};setPrefs(merged);localStorage.setItem("fluxora_preferences",JSON.stringify(merged));}).catch(e=>console.error(e));},[]);
  useEffect(()=>{fetch("/api/profile").then(r=>{if(!r.ok)throw new Error("Не удалось загрузить аккаунт");return r.json();}).then((data:UserProfile)=>{setUser(data);setDraft({firstName:data.firstName,lastName:data.lastName,username:data.username});}).catch(e=>console.error(e));},[]);
  const saveProfileField=async(field:ProfileField)=>{
    setProfileError("");setProfileMessage("");setSavingField(field);
@@ -118,7 +118,7 @@ function Settings(){
    catch(e){setPrefs(prefs);localStorage.setItem("fluxora_preferences",JSON.stringify(prefs));setPrefsError(e instanceof Error?e.message:"Ошибка сохранения настроек");}
  };
  const saveTheme=async(value:string)=>{
-   setTheme(value);localStorage.setItem("fluxora_theme",value);document.documentElement.dataset.theme=value;setPrefsError("");
+   setTheme(value);localStorage.setItem("fluxora_theme",value);document.documentElement.dataset.theme=value==="auto"?(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):value;setPrefsError("");
    try{const r=await fetch("/api/settings/preferences",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({theme:value})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось сохранить тему");}
    catch(e){setPrefsError(e instanceof Error?e.message:"Ошибка сохранения темы");}
  };
