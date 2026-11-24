@@ -35,7 +35,7 @@ func parseImportCSV(data []byte)([]importCSVRow,error){
  rows:=make([]importCSVRow,0)
  for line:=2;;line++{
   record,err:=reader.Read();if err==io.EOF{break};if err!=nil{return nil,fmt.Errorf("Строка %d: %v",line,err)}
-  value:=func(key string)string{idx:=indexes[key];if idx>=len(record){return ""};return strings.TrimSpace(record[idx])}
+  value:=func(key string)string{idx:=indexes[key];if idx>=len(record){return ""};v:=strings.TrimSpace(record[idx]);if len(v)>1&&v[0]==39&&strings.ContainsRune("=+-@",rune(v[1])){v=v[1:]};return v}
   accountID,_:=strconv.ParseInt(value("accountId"),10,64);transferID,_:=strconv.ParseInt(value("transferAccountId"),10,64)
   rows=append(rows,importCSVRow{Date:value("date"),Title:value("title"),Type:value("type"),Amount:value("amount"),Category:value("category"),AccountID:accountID,TransferAccountID:transferID,Comment:value("comment"),Errors:[]string{}})
   if len(rows)>=5000{return nil,fmt.Errorf("Файл содержит больше 5000 строк")}
