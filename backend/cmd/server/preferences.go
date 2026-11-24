@@ -71,6 +71,8 @@ func preferencesHandler(w http.ResponseWriter, r *http.Request, database *pgxpoo
 				return
 			}
 			defaults := defaultUserPreferences()
+			if result.Notifications == nil { result.Notifications = make(map[string]bool) }
+			if result.Privacy == nil { result.Privacy = make(map[string]bool) }
 			if result.Theme == "" {
 				result.Theme = defaults.Theme
 			}
@@ -126,6 +128,8 @@ func preferencesHandler(w http.ResponseWriter, r *http.Request, database *pgxpoo
 			http.Error(w, `{"error":"Не удалось прочитать текущие настройки"}`, http.StatusInternalServerError)
 			return
 		}
+		if current.Notifications == nil { current.Notifications = make(map[string]bool) }
+		if current.Privacy == nil { current.Privacy = make(map[string]bool) }
 		if patch.Theme != nil {
 			current.Theme = *patch.Theme
 		}
