@@ -89,7 +89,7 @@ func getProfileHandler(w http.ResponseWriter, r *http.Request, database *pgxpool
 	if avatarKey != nil && *avatarKey != "" {
 		store, storeErr := newS3Store()
 		if storeErr == nil {
-			if signedURL, signErr := store.presignGet(*avatarKey, time.Hour); signErr == nil {
+			if signedURL, signErr := store.presignGet(*avatarKey, 7*24*time.Hour); signErr == nil {
 				profile.AvatarURL = &signedURL
 			}
 		}
@@ -318,10 +318,10 @@ func uploadAvatarHandler(w http.ResponseWriter, r *http.Request, database *pgxpo
 	}
 	if oldKey != nil && *oldKey != "" {
 		if err := store.delete(r.Context(), *oldKey); err != nil {
-			// The new avatar is already active. A failed old-object cleanup is safe to retry operationally.
+			log.Printf("failed to delete replaced avatar object for user %d: %v", userID, err)
 		}
 	}
-	signedURL, err := store.presignGet(key, 15*time.Minute)
+	signedURL, err := store.presignGet(key, 7*24*time.Hour)
 	if err != nil {
 		http.Error(w, `{"error":"Аватар сохранён, но не удалось создать ссылку"}`, http.StatusInternalServerError)
 		return
