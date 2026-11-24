@@ -27,6 +27,7 @@ function Goals(){
  const [entryGoalId,setEntryGoalId]=useState<number|null>(null);
  const [entryAmount,setEntryAmount]=useState("");
  const [entryType,setEntryType]=useState<"contribution"|"withdrawal">("contribution");
+ const [entryKey,setEntryKey]=useState("");
  const [historyGoalId,setHistoryGoalId]=useState<number|null>(null);
  const [history,setHistory]=useState<Record<number,Entry[]>>({});
 
@@ -46,9 +47,9 @@ function Goals(){
  const recordEntry=async()=>{
   if(entryGoalId===null)return;setError("");
   try{
-   const response=await fetch(`/api/goals/${entryGoalId}/entries`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:entryType,amount:entryAmount.replace(",", "."),comment:"",idempotencyKey:crypto.randomUUID()})});
+   const response=await fetch(`/api/goals/${entryGoalId}/entries`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:entryType,amount:entryAmount.replace(",", "."),comment:"",idempotencyKey:entryKey})});
    const data=await response.json();if(!response.ok)throw new Error(data.error||"Не удалось записать движение");
-   const savedGoalId=entryGoalId;setEntryGoalId(null);setEntryAmount("");await load();
+   const savedGoalId=entryGoalId;setEntryGoalId(null);setEntryAmount("");setEntryKey("");await load();
    const historyResponse=await fetch(`/api/goals/${savedGoalId}/entries`);const historyData=await historyResponse.json();if(historyResponse.ok)setHistory(old=>({...old,[savedGoalId]:historyData}));
   }catch(e){setError(e instanceof Error?e.message:"Ошибка операции");}
  };
@@ -85,8 +86,8 @@ function Goals(){
       <div className="goal-meta"><span>Срок: {g.dueDate||"не задан"}</span><span>{moneyCents(targetCents>current?targetCents-current:0n)}</span></div>
       <span className="muted">{g.status==="paused"?"Приостановлена":g.status==="completed"?"Завершена":"Активна"}</span>
       <div className="form-row" style={{marginTop:10,flexWrap:"wrap"}}>
-       <button className="pure-button secondary" onClick={()=>{setEntryGoalId(g.id);setEntryType("contribution");}} disabled={g.status!=="active"}>Пополнить</button>
-       <button className="pure-button ghost" onClick={()=>{setEntryGoalId(g.id);setEntryType("withdrawal");}} disabled={g.status!=="active"||current<=0n}>Снять</button>
+       <button className="pure-button secondary" onClick={()=>{setEntryGoalId(g.id);setEntryType("contribution");setEntryKey(crypto.randomUUID());}} disabled={g.status!=="active"}>Пополнить</button>
+       <button className="pure-button ghost" onClick={()=>{setEntryGoalId(g.id);setEntryType("withdrawal");setEntryKey(crypto.randomUUID());}} disabled={g.status!=="active"||current<=0n}>Снять</button>
        <button className="pure-button ghost" onClick={()=>beginEdit(g)}><Pencil size={14}/></button>
        <button className="pure-button ghost" onClick={()=>void togglePause(g)} disabled={g.status==="completed"}>{g.status==="paused"?<Play size={14}/>:<Pause size={14}/>}</button>
        <button className="pure-button ghost" onClick={()=>void showHistory(g.id)}><History size={14}/></button>
