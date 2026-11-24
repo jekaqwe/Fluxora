@@ -142,14 +142,53 @@ func updateProfileHandler(w http.ResponseWriter, r *http.Request, database *pgxp
 	}
 	defer tx.Rollback(r.Context())
 
+	var currentFirstName, currentLastName, currentUsername string
 	var firstNameChanged, lastNameChanged, usernameChanged *time.Time
 	err = tx.QueryRow(r.Context(), `
-		SELECT first_name_changed_at, last_name_changed_at, username_changed_at
+		SELECT first_name, last_name, username,
+		       first_name_changed_at, last_name_changed_at, username_changed_at
 		FROM users WHERE id = $1 FOR UPDATE
-	`, userID).Scan(&firstNameChanged, &lastNameChanged, &usernameChanged)
+	`, userID).Scan(
+		&currentFirstName, &currentLastName, &currentUsername,
+		&firstNameChanged, &lastNameChanged, &usernameChanged,
+	)
 	if err != nil {
 		http.Error(w, `{"error":"Пользователь не найден"}`, http.StatusNotFound)
 		return
+	}
+
+	if input.FirstName != nil && *input.FirstName == currentFirstName {
+		input.FirstName = nil
+	}
+	if input.LastName != nil && *input.LastName == currentLastName {
+		input.LastName = nil
+	}
+	if input.Username != nil && *input.Username == currentUsername {
+		input.Username = nil
+	}
+	if input.FirstName == nil && input.LastName == nil && input.Username == nil {
+		_ = tx.Rollback(r.Context())
+		getProfileHandler(w, r, database, userID)
+		return
+	}
+
+	if input.Username != nil {
+		if _, err := tx.Exec(r.Context(), "SELECT pg_advisory_xact_lock(78124019)"); err != nil {
+			http.Error(w, `{"error":"Не удалось проверить логин"}`, http.StatusInternalServerError)
+			return
+		}
+		var usernameExists bool
+		if err := tx.QueryRow(r.Context(),
+			"SELECT EXISTS (SELECT 1 FROM users WHERE LOWER(username) = LOWER($1) AND id <> $2)",
+			*input.Username, userID,
+		).Scan(&usernameExists); err != nil {
+			http.Error(w, `{"error":"Не удалось проверить логин"}`, http.StatusInternalServerError)
+			return
+		}
+		if usernameExists {
+			http.Error(w, `{"error":"Этот логин уже занят"}`, http.StatusConflict)
+			return
+		}
 	}
 
 	now := time.Now().UTC()
