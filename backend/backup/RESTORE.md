@@ -11,7 +11,7 @@ The backend creates a PostgreSQL custom-format archive every day at 03:00 UTC. I
 - S3 credentials are read only from backend environment variables.
 - Database backups are separate from user-uploaded files and avatars.
 
-The backend writes `pg_dump` to a temporary file and uploads it to S3 from that file. It does not hold the entire database archive in process memory. Archives up to 5 GB use a single PUT; larger archives use S3 multipart upload, with a supported object ceiling of 5 TiB. A successful backup is logged as `PostgreSQL archive uploaded`. A missing S3 configuration or failed upload is logged and does not stop the API.
+The backend writes `pg_dump` to a temporary file and uploads it to S3 from that file. It does not hold the entire database archive in process memory. Archives up to 5 GB use a single PUT; larger archives use S3 multipart upload, with a supported object ceiling of 5 TB. A successful backup is logged as `PostgreSQL archive uploaded`. A missing S3 configuration or failed upload is logged and does not stop the API.
 
 ## Restore procedure
 
