@@ -147,7 +147,9 @@ func goalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
   if err!=nil { http.Error(w,`{"error":"Не удалось загрузить историю"}`,500); return }
   defer rows.Close(); items:=make([]goalEntryResponse,0)
   for rows.Next() {
-   var item goalEntryResponse; var txID pgtype.Int8
+   var goalStatus string
+ if err:=tx.QueryRow(r.Context(),"SELECT status FROM goals WHERE id=$1 AND user_id=$2 FOR UPDATE",goalID,userID).Scan(&goalStatus); err!=nil { http.Error(w,`{"error":"Цель не найдена"}`,404); return }
+ var item goalEntryResponse; var txID pgtype.Int8
    if err:=rows.Scan(&item.ID,&item.Type,&item.Amount,&item.Comment,&txID,&item.CreatedAt); err!=nil { http.Error(w,`{"error":"Ошибка чтения истории"}`,500); return }
    if txID.Valid { value:=txID.Int64; item.TransactionID=&value }; items=append(items,item)
   }
@@ -167,8 +169,7 @@ func goalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
   _=json.NewEncoder(w).Encode(item); return
  }
  if err!=pgx.ErrNoRows { http.Error(w,`{"error":"Не удалось проверить повтор операции"}`,500); return }
- var goalStatus string
- if err:=tx.QueryRow(r.Context(),"SELECT status FROM goals WHERE id=$1 AND user_id=$2 FOR UPDATE",goalID,userID).Scan(&goalStatus); err!=nil { http.Error(w,`{"error":"Цель не найдена"}`,404); return }
+ 
  if goalStatus=="paused" || goalStatus=="completed" { http.Error(w,`{"error":"Пополнение или снятие недоступно для приостановленной или завершённой цели"}`,409); return }
  if in.Type=="withdrawal" {
   var sufficient bool
