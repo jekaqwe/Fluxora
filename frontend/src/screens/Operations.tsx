@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Coffee, ShoppingBag, Car, Plus, X, Trash2, Pencil } from "lucide-react";
 import { PageHeading, Panel, Stat } from "./ui";
 import "./Pure.css";
+import RecurringPanel from "./RecurringPanel";
 
 type OperationType = "income" | "expense" | "transfer";
 type Account = { id: number; name: string; type: string; initialBalance: string; currency: "RUB" };
@@ -152,6 +153,7 @@ function Operations() {
         <div className="form-row" style={{marginTop:14}}><button className="pure-button" disabled={saving || !title.trim() || !isPositiveAmount(amount) || (kind === "transfer" && (!transferAccountId || transferAccountId === accountId))} onClick={() => void add()}>{saving ? "Сохранение…" : editingId === null ? "Сохранить операцию" : "Сохранить изменения"}</button><button className="pure-button ghost" onClick={() => {setShowForm(false);setEditingId(null);}}><X size={15}/>Отмена</button></div>
       </>}
     </Panel>}
+    <RecurringPanel accounts={accounts}/>
     <Panel title="История операций" subtitle={`${visible.length} записей`}>
       <div className="form-row" style={{justifyContent:"space-between",marginBottom:16,flexWrap:"wrap"}}>
         <div className="filter-pills">{[["all","Все"],["income","Доходы"],["expense","Расходы"],["transfer","Переводы"]].map(([key,label])=><button key={key} className={`filter-pill ${filter===key?"active":""}`} onClick={()=>setFilter(key)}>{label}</button>)}</div>
