@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
@@ -99,7 +100,10 @@ func (s *s3Store) delete(ctx context.Context, key string) error {
 }
 
 func (s *s3Store) doSigned(ctx context.Context, method, key, contentType string, data []byte) error {
-	u := s.objectURL(key)
+	return s.doSignedURL(ctx, method, s.objectURL(key), contentType, data)
+}
+
+func (s *s3Store) doSignedURL(ctx context.Context, method string, u *url.URL, contentType string, data []byte) error {
 	now := time.Now().UTC()
 	dateStamp := now.Format("20060102")
 	amzDate := now.Format("20060102T150405Z")
@@ -168,4 +172,43 @@ func randomObjectID() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(value[:]), nil
+}
+
+type s3ListResult struct {
+ XMLName xml.Name `xml:"ListBucketResult"`
+ IsTruncated bool `xml:"IsTruncated"`
+ NextContinuationToken string `xml:"NextContinuationToken"`
+ Contents []struct {
+  Key string `xml:"Key"`
+  LastModified string `xml:"LastModified"`
+ } `xml:"Contents"`
+}
+
+func (s *s3Store) listKeys(ctx context.Context,prefix string)([]string,error){
+ keys:=make([]string,0);token:=""
+ for {
+  u:=*s.endpoint
+  basePath:=strings.TrimRight(u.EscapedPath(),"/")
+  u.RawPath=basePath+"/"+url.PathEscape(s.bucket)
+  decoded,_:=url.PathUnescape(u.RawPath);u.Path=decoded
+  query:=url.Values{};query.Set("list-type","2");query.Set("prefix",prefix);if token!=""{query.Set("continuation-token",token)}
+  u.RawQuery=query.Encode()
+  payloadHash:=sha256Hex(nil);amzDate:=time.Now().UTC().Format("20060102T150405Z");dateStamp:=time.Now().UTC().Format("20060102")
+  canonicalHeaders:="host:"+u.Host+"\n"+"x-amz-content-sha256:"+payloadHash+"\n"+"x-amz-date:"+amzDate+"\n"
+  signedHeaders:="host;x-amz-content-sha256;x-amz-date"
+  canonicalRequest:=http.MethodGet+"\n"+u.EscapedPath()+"\n"+u.Query().Encode()+"\n"+canonicalHeaders+"\n"+signedHeaders+"\n"+payloadHash
+  scope:=dateStamp+"/"+s.region+"/s3/aws4_request"
+  stringToSign:="AWS4-HMAC-SHA256\n"+amzDate+"\n"+scope+"\n"+sha256Hex([]byte(canonicalRequest))
+  signature:=hex.EncodeToString(hmacSHA256(s.signingKey(dateStamp),stringToSign))
+  req,err:=http.NewRequestWithContext(ctx,http.MethodGet,u.String(),nil);if err!=nil{return nil,err}
+  req.Header.Set("X-Amz-Date",amzDate);req.Header.Set("X-Amz-Content-Sha256",payloadHash)
+  req.Header.Set("Authorization","AWS4-HMAC-SHA256 Credential="+s.access+"/"+scope+", SignedHeaders="+signedHeaders+", Signature="+signature)
+  resp,err:=s.client.Do(req);if err!=nil{return nil,err}
+  body,readErr:=io.ReadAll(io.LimitReader(resp.Body,8<<20));resp.Body.Close()
+  if readErr!=nil{return nil,readErr};if resp.StatusCode<200||resp.StatusCode>=300{return nil,fmt.Errorf("S3 list failed with status %d: %s",resp.StatusCode,strings.TrimSpace(string(body)))}
+  var result s3ListResult;if err:=xml.Unmarshal(body,&result);err!=nil{return nil,err}
+  for _,item:=range result.Contents{keys=append(keys,item.Key)}
+  if !result.IsTruncated||result.NextContinuationToken==""{break};token=result.NextContinuationToken
+ }
+ return keys,nil
 }
