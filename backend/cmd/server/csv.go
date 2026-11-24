@@ -209,11 +209,14 @@ func parseImportCSVWithMappingStats(data []byte, mapping map[string]string) ([]i
 	}
 
 	statusIndex := -1
+	analyticsIndex := -1
 	if tinkoff {
 		for i, header := range headers {
-			if csvHeaderKey(header) == "статус" {
+			switch csvHeaderKey(header) {
+			case "статус":
 				statusIndex = i
-				break
+			case "учётваналитике", "учетваналитике":
+				analyticsIndex = i
 			}
 		}
 	}
@@ -230,9 +233,15 @@ func parseImportCSVWithMappingStats(data []byte, mapping map[string]string) ([]i
 		if line > 5001 {
 			return nil, skipped, fmt.Errorf("Файл содержит больше 5000 строк")
 		}
-		if tinkoff && statusIndex >= 0 && statusIndex < len(record) && strings.TrimSpace(record[statusIndex]) != "Ок" {
-			skipped++
-			continue
+		if tinkoff {
+			if statusIndex >= 0 && statusIndex < len(record) && strings.TrimSpace(record[statusIndex]) != "Ок" {
+				skipped++
+				continue
+			}
+			if analyticsIndex >= 0 && analyticsIndex < len(record) && strings.TrimSpace(record[analyticsIndex]) == "Нет" {
+				skipped++
+				continue
+			}
 		}
 
 		value := func(key string) string {
