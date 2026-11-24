@@ -201,8 +201,13 @@ func processOneRecurring(ctx context.Context,database *pgxpool.Pool,id int64,tod
  if next.Equal(today){
   if end!=nil&&next.After(*end){_,_=tx.Exec(ctx,`UPDATE recurring_operations SET status='completed',updated_at=NOW() WHERE id=$1`,id);_=tx.Commit(ctx);return}
   key:="recurring:"+strconv.FormatInt(id,10)+":"+next.Format("2006-01-02")
-  _,err=insertRecurringTransaction(ctx,tx,userID,accountID,title,kind,amount,category,next,"Автоматическая регулярная операция",key)
-  if err!=nil{log.Printf("recurring create transaction: %v",err);return};_,_=tx.Exec(ctx,`INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) VALUES($1,'recurring_created','Создана регулярная операция',$2,'recurring',$3)`,userID,title+" · "+next.Format("02.01.2006"),id);next=nextRecurringDate(next,frequency)
+  transactionID,insertErr:=insertRecurringTransaction(ctx,tx,userID,accountID,title,kind,amount,category,next,"Автоматическая регулярная операция",key)
+  if insertErr!=nil{log.Printf("recurring create transaction: %v",insertErr);return}
+  _,err=tx.Exec(ctx,`INSERT INTO recurring_occurrences(recurring_id,user_id,occurrence_date,status,transaction_id,resolved_at)
+   VALUES($1,$2,$3,'confirmed',$4,NOW())
+   ON CONFLICT(recurring_id,occurrence_date) DO UPDATE SET status='confirmed',transaction_id=EXCLUDED.transaction_id,resolved_at=NOW()`,id,userID,next,transactionID)
+  if err!=nil{log.Printf("recurring history: %v",err);return}
+  _,_=tx.Exec(ctx,`INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) VALUES($1,'recurring_created','Создана регулярная операция',$2,'recurring',$3)`,userID,title+" · "+next.Format("02.01.2006"),id);next=nextRecurringDate(next,frequency)
  }
  status:="active";if end!=nil&&next.After(*end){status="completed"}
  _,err=tx.Exec(ctx,`UPDATE recurring_operations SET next_date=$2,status=$3,updated_at=NOW() WHERE id=$1`,id,next,status)
