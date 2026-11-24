@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { PageHeading, Panel, Stat } from "./ui";
-import { Plus, ArrowDownLeft, ArrowUpRight, Trash2, History, Check } from "lucide-react";
+import { Plus, ArrowDownLeft, ArrowUpRight, Trash2, History } from "lucide-react";
 import "./Pure.css";
 
 type Account={id:number;name:string};
