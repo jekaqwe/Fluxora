@@ -22,6 +22,21 @@ function Settings(){
  const [profileError,setProfileError]=useState("");
  const [prefs,setPrefs]=useState(()=>{try{return JSON.parse(localStorage.getItem("fluxora_preferences")||"{}")}catch{return {}}});
  const [theme,setTheme]=useState(localStorage.getItem("fluxora_theme")||"light");
+ const [currentPassword,setCurrentPassword]=useState("");
+ const [newPassword,setNewPassword]=useState("");
+ const [passwordMessage,setPasswordMessage]=useState("");
+ const [passwordError,setPasswordError]=useState("");
+ const [savingPassword,setSavingPassword]=useState(false);
+ const changePassword=async()=>{
+   setPasswordMessage("");setPasswordError("");setSavingPassword(true);
+   try{
+     const response=await fetch("/api/account/password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({currentPassword,newPassword})});
+     const data=await response.json();
+     if(!response.ok)throw new Error(data.error||"Не удалось изменить пароль");
+     setPasswordMessage(data.message||"Пароль изменён");setCurrentPassword("");setNewPassword("");
+   }catch(error){setPasswordError(error instanceof Error?error.message:"Ошибка смены пароля");}
+   finally{setSavingPassword(false);}
+ };
  useEffect(()=>{fetch("/api/profile").then(r=>{if(!r.ok)throw new Error("Не удалось загрузить аккаунт");return r.json();}).then((data:UserProfile)=>{setUser(data);setDraft({firstName:data.firstName,lastName:data.lastName,username:data.username});}).catch(e=>console.error(e));},[]);
  const saveProfileField=async(field:ProfileField)=>{
    setProfileError("");setProfileMessage("");setSavingField(field);
@@ -63,7 +78,7 @@ function Settings(){
  {profileError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{profileError}</p>}
  {profileMessage&&<p role="status" style={{color:"#86efac",fontSize:12}}>{profileMessage}</p>}
  <div className="empty-note">Имя, фамилия и логин изменяются независимо друг от друга. Для каждого поля действует отдельное ограничение: один раз в 14 дней.</div></>}
- {section==="security"&&<><div className="toggle-row"><span><strong>Пароль</strong><br/><small className="muted">Защитите аккаунт надёжным паролем</small></span><LockKeyhole size={18}/></div><label className="setting-field">Текущий пароль<input type="password" placeholder="Введите текущий пароль" disabled/></label><label className="setting-field">Новый пароль<input type="password" placeholder="Не менее 8 символов" disabled/></label><button className="pure-button" disabled title="Нужен серверный endpoint смены пароля">Изменить пароль</button><p className="muted" style={{fontSize:10}}>Смена пароля и управление активными сессиями пока не поддерживаются серверным API.</p></>}
+ {section==="security"&&<><div className="toggle-row"><span><strong>Пароль</strong><br/><small className="muted">Для смены подтвердите текущий пароль</small></span><LockKeyhole size={18}/></div><label className="setting-field">Текущий пароль<input type="password" autoComplete="current-password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} /></label><label className="setting-field">Новый пароль<input type="password" autoComplete="new-password" minLength={8} maxLength={72} value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="От 8 до 72 символов"/></label><button type="button" className="pure-button" disabled={savingPassword||!currentPassword||newPassword.length<8||newPassword.length>72} onClick={changePassword}>{savingPassword?"Сохранение…":"Изменить пароль"}</button>{passwordError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{passwordError}</p>}{passwordMessage&&<p role="status" style={{color:"#86efac",fontSize:12}}>{passwordMessage}</p>}<p className="muted" style={{fontSize:10}}>Пароль хранится в базе только в виде bcrypt-хеша.</p></>}
  {section==="notifications"&&<>{[["operations","Уведомления об операциях","Сообщать о новых доходах и расходах"],["goals","Прогресс целей","Напоминать о важных этапах накоплений"],["family","Семейные события","Получать обновления общего бюджета"]].map(([k,t,d])=><div className="toggle-row" key={k}><span><strong>{t}</strong><br/><small className="muted">{d}</small></span><button type="button" aria-label={t} aria-pressed={isOn(k)} className={`toggle ${isOn(k)?"on":""}`} onClick={()=>toggle(k)}/></div>)}</>}
  {section==="appearance"&&<><div className="toggle-row"><span><strong>Тема оформления</strong><br/><small className="muted">Выберите внешний вид интерфейса</small></span></div><div className="filter-pills">{["light","dark","auto"].map(t=><button key={t} className={`filter-pill ${theme===t?"active":""}`} onClick={()=>{setTheme(t);localStorage.setItem("fluxora_theme",t);}}>{t==="light"?"Светлая":t==="dark"?"Тёмная":"Авто"}</button>)}</div><p className="muted" style={{fontSize:10,marginTop:12}}>Выбор темы сохраняется в этом браузере. Полная тёмная тема будет добавлена отдельно.</p></>}
  {section==="privacy"&&<>{[["profile","Публичный профиль","Разрешить другим видеть имя и достижения"],["achievements","Достижения","Показывать полученные награды"],["activity","Активность","Показывать события в ленте профиля"]].map(([k,t,d])=><div className="toggle-row" key={k}><span><strong>{t}</strong><br/><small className="muted">{d}</small></span><button type="button" aria-label={t} aria-pressed={isOn(k)} className={`toggle ${isOn(k)?"on":""}`} onClick={()=>toggle(k)}/></div>)}<div className="empty-note" style={{marginTop:14}}>Финансовые суммы и история операций не публикуются в профиле.</div></>}
