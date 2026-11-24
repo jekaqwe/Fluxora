@@ -5,6 +5,7 @@ import "./Pure.css";
 
 type Priority="low"|"medium"|"high";
 type Goal={id:number;title:string;description:string;targetAmount:string;startingAmount:string;currentAmount:string;dueDate?:string;priority:Priority;status:"active"|"paused"|"completed";createdAt:string;imageUrl?:string};
+type Account={id:number;name:string};
 type Entry={id:number;type:"contribution"|"withdrawal";amount:string;comment:string;createdAt:string;transactionId?:number};
 const toCents=(value:string)=>{const negative=value.startsWith("-");const [whole,fraction=""]=value.replace("-","").replace(",",".").split(".");const cents=BigInt(whole||"0")*100n+BigInt((fraction+"00").slice(0,2));return negative?-cents:cents;};
 const moneyCents=(value:bigint)=>{const negative=value<0n;const abs=negative?-value:value;return (negative?"−":"")+new Intl.NumberFormat("ru-RU").format(abs/100n)+","+(abs%100n).toString().padStart(2,"0")+" ₽";};
@@ -13,6 +14,8 @@ const validAmount=(value:string)=>/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.
 
 function Goals(){
  const [goals,setGoals]=useState<Goal[]>([]);
+ const [accounts,setAccounts]=useState<Account[]>([]);
+ const [entryAccountId,setEntryAccountId]=useState("");
  const [loading,setLoading]=useState(true);
  const [error,setError]=useState("");
  const [show,setShow]=useState(false);
@@ -31,7 +34,7 @@ function Goals(){
  const [historyGoalId,setHistoryGoalId]=useState<number|null>(null);
  const [history,setHistory]=useState<Record<number,Entry[]>>({});
 
- const load=async()=>{try{const r=await fetch("/api/goals");const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось загрузить цели");setGoals(d);}catch(e){setError(e instanceof Error?e.message:"Ошибка загрузки");}finally{setLoading(false);}};
+ const load=async()=>{try{const [r,a]=await Promise.all([fetch("/api/goals"),fetch("/api/accounts")]);const [d,accountData]=await Promise.all([r.json(),a.json()]);if(!r.ok||!a.ok)throw new Error("Не удалось загрузить цели и счета");setGoals(d);setAccounts(accountData);if(accountData.length&&!entryAccountId)setEntryAccountId(String(accountData[0].id));}catch(e){setError(e instanceof Error?e.message:"Ошибка загрузки");}finally{setLoading(false);}};
  useEffect(()=>{void load();},[]);
 
  const resetForm=()=>{setShow(false);setEditingId(null);setTitle("");setTarget("");setStarting("0");setDueDate("");setPriority("medium");setDescription("");};
@@ -47,7 +50,7 @@ function Goals(){
  const recordEntry=async()=>{
   if(entryGoalId===null)return;setError("");
   try{
-   const response=await fetch(`/api/goals/${entryGoalId}/entries`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:entryType,amount:entryAmount.replace(",", "."),comment:"",idempotencyKey:entryKey})});
+   const response=await fetch(`/api/goals/${entryGoalId}/entries`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:entryType,amount:entryAmount.replace(",", "."),comment:"",accountId:Number(entryAccountId),idempotencyKey:entryKey})});
    const data=await response.json();if(!response.ok)throw new Error(data.error||"Не удалось записать движение");
    const savedGoalId=entryGoalId;setEntryGoalId(null);setEntryAmount("");setEntryKey("");await load();
    const historyResponse=await fetch(`/api/goals/${savedGoalId}/entries`);const historyData=await historyResponse.json();if(historyResponse.ok)setHistory(old=>({...old,[savedGoalId]:historyData}));
@@ -102,7 +105,7 @@ function Goals(){
        <button className="pure-button ghost" onClick={()=>void showHistory(g.id)}><History size={14}/></button><label className="pure-button ghost" title="Изменить изображение"><Image size={14}/><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={e=>void uploadGoalImage(g.id,e)}/></label>{g.imageUrl&&<button className="pure-button ghost" title="Удалить изображение" onClick={()=>void deleteGoalImage(g.id)}><XCircle size={14}/></button>}
        <button className="pure-button ghost" onClick={()=>void remove(g.id)}><Trash2 size={14}/></button>
       </div>
-      {entryGoalId===g.id&&<div style={{marginTop:12}}><label className="form-label">{entryType==="contribution"?"Пополнение, ₽":"Снятие, ₽"}<input className="pure-input" value={entryAmount} onChange={e=>setEntryAmount(e.target.value)} placeholder="0.00"/></label><div className="form-row" style={{marginTop:8}}><button className="pure-button" disabled={!validAmount(entryAmount)} onClick={()=>void recordEntry()}>Подтвердить</button><button className="pure-button ghost" onClick={()=>setEntryGoalId(null)}>Отмена</button></div></div>}
+      {entryGoalId===g.id&&<div style={{marginTop:12}}><label className="form-label">{entryType==="contribution"?"Пополнение, ₽":"Снятие, ₽"}<input className="pure-input" value={entryAmount} onChange={e=>setEntryAmount(e.target.value)} placeholder="0.00"/></label><label className="form-label" style={{marginTop:8}}>Счёт<select className="pure-select" value={entryAccountId} onChange={e=>setEntryAccountId(e.target.value)}>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label><div className="form-row" style={{marginTop:8}}><button className="pure-button" disabled={!validAmount(entryAmount)||!entryAccountId} onClick={()=>void recordEntry()}>Подтвердить</button><button className="pure-button ghost" onClick={()=>setEntryGoalId(null)}>Отмена</button></div></div>}
       {historyGoalId===g.id&&<div className="empty-note" style={{marginTop:12}}>{(history[g.id]||[]).length?(history[g.id]||[]).map(e=><div key={e.id} className="legend-row"><span>{e.type==="contribution"?"Пополнение":"Снятие"} · {new Date(e.createdAt).toLocaleDateString("ru-RU")}</span><strong>{money(e.amount)}</strong></div>):"История пока пуста."}</div>}
      </div>
     </Panel>;
