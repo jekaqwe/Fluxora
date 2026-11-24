@@ -140,10 +140,14 @@ func goalItemHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Poo
   `,id,userID,in.Title,in.Description,in.TargetAmount,in.StartingAmount,due,in.Priority,in.Status).Scan(&item.ID,&item.Title,&item.Description,&item.TargetAmount,&item.StartingAmount,&item.CurrentAmount,&dueText,&item.Priority,&item.Status,&item.CreatedAt)
   if err!=nil { http.Error(w,`{"error":"Цель не найдена или не удалось сохранить"}`,404); return }; item.DueDate=dueText; _=json.NewEncoder(w).Encode(item)
  case http.MethodDelete:
+  tx,err:=database.Begin(r.Context());if err!=nil{http.Error(w,`{"error":"Не удалось начать удаление цели"}`,500);return};defer tx.Rollback(r.Context())
   var imageKey *string
-  if err:=database.QueryRow(r.Context(),"SELECT image_key FROM goals WHERE id=$1 AND user_id=$2",id,userID).Scan(&imageKey);err!=nil{http.Error(w,`{"error":"Цель не найдена"}`,404);return}
-  tag,err:=database.Exec(r.Context(),"DELETE FROM goals WHERE id=$1 AND user_id=$2",id,userID)
-  if err!=nil { http.Error(w,`{"error":"Не удалось удалить цель"}`,500); return }; if tag.RowsAffected()==0 { http.Error(w,`{"error":"Цель не найдена"}`,404); return }
+  if err:=tx.QueryRow(r.Context(),"SELECT image_key FROM goals WHERE id=$1 AND user_id=$2 FOR UPDATE",id,userID).Scan(&imageKey);err!=nil{http.Error(w,`{"error":"Цель не найдена"}`,404);return}
+  var hasEntries bool
+  if err:=tx.QueryRow(r.Context(),"SELECT EXISTS(SELECT 1 FROM goal_entries WHERE goal_id=$1)",id).Scan(&hasEntries);err!=nil{http.Error(w,`{"error":"Не удалось проверить историю цели"}`,500);return}
+  if hasEntries{http.Error(w,`{"error":"Нельзя удалить цель с историей операций. Приостановите её, чтобы сохранить историю."}`,409);return}
+  if _,err:=tx.Exec(r.Context(),"DELETE FROM goals WHERE id=$1 AND user_id=$2",id,userID);err!=nil{http.Error(w,`{"error":"Не удалось удалить цель"}`,500);return}
+  if err:=tx.Commit(r.Context());err!=nil{http.Error(w,`{"error":"Не удалось завершить удаление цели"}`,500);return}
   if imageKey!=nil&&*imageKey!=""{if store,e:=newS3Store();e==nil{if e:=store.delete(r.Context(),*imageKey);e!=nil{log.Printf("failed to delete goal image %d: %v",id,e)}}}
   _=json.NewEncoder(w).Encode(map[string]bool{"success":true})
  default:
