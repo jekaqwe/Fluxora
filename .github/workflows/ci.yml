@@ -65,6 +65,18 @@ jobs:
           kill "$SERVER_PID" || true
           exit 1
 
+      - name: PostgreSQL backup and restore smoke test
+        env:
+          DATABASE_URL: postgres://fluxora_test:fluxora_test@localhost:5432/fluxora_test?sslmode=disable
+          RESTORE_URL: postgres://fluxora_test:fluxora_test@localhost:5432/fluxora_restore_test?sslmode=disable
+          PGPASSWORD: fluxora_test
+        run: |
+          pg_dump --format=custom --no-owner --no-acl --dbname "$DATABASE_URL" --file /tmp/fluxora-ci.dump
+          createdb -h localhost -U fluxora_test fluxora_restore_test
+          pg_restore --clean --if-exists --no-owner --no-acl --dbname "$RESTORE_URL" /tmp/fluxora-ci.dump
+          restored="$(psql "$RESTORE_URL" -Atc "SELECT to_regclass('public.users') IS NOT NULL AND to_regclass('public.category_budgets') IS NOT NULL")"
+          test "$restored" = "t"
+
   frontend:
     name: Frontend build
     runs-on: ubuntu-latest
