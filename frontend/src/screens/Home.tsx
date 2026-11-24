@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Coffee, ShoppingBag, Car, Wallet } from "lucide-react";
 import { PageHeading, Panel, Stat, Donut, LineChart } from "./ui";
 import "./Pure.css";
+import QuickEntry from "./QuickEntry";
 
 type Tx = { id:number; title:string; type:"income"|"expense"|"transfer"; amount:string; category:string; date:string; accountId:number; transferAccountId?:number };
 type Dashboard = { totalBalance:string; monthIncome:string; monthExpense:string; monthNet:string; recent:Tx[] };
@@ -23,6 +24,7 @@ function Home() {
   const [analytics,setAnalytics]=useState<Analytics|null>(null);
   const [activeGoal,setActiveGoal]=useState<Goal|null>(null);
   const [error,setError]=useState("");
+  const [refreshKey,setRefreshKey]=useState(0);
   useEffect(()=>{
     let cancelled=false;
     Promise.all([fetch("/api/dashboard"),fetch("/api/analytics?period=month"),fetch("/api/goals")])
@@ -33,7 +35,7 @@ function Home() {
       })
       .catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:"Ошибка загрузки");});
     return()=>{cancelled=true;};
-  },[]);
+  },[refreshKey]);
   const categoryTotal=useMemo(()=>analytics?.categories.reduce((sum,item)=>sum+BigInt(item.amount.split(".")[0]||"0")*100n+BigInt((item.amount.split(".")[1]||"").padEnd(2,"0").slice(0,2)),0n)??0n,[analytics]);
   const shares=useMemo(()=>analytics?.categories.map(item=>{
     const amount=BigInt(item.amount.split(".")[0]||"0")*100n+BigInt((item.amount.split(".")[1]||"").padEnd(2,"0").slice(0,2));
@@ -47,6 +49,7 @@ function Home() {
     <PageHeading title="Главная" subtitle="Ваши финансы. Ваши цели. Вместе с Fluxora."/>
     {error&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{error}</p>}
     {!dashboard?<div className="empty-note">Загружаем финансовую сводку…</div>:<>
+      <QuickEntry onSaved={()=>setRefreshKey(value=>value+1)}/>
       <div className="pure-grid four">
         <Stat label="Общий баланс" value={money(dashboard.totalBalance)} icon={<Wallet size={17}/>}/>
         <Stat label="Доходы за месяц" value={money(dashboard.monthIncome)} tone="mint" icon={<ArrowDownLeft size={17}/>}/>
