@@ -62,7 +62,10 @@ func csvHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool){
  case "/api/export.csv":
   if r.Method!=http.MethodGet{w.Header().Set("Allow","GET");http.Error(w,`{"error":"Метод не поддерживается"}`,405);return}
   fromValue,errFrom:=parseOptionalDate(r.URL.Query().Get("from"));toValue,errTo:=parseOptionalDate(r.URL.Query().Get("to"));if errFrom!=nil||errTo!=nil{http.Error(w,`{"error":"Некорректный период экспорта"}`,400);return}
-  rows,err:=database.Query(r.Context(),`SELECT operation_date::text,title,operation_type,amount::text,category,account_id,COALESCE(transfer_account_id,0),comment FROM transactions WHERE user_id=$1 AND ($2::date IS NULL OR operation_date >= $2::date) AND ($3::date IS NULL OR operation_date <= $3::date) AND ($4::bigint=0 OR account_id=$4 OR transfer_account_id=$4) AND ($5='' OR category=$5) ORDER BY operation_date,id`,userID,fromValue,toValue,parseIntDefault(r.URL.Query().Get("accountId")),r.URL.Query().Get("category"))
+  if fromValue!=nil&&toValue!=nil&&fromValue.(time.Time).After(toValue.(time.Time)){http.Error(w,`{"error":"Начало периода позже его окончания"}`,400);return}
+  accountFilter:=int64(0)
+  if raw:=r.URL.Query().Get("accountId");raw!=""{parsed,parseErr:=strconv.ParseInt(raw,10,64);if parseErr!=nil||parsed<=0{http.Error(w,`{"error":"Некорректный счёт экспорта"}`,400);return};accountFilter=parsed}
+  rows,err:=database.Query(r.Context(),`SELECT operation_date::text,title,operation_type,amount::text,category,account_id,COALESCE(transfer_account_id,0),comment FROM transactions WHERE user_id=$1 AND ($2::date IS NULL OR operation_date >= $2::date) AND ($3::date IS NULL OR operation_date <= $3::date) AND ($4::bigint=0 OR account_id=$4 OR transfer_account_id=$4) AND ($5='' OR category=$5) ORDER BY operation_date,id`,userID,fromValue,toValue,accountFilter,r.URL.Query().Get("category"))
   if err!=nil{http.Error(w,`Не удалось подготовить экспорт`,500);return};defer rows.Close()
   w.Header().Set("Content-Type","text/csv; charset=utf-8");w.Header().Set("Content-Disposition",`attachment; filename="fluxora-transactions.csv"`)
   _,_=w.Write([]byte{0xEF,0xBB,0xBF});writer:=csv.NewWriter(w);_=writer.Write([]string{"date","title","type","amount","category","accountId","transferAccountId","comment"})
