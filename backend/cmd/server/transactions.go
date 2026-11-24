@@ -173,7 +173,9 @@ func transactionsHandler(w http.ResponseWriter, r *http.Request, database *pgxpo
 			RETURNING id, title, operation_type, amount::text, category, operation_date,
 			          account_id, transfer_account_id, comment, created_at
 		`, userID, input.AccountID, transferID, input.Title, input.Type, input.Amount, input.Category, date, input.Comment, input.IdempotencyKey))
+		created := true
 		if err == pgx.ErrNoRows {
+			created = false
 			item, err = scanTransaction(tx.QueryRow(r.Context(), `
 				SELECT id, title, operation_type, amount::text, category, operation_date,
 				       account_id, transfer_account_id, comment, created_at
@@ -183,6 +185,9 @@ func transactionsHandler(w http.ResponseWriter, r *http.Request, database *pgxpo
 		if err != nil {
 			http.Error(w, `{"error":"Не удалось сохранить операцию"}`, http.StatusInternalServerError)
 			return
+		}
+		if created {
+			_, _ = tx.Exec(r.Context(), "INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) VALUES($1,'transaction','Операция добавлена', $2, 'transaction', $3)", userID, input.Title, item.ID)
 		}
 		if err := tx.Commit(r.Context()); err != nil {
 			http.Error(w, `{"error":"Не удалось завершить создание операции"}`, http.StatusInternalServerError)
