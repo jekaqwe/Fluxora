@@ -8,7 +8,8 @@ type Member={id:number;userId:number;firstName:string;lastName:string;username:s
 type FamilyTx={id:number;title:string;type:"income"|"expense";amount:string;category:string;date:string;comment:string;author:string;createdAt:string};
 type FamilyData={family:FamilyInfo|null;members:Member[]};
 const cents=(v:string)=>{const [whole,fraction=""]=v.split(".");return BigInt(whole||"0")*100n+BigInt((fraction+"00").slice(0,2));};
-const money=(v:string)=>{const neg=v.startsWith("-");const [whole,fraction=""]=v.replace("-","").split(".");const value=BigInt(whole||"0")*100n+BigInt((fraction+"00").slice(0,2));return (neg?"−":"")+new Intl.NumberFormat("ru-RU").format(value/100n)+","+(value%100n).toString().padStart(2,"0")+" ₽";};
+const moneyCents=(value:bigint)=>{const neg=value<0n;const abs=neg?-value:value;return (neg?"−":"")+new Intl.NumberFormat("ru-RU").format(abs/100n)+","+(abs%100n).toString().padStart(2,"0")+" ₽";};
+const money=(v:string)=>{const neg=v.startsWith("-");const [whole,fraction=""]=v.replace("-","").split(".");const value=BigInt(whole||"0")*100n+BigInt((fraction+"00").slice(0,2));return moneyCents(neg?-value:value);};
 const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");};
 
 function Family(){
@@ -86,7 +87,7 @@ function Family(){
    <Panel title="Создать семейный бюджет" subtitle="Начальный баланс задаётся владельцем">
     <label className="form-label">Название<input className="pure-input" value={familyName} onChange={e=>setFamilyName(e.target.value)} maxLength={100}/></label>
     <label className="form-label" style={{marginTop:12}}>Начальный общий баланс, ₽<input className="pure-input" value={initialBalance} onChange={e=>setInitialBalance(e.target.value)}/></label>
-    <button className="pure-button" style={{marginTop:14}} onClick={()=>void createFamily()} disabled={!familyName.trim()||!/^ -?(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(initialBalance.trim())}><Plus size={15}/>Создать</button>
+    <button className="pure-button" style={{marginTop:14}} onClick={()=>void createFamily()} disabled={!familyName.trim()||!/^-?(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(initialBalance.trim())}><Plus size={15}/>Создать</button>
    </Panel>
    <Panel title="Принять приглашение" subtitle="Вставьте токен, полученный от владельца семьи">
     <label className="form-label">Токен приглашения<input className="pure-input" value={acceptToken} onChange={e=>setAcceptToken(e.target.value)} placeholder="Токен"/></label>
@@ -95,7 +96,7 @@ function Family(){
   </div>:<>
    <div className="pure-grid three">
     <Stat label="Семейный баланс" value={money(family.currentBalance)} icon={<HomeIcon size={17}/>}/>
-    <Stat label="Расходы за месяц" value={money(monthExpense.toString()+".00")} tone="violet"/>
+    <Stat label="Расходы за месяц" value={moneyCents(monthExpense)} tone="violet"/>
     <Stat label="Участники" value={String(members.length)} tone="mint" icon={<Users size={17}/>}/>
    </div>
    <div className="pure-grid two" style={{marginTop:16}}>
@@ -128,7 +129,7 @@ function Family(){
      <span className={`transaction-icon ${t.type==="income"?"mint":""}`}><HomeIcon size={16}/></span>
      <span className="transaction-copy"><strong>{t.title}</strong><small>{t.category} · {t.author} · {t.date}</small></span>
      <strong className={`transaction-amount ${t.type==="income"?"positive":"negative"}`}>{t.type==="income"?"+":"−"}{money(t.amount)}</strong>
-     {(family.role==="owner"||family.role==="admin"||t.author===members.find(m=>m.userId===t.id)?.firstName)&&<button className="pure-button ghost" aria-label="Удалить операцию" onClick={()=>void removeTransaction(t.id)}><Trash2 size={14}/></button>}
+     <button className="pure-button ghost" aria-label="Удалить операцию" onClick={()=>void removeTransaction(t.id)}><Trash2 size={14}/></button>
     </div>)}</div>:<div className="empty-note">Семейных операций пока нет.</div>}
    </Panel>
    <div className="empty-note">Начальный семейный баланс и общие операции учитываются отдельно от личных счетов участников.</div>
