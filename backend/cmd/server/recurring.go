@@ -120,16 +120,16 @@ func occurrenceAction(w http.ResponseWriter,r *http.Request,database *pgxpool.Po
  if r.Method!=http.MethodPost{w.Header().Set("Allow","POST");http.Error(w,`{"error":"Метод не поддерживается"}`,405);return}
  id,err:=strconv.ParseInt(rawID,10,64);if err!=nil||id<=0||(action!="confirm"&&action!="skip"){http.Error(w,`{"error":"Некорректное действие"}`,400);return}
  tx,err:=database.Begin(r.Context());if err!=nil{http.Error(w,`{"error":"Не удалось обработать дату"}`,500);return};defer tx.Rollback(r.Context())
- var recurringID,accountID int64;var title,kind,amount,category,date string;var status string
+ var recurringID int64;var accountID pgtype.Int8;var title,kind,amount,category,date string;var status string
  err=tx.QueryRow(r.Context(),`SELECT o.recurring_id,r.account_id,r.title,r.operation_type,r.amount::text,r.category,o.occurrence_date::text,o.status FROM recurring_occurrences o JOIN recurring_operations r ON r.id=o.recurring_id WHERE o.id=$1 AND o.user_id=$2 FOR UPDATE OF o`,id,userID).Scan(&recurringID,&accountID,&title,&kind,&amount,&category,&date,&status)
  if err!=nil{http.Error(w,`{"error":"Пропущенная дата не найдена"}`,404);return}
  if status!="pending"{http.Error(w,`{"error":"Эта дата уже обработана"}`,409);return}
  var transactionID any
  if action=="confirm"{
-  if accountID<=0{http.Error(w,`{"error":"Сначала назначьте счёт регулярной операции"}`,409);return}
+  if !accountID.Valid||accountID.Int64<=0{http.Error(w,`{"error":"Сначала назначьте счёт регулярной операции"}`,409);return}
   parsed,_:=time.Parse("2006-01-02",date)
   var idValue int64
-  err=tx.QueryRow(r.Context(),`INSERT INTO transactions(user_id,account_id,title,operation_type,amount,category,operation_date,comment,idempotency_key) VALUES($1,$2,$3,$4,$5::numeric,$6,$7,'Создано из регулярной операции',$8) ON CONFLICT(user_id,idempotency_key) DO UPDATE SET idempotency_key=EXCLUDED.idempotency_key RETURNING id`,userID,accountID,title,kind,amount,category,parsed,"recurring-occurrence:"+strconv.FormatInt(id,10)).Scan(&idValue)
+  err=tx.QueryRow(r.Context(),`INSERT INTO transactions(user_id,account_id,title,operation_type,amount,category,operation_date,comment,idempotency_key) VALUES($1,$2,$3,$4,$5::numeric,$6,$7,'Создано из регулярной операции',$8) ON CONFLICT(user_id,idempotency_key) DO UPDATE SET idempotency_key=EXCLUDED.idempotency_key RETURNING id`,userID,accountID.Int64,title,kind,amount,category,parsed,"recurring-occurrence:"+strconv.FormatInt(id,10)).Scan(&idValue)
   if err!=nil{http.Error(w,`{"error":"Не удалось создать операцию"}`,500);return};transactionID=idValue
  }
  newStatus:="skipped";if action=="confirm"{newStatus="confirmed"}
