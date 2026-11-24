@@ -125,7 +125,7 @@ function Family(){
      <label className="form-label">Сумма, ₽<input className="pure-input" value={amount} onChange={e=>setAmount(e.target.value)}/></label>
      <label className="form-label">Категория<input className="pure-input" value={category} onChange={e=>setCategory(e.target.value)}/></label>
      <label className="form-label">Дата<input className="pure-input" type="date" value={date} onChange={e=>setDate(e.target.value)}/></label>
-     <div className="form-row" style={{alignItems:"end"}}><button className="pure-button" disabled={!title.trim()||!/^\d+(?:[.,]\d{1,2})?$/.test(amount)||cents(amount.replace(",", "."))<=0n} onClick={()=>void addTransaction()}>Сохранить</button><button className="pure-button ghost" onClick={()=>{setShowForm(false);setEditingTxId(null);}}>Отмена</button></div>
+     <div className="form-row" style={{alignItems:"end"}}><button className="pure-button" disabled={!title.trim()||!/^\d+(?:[.,]\d{1,2})?$/.test(amount)||cents(amount.replace(",", "."))<=0n} onClick={()=>void addTransaction()}>{editingTxId===null?"Сохранить":"Сохранить изменения"}</button><button className="pure-button ghost" onClick={()=>{setShowForm(false);setEditingTxId(null);}}>Отмена</button></div>
     </div>}
     {transactions.length?<div className="transaction-list">{transactions.map(t=><div className="transaction-row" key={t.id}>
      <span className={`transaction-icon ${t.type==="income"?"mint":""}`}><HomeIcon size={16}/></span>
