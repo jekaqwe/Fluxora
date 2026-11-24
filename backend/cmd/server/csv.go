@@ -26,6 +26,9 @@ type importCSVRow struct {
  Errors []string `json:"errors"`
 }
 func parseImportCSV(data []byte)([]importCSVRow,error){
+ // Fluxora exports UTF-8 CSV with a BOM for spreadsheet compatibility.
+ // Remove it before parsing so an exported file can be imported unchanged.
+ data = []byte(strings.TrimPrefix(string(data), "\uFEFF"))
  reader:=csv.NewReader(strings.NewReader(string(data)));reader.FieldsPerRecord=-1
  header,err:=reader.Read();if err!=nil{return nil,err}
  required:=[]string{"date","title","type","amount","category","accountId","transferAccountId","comment"}
