@@ -85,6 +85,11 @@ func main() {
 		dashboardHandler(w, r, db)
 	})
 
+	// Финансовые цели
+	http.HandleFunc("/api/goals", func(w http.ResponseWriter, r *http.Request) {
+		goalsHandler(w, r, db)
+	})
+
 	// Смена пароля
 	http.HandleFunc("/api/account/password", func(w http.ResponseWriter, r *http.Request) {
 		passwordChangeHandler(w, r, db)
