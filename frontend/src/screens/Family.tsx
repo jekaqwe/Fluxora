@@ -54,7 +54,7 @@ function Family(){
   try{
    const r=await fetch("/api/family");const d:FamilyData=await r.json();if(!r.ok)throw new Error("Не удалось загрузить семейный бюджет");
    setFamily(d.family);setMembers(d.members||[]);
-   if(d.family){const [tx,goals,accountResponse]=await Promise.all([fetch("/api/family/transactions"),fetch("/api/family/goals"),fetch("/api/accounts")]);const [list,goalList,accountList]=await Promise.all([tx.json(),goals.json(),accountResponse.json()]);if(!tx.ok||!goals.ok||!accountResponse.ok)throw new Error("Не удалось загрузить семейные данные");setTransactions(list);setFamilyGoals(goalList);setAccounts(accountList);if(accountList.length&&!familyGoalAccountId)setFamilyGoalAccountId(String(accountList[0].id));}else{setTransactions([]);setFamilyGoals([]);}
+   if(d.family){const [tx,goals,accountResponse]=await Promise.all([fetch("/api/family/transactions"),fetch("/api/family/goals"),fetch("/api/accounts")]);const [list,goalList,accountList]=await Promise.all([tx.json(),goals.json(),accountResponse.json()]);if(!tx.ok||!goals.ok||!accountResponse.ok)throw new Error("Не удалось загрузить семейные данные");setTransactions(list);setFamilyGoals(goalList);setAccounts(accountList);if(accountList.length&&!accountList.some((a:Account)=>String(a.id)===familyGoalAccountId))setFamilyGoalAccountId(String(accountList[0].id));}else{setTransactions([]);setFamilyGoals([]);}
   }catch(e){setError(e instanceof Error?e.message:"Ошибка загрузки");}finally{setLoading(false);}
  };
  useEffect(()=>{void load();},[]);
