@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,6 +29,10 @@ type accountResponse struct {
 }
 
 func accountsHandler(w http.ResponseWriter, r *http.Request, database *pgxpool.Pool) {
+	if r.URL.Path != "/api/accounts" {
+		accountItemHandler(w, r, database)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	userID, err := authenticatedUserID(r, database)
@@ -106,6 +111,74 @@ func accountsHandler(w http.ResponseWriter, r *http.Request, database *pgxpool.P
 
 	default:
 		w.Header().Set("Allow", "GET, POST")
+		http.Error(w, `{"error":"Метод не поддерживается"}`, http.StatusMethodNotAllowed)
+	}
+}
+
+func accountItemHandler(w http.ResponseWriter, r *http.Request, database *pgxpool.Pool) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	userID, err := authenticatedUserID(r, database)
+	if err != nil {
+		http.Error(w, `{"error":"Пользователь не авторизован"}`, http.StatusUnauthorized)
+		return
+	}
+	rawID := strings.TrimPrefix(r.URL.Path, "/api/accounts/")
+	accountID, err := strconv.ParseInt(rawID, 10, 64)
+	if err != nil || accountID <= 0 || strings.Contains(rawID, "/") {
+		http.Error(w, `{"error":"Некорректный идентификатор счёта"}`, http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodPatch:
+		r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
+		var input accountPayload
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			http.Error(w, `{"error":"Некорректные данные"}`, http.StatusBadRequest)
+			return
+		}
+		input.Name = strings.TrimSpace(input.Name)
+		input.Type = strings.TrimSpace(input.Type)
+		input.InitialBalance = strings.TrimSpace(input.InitialBalance)
+		if input.Name == "" || len([]rune(input.Name)) > 100 || !accountAmountPattern.MatchString(input.InitialBalance) {
+			http.Error(w, `{"error":"Проверьте название и начальный баланс"}`, http.StatusBadRequest)
+			return
+		}
+		switch input.Type {
+		case "cash", "bank", "card", "savings", "other":
+		default:
+			http.Error(w, `{"error":"Неизвестный тип счёта"}`, http.StatusBadRequest)
+			return
+		}
+		var item accountResponse
+		err := database.QueryRow(r.Context(), `
+			UPDATE accounts SET name = $3, account_type = $4, initial_balance = $5::numeric, updated_at = NOW()
+			WHERE id = $1 AND user_id = $2
+			RETURNING id, name, account_type, initial_balance::text, currency, created_at
+		`, accountID, userID, input.Name, input.Type, input.InitialBalance).Scan(
+			&item.ID, &item.Name, &item.Type, &item.InitialBalance, &item.Currency, &item.CreatedAt,
+		)
+		if err != nil {
+			http.Error(w, `{"error":"Счёт не найден или не удалось сохранить изменения"}`, http.StatusNotFound)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(item)
+
+	case http.MethodDelete:
+		tag, err := database.Exec(r.Context(), "DELETE FROM accounts WHERE id = $1 AND user_id = $2", accountID, userID)
+		if err != nil {
+			http.Error(w, `{"error":"Не удалось удалить счёт"}`, http.StatusInternalServerError)
+			return
+		}
+		if tag.RowsAffected() == 0 {
+			http.Error(w, `{"error":"Счёт не найден"}`, http.StatusNotFound)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
+
+	default:
+		w.Header().Set("Allow", "PATCH, DELETE")
 		http.Error(w, `{"error":"Метод не поддерживается"}`, http.StatusMethodNotAllowed)
 	}
 }
