@@ -86,3 +86,49 @@ func TestBuildS3CanonicalRequestUsesSingleHeaderSeparator(t *testing.T) {
 		t.Fatalf("canonical request mismatch:\n got: %q\nwant: %q", got, want)
 	}
 }
+
+func TestS3MultipartUploadUsesPartsAndCompletes(t *testing.T) {
+	const partSize = int64(5 * 1024 * 1024)
+	payload := strings.Repeat("a", int(partSize)) + strings.Repeat("b", int(partSize)) + "final-part"
+	uploaded := make(map[int]string)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		switch {
+		case r.Method == http.MethodPost && query.Has("uploads"):
+			_, _ = io.WriteString(w, "<InitiateMultipartUploadResult><UploadId>test-upload-id</UploadId></InitiateMultipartUploadResult>")
+		case r.Method == http.MethodPut && query.Get("uploadId") == "test-upload-id":
+			part, err := strconv.Atoi(query.Get("partNumber"))
+			if err != nil { t.Errorf("invalid part number: %v", err); w.WriteHeader(400); return }
+			body, err := io.ReadAll(r.Body)
+			if err != nil { t.Errorf("read part: %v", err); w.WriteHeader(500); return }
+			if int64(len(body)) != r.ContentLength { t.Errorf("part %d length mismatch", part) }
+			uploaded[part] = string(body)
+			w.Header().Set("ETag", "etag-"+strconv.Itoa(part))
+			w.WriteHeader(http.StatusOK)
+		case r.Method == http.MethodPost && query.Get("uploadId") == "test-upload-id":
+			body, err := io.ReadAll(r.Body)
+			if err != nil { t.Errorf("read completion: %v", err) }
+			var complete s3MultipartCompletion
+			if err := xml.Unmarshal(body, &complete); err != nil { t.Errorf("decode completion: %v", err) }
+			if len(complete.Parts) != 3 { t.Errorf("completion has %d parts, want 3", len(complete.Parts)) }
+			_, _ = io.WriteString(w, "<CompleteMultipartUploadResult><ETag>final-etag</ETag></CompleteMultipartUploadResult>")
+		case r.Method == http.MethodDelete && query.Get("uploadId") == "test-upload-id":
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Errorf("unexpected multipart request: %s %s", r.Method, r.URL.String())
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+	defer server.Close()
+
+	endpoint, err := url.Parse(server.URL)
+	if err != nil { t.Fatal(err) }
+	store := &s3Store{endpoint:endpoint,bucket:"test-bucket",region:"test-region-1",access:"test-access",secret:"test-secret",client:server.Client()}
+	reader := strings.NewReader(payload)
+	if err := store.putReaderMultipartWithPartSize(context.Background(),"backups/large.dump","application/octet-stream",reader,int64(len(payload)),partSize); err != nil {
+		t.Fatalf("multipart upload failed: %v",err)
+	}
+	if uploaded[1] != strings.Repeat("a",int(partSize)) || uploaded[2] != strings.Repeat("b",int(partSize)) || uploaded[3] != "final-part" {
+		t.Fatalf("multipart parts do not match source: sizes=%d,%d,%d",len(uploaded[1]),len(uploaded[2]),len(uploaded[3]))
+	}
+}
