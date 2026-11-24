@@ -54,7 +54,10 @@ func budgetsHandler(w http.ResponseWriter, r *http.Request, database *pgxpool.Po
 			var item categoryBudget
 			err = database.QueryRow(r.Context(), "INSERT INTO category_budgets(user_id,category,monthly_limit) VALUES($1,$2,$3::numeric) ON CONFLICT (user_id, (lower(category))) DO UPDATE SET category=EXCLUDED.category,monthly_limit=EXCLUDED.monthly_limit,updated_at=NOW() RETURNING id,category,monthly_limit::text", userID,input.Category,input.Amount).Scan(&item.ID,&item.Category,&item.MonthlyLimit)
 			if err != nil { http.Error(w, "{\"error\":\"Не удалось сохранить бюджет категории\"}",500); return }
-			_ = database.QueryRow(r.Context(), "SELECT COALESCE(SUM(t.amount),0)::numeric(20,2)::text,(b.monthly_limit-COALESCE(SUM(t.amount),0))::numeric(20,2)::text FROM category_budgets b LEFT JOIN transactions t ON t.user_id=b.user_id AND t.operation_type='expense' AND lower(t.category)=lower(b.category) AND t.operation_date>=date_trunc('month',CURRENT_DATE)::date AND t.operation_date<CURRENT_DATE+1 WHERE b.id=$1 AND b.user_id=$2 GROUP BY b.id",item.ID,userID).Scan(&item.Spent,&item.Remaining)
+			if err := database.QueryRow(r.Context(), "SELECT COALESCE(SUM(t.amount),0)::numeric(20,2)::text,(b.monthly_limit-COALESCE(SUM(t.amount),0))::numeric(20,2)::text FROM category_budgets b LEFT JOIN transactions t ON t.user_id=b.user_id AND t.operation_type='expense' AND lower(t.category)=lower(b.category) AND t.operation_date>=date_trunc('month',CURRENT_DATE)::date AND t.operation_date<CURRENT_DATE+1 WHERE b.id=$1 AND b.user_id=$2 GROUP BY b.id",item.ID,userID).Scan(&item.Spent,&item.Remaining); err != nil {
+				http.Error(w, "{\\"error\\":\\"Не удалось рассчитать бюджет категории\\"}", http.StatusInternalServerError)
+				return
+			}
 			w.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(w).Encode(item)
 		default:
