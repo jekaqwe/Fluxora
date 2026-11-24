@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [Develop]
   push:
-    branches: [Develop, "feature/**"]
+    branches: [Develop]
 
 permissions:
   contents: read
