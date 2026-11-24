@@ -100,11 +100,12 @@ func recurringItemHandler(w http.ResponseWriter,r *http.Request,database *pgxpoo
  userID,err:=authenticatedUserID(r,database);if err!=nil{http.Error(w,`{"error":"Пользователь не авторизован"}`,401);return}
  parts:=strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path,"/api/recurring/"),"/"),"/")
  if len(parts)==3&&parts[1]=="occurrences"{occurrenceAction(w,r,database,userID,parts[0],parts[2]);return}
+ if len(parts)==2&&parts[1]=="history"{recurringHistoryHandler(w,r,database,userID,parts[0]);return}
  if len(parts)!=1{http.Error(w,`{"error":"Некорректный адрес"}`,400);return}
  id,err:=strconv.ParseInt(parts[0],10,64);if err!=nil||id<=0{http.Error(w,`{"error":"Некорректный идентификатор"}`,400);return}
  switch r.Method{
  case http.MethodDelete:
-  tag,err:=database.Exec(r.Context(),`DELETE FROM recurring_operations WHERE id=$1 AND user_id=$2`,id,userID);if err!=nil{http.Error(w,`{"error":"Не удалось удалить расписание"}`,500);return};if tag.RowsAffected()==0{http.Error(w,`{"error":"Расписание не найдено"}`,404);return};_=json.NewEncoder(w).Encode(map[string]bool{"success":true})
+  tag,err:=database.Exec(r.Context(),`UPDATE recurring_operations SET status='deleted',updated_at=NOW() WHERE id=$1 AND user_id=$2 AND status<>'deleted'`,id,userID);if err!=nil{http.Error(w,`{"error":"Не удалось удалить расписание"}`,500);return};if tag.RowsAffected()==0{http.Error(w,`{"error":"Расписание не найдено"}`,404);return};_=json.NewEncoder(w).Encode(map[string]bool{"success":true})
  case http.MethodPatch:
   r.Body=http.MaxBytesReader(w,r.Body,16<<10);var in recurringPayload
   if err:=json.NewDecoder(r.Body).Decode(&in);err!=nil{http.Error(w,`{"error":"Некорректные данные"}`,400);return}
@@ -189,4 +190,21 @@ func processOneRecurring(ctx context.Context,database *pgxpool.Pool,id int64,tod
 }
 func startRecurringScheduler(database *pgxpool.Pool){
  go func(){processRecurringDue(database);ticker:=time.NewTicker(time.Minute);defer ticker.Stop();for range ticker.C{processRecurringDue(database)}}()
+}
+
+type recurringHistoryItem struct {
+ ID int64 `json:"id"`
+ Date string `json:"date"`
+ Status string `json:"status"`
+ TransactionID *int64 `json:"transactionId,omitempty"`
+ CreatedAt time.Time `json:"createdAt"`
+}
+func recurringHistoryHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool,userID int64,rawID string){
+ w.Header().Set("Content-Type","application/json");w.Header().Set("Cache-Control","no-store")
+ if r.Method!=http.MethodGet{w.Header().Set("Allow","GET");http.Error(w,`{"error":"Метод не поддерживается"}`,405);return}
+ id,err:=strconv.ParseInt(rawID,10,64);if err!=nil||id<=0{http.Error(w,`{"error":"Некорректное расписание"}`,400);return}
+ rows,err:=database.Query(r.Context(),`SELECT id,occurrence_date::text,status,transaction_id,created_at FROM recurring_occurrences WHERE recurring_id=$1 AND user_id=$2 ORDER BY occurrence_date DESC,id DESC`,id,userID)
+ if err!=nil{http.Error(w,`{"error":"Не удалось загрузить историю расписания"}`,500);return};defer rows.Close()
+ items:=make([]recurringHistoryItem,0);for rows.Next(){var x recurringHistoryItem;var transactionID pgtype.Int8;if err:=rows.Scan(&x.ID,&x.Date,&x.Status,&transactionID,&x.CreatedAt);err!=nil{http.Error(w,`{"error":"Ошибка чтения истории"}`,500);return};if transactionID.Valid{v:=transactionID.Int64;x.TransactionID=&v};items=append(items,x)}
+ _=json.NewEncoder(w).Encode(items)
 }
