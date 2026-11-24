@@ -7,10 +7,12 @@ type Period = "week" | "month" | "year" | "custom";
 type Category = { name: string; amount: string; count: number };
 type Point = { date: string; income: string; expense: string };
 type Large = { title: string; amount: string; date: string };
+type BalancePoint = { date:string; balance:string };
 type AnalyticsData = {
   period: string; from: string; to: string; income: string; expense: string; net: string;
   averageExpense: string; categories: Category[]; trend: Point[]; largest: Large[];
   previousIncome: string; previousExpense: string; previousNet: string;
+  balanceTrend: BalancePoint[];
 };
 const formatAmount = (value: string) => {
   const negative = value.startsWith("-");
@@ -66,6 +68,16 @@ function Analytics() {
     const date = new Date(item.date + "T00:00:00");
     return period === "year" ? date.toLocaleDateString("ru-RU",{month:"short"}) : date.toLocaleDateString("ru-RU",{day:"2-digit",month:"2-digit"});
   }) ?? [], [data, period]);
+  const balanceValues = useMemo(() => {
+    const values=data?.balanceTrend.map(item=>Number(item.balance))??[];
+    if(!values.length)return [];
+    const min=Math.min(...values),max=Math.max(...values);
+    return values.map(value=>max===min?50:Math.max(4,Math.min(100,4+(value-min)/(max-min)*92)));
+  },[data]);
+  const balanceLabels = useMemo(() => data?.balanceTrend.map(item => {
+    const date=new Date(item.date+"T00:00:00");
+    return period==="year"?date.toLocaleDateString("ru-RU",{month:"short"}):date.toLocaleDateString("ru-RU",{day:"2-digit",month:"2-digit"});
+  })??[],[data,period]);
 
   return <div className="pure-page">
     <PageHeading title="Аналитика" subtitle="Финансовые показатели из ваших операций"/>
@@ -99,6 +111,9 @@ function Analytics() {
           </div> : <div className="empty-note">Нет расходов по категориям за выбранный период.</div>}
         </Panel>
       </div>
+      <Panel title="Динамика общего баланса" subtitle="Баланс личных счетов с учётом доходов и расходов, без внутренних переводов">
+        {balanceValues.length?<LineChart values={balanceValues} labels={balanceLabels}/>:<div className="empty-note">Нет данных для динамики баланса.</div>}
+      </Panel>
       <div className="pure-grid two" style={{marginTop:16}}>
         <Panel title="Крупнейшие расходы" subtitle="Пять самых больших операций">
           {data.largest.length ? <div className="transaction-list">{data.largest.map((item,index)=><div className="transaction-row" key={index}>
