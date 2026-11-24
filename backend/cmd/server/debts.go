@@ -108,7 +108,12 @@ func debtPaymentsHandler(w http.ResponseWriter,r *http.Request,database *pgxpool
  var existing debtPaymentResponse;var existingAccountID,existingTxID pgtype.Int8
  err=tx.QueryRow(r.Context(),`SELECT id,amount::text,account_id,transaction_id,payment_date::text,comment,created_at FROM debt_payments WHERE user_id=$1 AND idempotency_key=$2`,userID,in.IdempotencyKey).Scan(&existing.ID,&existing.Amount,&existingAccountID,&existingTxID,&existing.Date,&existing.Comment,&existing.CreatedAt)
  if err==nil{if existingAccountID.Valid{v:=existingAccountID.Int64;existing.AccountID=&v};if existingTxID.Valid{v:=existingTxID.Int64;existing.TransactionID=&v};if e:=tx.Commit(r.Context());e!=nil{http.Error(w,`{"error":"Не удалось завершить платёж"}`,500);return};_=json.NewEncoder(w).Encode(existing);return}
- if err!=pgx.ErrNoRows{http.Error(w,`{"error":"Не удалось проверить повтор платежа"}`,500);return}
+ if err==nil {
+  var samePayload bool
+  if e:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM debt_payments WHERE id=$1 AND debt_id=$2 AND amount=$3::numeric AND account_id=$4 AND payment_date=$5::date AND comment=$6)`,existing.ID,debtID,in.Amount,in.AccountID,date,in.Comment).Scan(&samePayload);e!=nil{http.Error(w,`{"error":"Не удалось проверить повтор платежа"}`,500);return}
+  if !samePayload{http.Error(w,`{"error":"Ключ идемпотентности уже использован для другого платежа"}`,409);return}
+ }
+ if err!=pgx.ErrNoRows&&err!=nil{http.Error(w,`{"error":"Не удалось проверить повтор платежа"}`,500);return}
  if status!="open"{http.Error(w,`{"error":"Долг уже закрыт"}`,409);return}
  var accountExists bool
  if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM accounts WHERE id=$1 AND user_id=$2)`,in.AccountID,userID).Scan(&accountExists);err!=nil||!accountExists{http.Error(w,`{"error":"Счёт не найден"}`,400);return}
