@@ -156,8 +156,8 @@ func transactionsHandler(w http.ResponseWriter, r *http.Request, database *pgxpo
 		}
 		defer tx.Rollback(r.Context())
 		var linkedToDebt bool
-		if err := tx.QueryRow(r.Context(), "SELECT EXISTS (SELECT 1 FROM debt_payments WHERE transaction_id = $1 AND user_id = $2) OR EXISTS (SELECT 1 FROM goal_entries WHERE transaction_id = $1 AND user_id = $2) OR EXISTS (SELECT 1 FROM family_goal_entries WHERE transaction_id = $1 AND author_user_id = $2)", id, userID).Scan(&linkedToDebt); err != nil {
-			http.Error(w, `{"error":"Не удалось проверить связь с платежом по долгу"}`, http.StatusInternalServerError)
+		if err := tx.QueryRow(r.Context(), "SELECT EXISTS (SELECT 1 FROM debt_payments WHERE transaction_id = $1 AND user_id = $2) OR EXISTS (SELECT 1 FROM goal_entries WHERE transaction_id = $1 AND user_id = $2) OR EXISTS (SELECT 1 FROM family_goal_entries WHERE transaction_id = $1 AND author_user_id = $2) OR EXISTS (SELECT 1 FROM goal_entries WHERE transaction_id = $1 AND user_id = $2) OR EXISTS (SELECT 1 FROM family_goal_entries WHERE transaction_id = $1 AND author_user_id = $2)", id, userID).Scan(&linkedToDebt); err != nil {
+			http.Error(w, `{"error":"Не удалось проверить связь с историей долга или цели"}`, http.StatusInternalServerError)
 			return
 		}
 		if linkedToDebt {
