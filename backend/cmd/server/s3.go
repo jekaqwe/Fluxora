@@ -190,7 +190,7 @@ func (s *s3Store) listKeys(ctx context.Context,prefix string)([]string,error){
   decoded,_:=url.PathUnescape(u.RawPath);u.Path=decoded
   query:=url.Values{};query.Set("list-type","2");query.Set("prefix",prefix);if token!=""{query.Set("continuation-token",token)}
   u.RawQuery=query.Encode()
-  payloadHash:=sha256Hex(nil);amzDate:=time.Now().UTC().Format("20060102T150405Z");dateStamp:=time.Now().UTC().Format("20060102")
+  now:=time.Now().UTC();payloadHash:=sha256Hex(nil);amzDate:=now.Format("20060102T150405Z");dateStamp:=now.Format("20060102")
   canonicalHeaders:="host:"+u.Host+"\n"+"x-amz-content-sha256:"+payloadHash+"\n"+"x-amz-date:"+amzDate+"\n"
   signedHeaders:="host;x-amz-content-sha256;x-amz-date"
   canonicalRequest:=http.MethodGet+"\n"+u.EscapedPath()+"\n"+u.Query().Encode()+"\n"+canonicalHeaders+"\n"+signedHeaders+"\n"+payloadHash
