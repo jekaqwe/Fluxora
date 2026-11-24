@@ -191,13 +191,28 @@ func accountItemHandler(w http.ResponseWriter, r *http.Request, database *pgxpoo
 		_ = json.NewEncoder(w).Encode(item)
 
 	case http.MethodDelete:
-		tag, err := database.Exec(r.Context(), "DELETE FROM accounts WHERE id = $1 AND user_id = $2", accountID, userID)
+		tx, err := database.Begin(r.Context())
+		if err != nil {
+			http.Error(w, `{"error":"Не удалось начать удаление счёта"}`, http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback(r.Context())
+		_, err = tx.Exec(r.Context(), "UPDATE recurring_operations SET status = 'paused', account_id = NULL, updated_at = NOW() WHERE account_id = $1 AND user_id = $2 AND status = 'active'", accountID, userID)
+		if err != nil {
+			http.Error(w, `{"error":"Не удалось приостановить регулярные операции"}`, http.StatusInternalServerError)
+			return
+		}
+		tag, err := tx.Exec(r.Context(), "DELETE FROM accounts WHERE id = $1 AND user_id = $2", accountID, userID)
 		if err != nil {
 			http.Error(w, `{"error":"Не удалось удалить счёт"}`, http.StatusInternalServerError)
 			return
 		}
 		if tag.RowsAffected() == 0 {
 			http.Error(w, `{"error":"Счёт не найден"}`, http.StatusNotFound)
+			return
+		}
+		if err := tx.Commit(r.Context()); err != nil {
+			http.Error(w, `{"error":"Не удалось завершить удаление счёта"}`, http.StatusInternalServerError)
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
