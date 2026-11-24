@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 import { Plus, Users, Home as HomeIcon, Trash2, UserPlus, LogOut, Pencil, Target, Image } from "lucide-react";
 import { PageHeading, Panel, Stat } from "./ui";
 import "./Pure.css";
@@ -93,7 +93,7 @@ function Family(){
   try{const r=await fetch(`/api/family/goals/${id}/entries`);const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось загрузить историю");setGoalHistory(old=>({...old,[id]:d}));setGoalHistoryId(id);}
   catch(e){setError(e instanceof Error?e.message:"Ошибка истории");}
  };
- const uploadFamilyGoalImage=async(id:number,event:React.ChangeEvent<HTMLInputElement>)=>{
+ const uploadFamilyGoalImage=async(id:number,event:ChangeEvent<HTMLInputElement>)=>{
   const file=event.target.files?.[0];event.target.value="";if(!file)return;
   try{const form=new FormData();form.append("image",file);const r=await fetch(`/api/family/goals/${id}/image`,{method:"PUT",body:form});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось загрузить изображение");setFamilyGoals(old=>old.map(g=>g.id===id?{...g,imageUrl:d.imageUrl}:g));}
   catch(e){setError(e instanceof Error?e.message:"Ошибка изображения");}
