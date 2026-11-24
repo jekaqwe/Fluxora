@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { Plus, Users, Home as HomeIcon, Trash2, UserPlus, LogOut, Pencil } from "lucide-react";
+import { Plus, Users, Home as HomeIcon, Trash2, UserPlus, LogOut, Pencil, Target, Image } from "lucide-react";
 import { PageHeading, Panel, Stat } from "./ui";
 import "./Pure.css";
 
 type FamilyInfo={id:number;name:string;initialBalance:string;currentBalance:string;role:"owner"|"admin"|"member"};
 type Member={id:number;userId:number;firstName:string;lastName:string;username:string;role:string;joinedAt:string};
 type FamilyTx={id:number;title:string;type:"income"|"expense";amount:string;category:string;date:string;comment:string;author:string;createdAt:string};
+type FamilyGoal={id:number;title:string;description:string;targetAmount:string;startingAmount:string;currentAmount:string;dueDate?:string;priority:string;status:string;imageUrl?:string;createdBy?:number};
+type FamilyGoalEntry={id:number;amount:string;comment:string;author:string;createdAt:string};
 type FamilyData={family:FamilyInfo|null;members:Member[]};
 const cents=(v:string)=>{const [whole,fraction=""]=v.split(".");return BigInt(whole||"0")*100n+BigInt((fraction+"00").slice(0,2));};
 const moneyCents=(value:bigint)=>{const neg=value<0n;const abs=neg?-value:value;return (neg?"−":"")+new Intl.NumberFormat("ru-RU").format(abs/100n)+","+(abs%100n).toString().padStart(2,"0")+" ₽";};
@@ -16,6 +18,19 @@ function Family(){
  const [family,setFamily]=useState<FamilyInfo|null>(null);
  const [members,setMembers]=useState<Member[]>([]);
  const [transactions,setTransactions]=useState<FamilyTx[]>([]);
+ const [familyGoals,setFamilyGoals]=useState<FamilyGoal[]>([]);
+ const [showGoalForm,setShowGoalForm]=useState(false);
+ const [goalTitle,setGoalTitle]=useState("");
+ const [goalDescription,setGoalDescription]=useState("");
+ const [goalTarget,setGoalTarget]=useState("");
+ const [goalStarting,setGoalStarting]=useState("0");
+ const [goalDueDate,setGoalDueDate]=useState("");
+ const [goalPriority,setGoalPriority]=useState("medium");
+ const [contributionGoalId,setContributionGoalId]=useState<number|null>(null);
+ const [contributionAmount,setContributionAmount]=useState("");
+ const [contributionKey,setContributionKey]=useState("");
+ const [goalHistory,setGoalHistory]=useState<Record<number,FamilyGoalEntry[]>>({});
+ const [goalHistoryId,setGoalHistoryId]=useState<number|null>(null);
  const [loading,setLoading]=useState(true);
  const [error,setError]=useState("");
  const [familyName,setFamilyName]=useState("Семейный бюджет");
@@ -36,7 +51,7 @@ function Family(){
   try{
    const r=await fetch("/api/family");const d:FamilyData=await r.json();if(!r.ok)throw new Error("Не удалось загрузить семейный бюджет");
    setFamily(d.family);setMembers(d.members||[]);
-   if(d.family){const tx=await fetch("/api/family/transactions");const list=await tx.json();if(!tx.ok)throw new Error(list.error||"Не удалось загрузить семейные операции");setTransactions(list);}
+   if(d.family){const [tx,goals]=await Promise.all([fetch("/api/family/transactions"),fetch("/api/family/goals")]);const [list,goalList]=await Promise.all([tx.json(),goals.json()]);if(!tx.ok||!goals.ok)throw new Error("Не удалось загрузить семейные данные");setTransactions(list);setFamilyGoals(goalList);}else{setTransactions([]);setFamilyGoals([]);}
   }catch(e){setError(e instanceof Error?e.message:"Ошибка загрузки");}finally{setLoading(false);}
  };
  useEffect(()=>{void load();},[]);
@@ -63,6 +78,25 @@ function Family(){
  };
  const editTransaction=(t:FamilyTx)=>{
   setEditingTxId(t.id);setTitle(t.title);setKind(t.type);setAmount(t.amount);setCategory(t.category);setDate(t.date);setShowForm(true);
+ };
+ const createFamilyGoal=async()=>{
+  try{const r=await fetch("/api/family/goals",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title:goalTitle,description:goalDescription,targetAmount:goalTarget.replace(",", "."),startingAmount:goalStarting.replace(",", "."),dueDate:goalDueDate,priority:goalPriority})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось создать семейную цель");setFamilyGoals(old=>[d,...old]);setShowGoalForm(false);setGoalTitle("");setGoalDescription("");setGoalTarget("");setGoalStarting("0");}
+  catch(e){setError(e instanceof Error?e.message:"Ошибка семейной цели");}
+ };
+ const contributeFamilyGoal=async()=>{
+  if(contributionGoalId===null)return;
+  try{const r=await fetch(`/api/family/goals/${contributionGoalId}/entries`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({amount:contributionAmount.replace(",", "."),comment:"",idempotencyKey:contributionKey})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось пополнить семейную цель");setContributionGoalId(null);setContributionAmount("");setContributionKey("");await load();}
+  catch(e){setError(e instanceof Error?e.message:"Ошибка пополнения цели");}
+ };
+ const showFamilyGoalHistory=async(id:number)=>{
+  if(goalHistoryId===id){setGoalHistoryId(null);return;}
+  try{const r=await fetch(`/api/family/goals/${id}/entries`);const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось загрузить историю");setGoalHistory(old=>({...old,[id]:d}));setGoalHistoryId(id);}
+  catch(e){setError(e instanceof Error?e.message:"Ошибка истории");}
+ };
+ const uploadFamilyGoalImage=async(id:number,event:React.ChangeEvent<HTMLInputElement>)=>{
+  const file=event.target.files?.[0];event.target.value="";if(!file)return;
+  try{const form=new FormData();form.append("image",file);const r=await fetch(`/api/family/goals/${id}/image`,{method:"PUT",body:form});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось загрузить изображение");setFamilyGoals(old=>old.map(g=>g.id===id?{...g,imageUrl:d.imageUrl}:g));}
+  catch(e){setError(e instanceof Error?e.message:"Ошибка изображения");}
  };
  const removeTransaction=async(id:number)=>{
   if(!window.confirm("Удалить семейную операцию?"))return;
@@ -137,6 +171,24 @@ function Family(){
      <strong className={`transaction-amount ${t.type==="income"?"positive":"negative"}`}>{t.type==="income"?"+":"−"}{money(t.amount)}</strong>
      <button className="pure-button ghost" aria-label="Изменить операцию" onClick={()=>editTransaction(t)}><Pencil size={14}/></button><button className="pure-button ghost" aria-label="Удалить операцию" onClick={()=>void removeTransaction(t.id)}><Trash2 size={14}/></button>
     </div>)}</div>:<div className="empty-note">Семейных операций пока нет.</div>}
+   </Panel>
+   <Panel title="Общие семейные цели" subtitle="Каждый участник может пополнять семейные накопления" action={<button className="pure-button" onClick={()=>setShowGoalForm(v=>!v)}><Plus size={15}/>Создать цель</button>}>
+    {showGoalForm&&<div className="pure-grid three" style={{marginBottom:14}}>
+     <label className="form-label">Название<input className="pure-input" value={goalTitle} onChange={e=>setGoalTitle(e.target.value)}/></label>
+     <label className="form-label">Целевая сумма<input className="pure-input" value={goalTarget} onChange={e=>setGoalTarget(e.target.value)}/></label>
+     <label className="form-label">Уже накоплено<input className="pure-input" value={goalStarting} onChange={e=>setGoalStarting(e.target.value)}/></label>
+     <label className="form-label">Срок<input className="pure-input" type="date" value={goalDueDate} onChange={e=>setGoalDueDate(e.target.value)}/></label>
+     <label className="form-label">Приоритет<select className="pure-select" value={goalPriority} onChange={e=>setGoalPriority(e.target.value)}><option value="low">Низкий</option><option value="medium">Средний</option><option value="high">Высокий</option></select></label>
+     <label className="form-label">Описание<input className="pure-input" value={goalDescription} onChange={e=>setGoalDescription(e.target.value)}/></label>
+     <button className="pure-button" disabled={!goalTitle.trim()||!/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(goalTarget)||cents(goalTarget.replace(",", "."))<=0n} onClick={()=>void createFamilyGoal()}>Сохранить цель</button>
+    </div>}
+    {familyGoals.length===0?<div className="empty-note">Семейных целей пока нет.</div>:<div className="pure-grid two">{familyGoals.map(g=>{const current=cents(g.currentAmount);const targetCents=cents(g.targetAmount);const pct=Math.max(0,Math.min(100,Number(current*10000n/targetCents)/100));return <div className="goal-card" key={g.id}>
+     <div className="goal-art">{g.imageUrl?<img src={g.imageUrl} alt={g.title} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Target/>}</div>
+     <div className="goal-content"><h3>{g.title}</h3><p>{g.description||"Семейная цель"}</p><strong>{pct.toFixed(1).replace(".",",")}%</strong><div className="goal-meta"><span>{money(g.currentAmount)}</span><span>{money(g.targetAmount)}</span></div><div className="progress-track"><div className="progress-fill" style={{width:pct+"%"}}/></div><small className="muted">Срок: {g.dueDate||"не задан"} · {g.status==="completed"?"Завершена":g.status==="paused"?"Приостановлена":"Активна"}</small>
+      <div className="form-row" style={{marginTop:10,flexWrap:"wrap"}}><button className="pure-button" disabled={g.status!=="active"} onClick={()=>{setContributionGoalId(g.id);setContributionKey(crypto.randomUUID());}}>Пополнить</button><button className="pure-button ghost" onClick={()=>void showFamilyGoalHistory(g.id)}>История</button><label className="pure-button ghost"><Image size={14}/><input type="file" hidden accept="image/jpeg,image/png,image/webp,image/gif" onChange={e=>void uploadFamilyGoalImage(g.id,e)}/></label></div>
+      {contributionGoalId===g.id&&<div style={{marginTop:10}}><label className="form-label">Сумма пополнения<input className="pure-input" value={contributionAmount} onChange={e=>setContributionAmount(e.target.value)}/></label><div className="form-row" style={{marginTop:8}}><button className="pure-button" disabled={!/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(contributionAmount)||cents(contributionAmount.replace(",", "."))<=0n} onClick={()=>void contributeFamilyGoal()}>Подтвердить</button><button className="pure-button ghost" onClick={()=>setContributionGoalId(null)}>Отмена</button></div></div>}
+      {goalHistoryId===g.id&&<div className="empty-note" style={{marginTop:10}}>{(goalHistory[g.id]||[]).length?(goalHistory[g.id]||[]).map(entry=><div className="legend-row" key={entry.id}><span>{entry.author} · {new Date(entry.createdAt).toLocaleDateString("ru-RU")}</span><strong>{money(entry.amount)}</strong></div>):"История пуста."}</div>}
+     </div></div>})}</div>}
    </Panel>
    <div className="empty-note">Начальный семейный баланс и общие операции учитываются отдельно от личных счетов участников.</div>
   </>}
