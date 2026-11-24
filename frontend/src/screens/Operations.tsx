@@ -1,18 +1,182 @@
-import { useMemo, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, Coffee, ShoppingBag, Car, Plus, X } from "lucide-react";
-import { PageHeading, Panel, Stat, money } from "./ui";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Coffee, ShoppingBag, Car, Plus, X, Trash2, Pencil } from "lucide-react";
+import { PageHeading, Panel, Stat } from "./ui";
 import "./Pure.css";
-type Tx={id:number;name:string;category:string;amount:number;date:string;kind:"Доходы"|"Расходы"};
-const initial:Tx[]=[{id:1,name:"Пятёрочка",category:"Продукты",amount:-1250,date:"16.05.2025",kind:"Расходы"},{id:2,name:"Зарплата",category:"Доход",amount:85000,date:"15.05.2025",kind:"Доходы"},{id:3,name:"Кафе",category:"Рестораны",amount:-720,date:"14.05.2025",kind:"Расходы"},{id:4,name:"Перевод другу",category:"Переводы",amount:-2000,date:"13.05.2025",kind:"Расходы"},{id:5,name:"Транспорт",category:"Транспорт",amount:-90,date:"12.05.2025",kind:"Расходы"}];
-function Operations(){
- const [items,setItems]=useState<Tx[]>(()=>{try{return JSON.parse(localStorage.getItem("fluxora_demo_transactions")||"null")||initial}catch{return initial}});
- const [filter,setFilter]=useState("Все");const [query,setQuery]=useState("");const [showForm,setShowForm]=useState(false);const [name,setName]=useState("");const [amount,setAmount]=useState("");const [kind,setKind]=useState<"Доходы"|"Расходы">("Расходы");
- const visible=useMemo(()=>items.filter(x=>(filter==="Все"||x.kind===filter)&&(`${x.name} ${x.category}`.toLowerCase().includes(query.toLowerCase()))),[items,filter,query]);
- const add=()=>{const n=Number(amount);if(!name.trim()||!Number.isFinite(n)||n<=0)return;const next=[{id:Date.now(),name:name.trim(),category:kind==="Доходы"?"Доход":"Покупки",amount:kind==="Доходы"?n:-n,date:new Date().toLocaleDateString("ru-RU"),kind},...items];setItems(next);localStorage.setItem("fluxora_demo_transactions",JSON.stringify(next));setName("");setAmount("");setShowForm(false);};
- return <div className="pure-page"><PageHeading title="Операции" subtitle="Контролируйте доходы и расходы" action={<button className="pure-button" onClick={()=>setShowForm(v=>!v)}><Plus size={16}/>Добавить операцию</button>}/>
- <div className="pure-grid three"><Stat label="Доходы" value="120 000 ₽" change="+12,5%" tone="mint" icon={<ArrowDownLeft size={17}/>}/><Stat label="Расходы" value="75 320 ₽" change="−3,4%" tone="violet" icon={<ArrowUpRight size={17}/>}/><Stat label="Разница" value="44 680 ₽" change="За месяц"/></div>
- {showForm&&<Panel title="Новая операция" className="form-panel"><div className="pure-grid three"><label className="form-label">Название<input className="pure-input" value={name} onChange={e=>setName(e.target.value)} placeholder="Например, Покупки"/></label><label className="form-label">Сумма, ₽<input className="pure-input" type="number" min="1" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0"/></label><label className="form-label">Тип<select className="pure-select" value={kind} onChange={e=>setKind(e.target.value as typeof kind)}><option>Расходы</option><option>Доходы</option></select></label></div><div className="form-row" style={{marginTop:14}}><button className="pure-button" onClick={add}>Сохранить в этом браузере</button><button className="pure-button ghost" onClick={()=>setShowForm(false)}><X size={15}/>Отмена</button></div><p className="muted" style={{fontSize:10}}>Демонстрационная операция хранится локально в этом браузере.</p></Panel>}
- <Panel title="История операций" subtitle={`${visible.length} записей`}><div className="form-row" style={{justifyContent:"space-between",marginBottom:16}}><div className="filter-pills">{["Все","Доходы","Расходы"].map(x=><button key={x} className={`filter-pill ${filter===x?"active":""}`} onClick={()=>setFilter(x)}>{x}</button>)}</div><input className="pure-input" style={{maxWidth:240}} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Поиск по операциям"/></div><div className="transaction-list">{visible.map(t=><div className="transaction-row" key={t.id}><span className={`transaction-icon ${t.amount>0?"mint":t.category==="Рестораны"?"orange":""}`}>{t.amount>0?<ArrowDownLeft size={16}/>:t.category==="Транспорт"?<Car size={16}/>:t.category==="Рестораны"?<Coffee size={16}/>:<ShoppingBag size={16}/>}</span><span className="transaction-copy"><strong>{t.name}</strong><small>{t.category}</small></span><strong className={`transaction-amount ${t.amount>0?"positive":"negative"}`}>{t.amount>0?"+":""}{money(t.amount)}</strong><span className="transaction-date">{t.date}</span></div>)}{visible.length===0&&<div className="empty-note">Операций по выбранным условиям не найдено.</div>}</div></Panel>
- </div>;
+import RecurringPanel from "./RecurringPanel";
+import CSVTools from "./CSVTools";
+
+type OperationType = "income" | "expense" | "transfer";
+type Account = { id: number; name: string; type: string; initialBalance: string; currency: "RUB" };
+type Tx = {
+  id: number;
+  title: string;
+  type: OperationType;
+  amount: string;
+  category: string;
+  date: string;
+  accountId: number;
+  transferAccountId?: number;
+  comment: string;
+};
+const cents = (value: string) => {
+  const negative = value.startsWith("-");
+  const [whole, fraction = ""] = value.replace("-", "").split(".");
+  const result = BigInt(whole || "0") * 100n + BigInt((fraction + "00").slice(0, 2));
+  return negative ? -result : result;
+};
+const formatCents = (value: bigint) => {
+  const negative = value < 0n;
+  const absolute = negative ? -value : value;
+  return (negative ? "−" : "") + new Intl.NumberFormat("ru-RU").format(absolute / 100n) +
+    "," + (absolute % 100n).toString().padStart(2, "0") + " ₽";
+};
+const isPositiveAmount = (value: string) => {
+  if (!/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(value)) return false;
+  const [whole, fraction = ""] = value.replace(",", ".").split(".");
+  return BigInt(whole) * 100n + BigInt((fraction + "00").slice(0, 2)) > 0n;
+};
+const localDate = () => {
+  const now = new Date();
+  return [now.getFullYear(), String(now.getMonth() + 1).padStart(2, "0"), String(now.getDate()).padStart(2, "0")].join("-");
+};
+const typeLabels: Record<OperationType, string> = { income: "Доход", expense: "Расход", transfer: "Перевод" };
+
+function Operations() {
+  const [items, setItems] = useState<Tx[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [filter, setFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle] = useState("");
+  const [amount, setAmount] = useState("");
+  const [category, setCategory] = useState("Покупки");
+  const [date, setDate] = useState(localDate());
+  const [accountId, setAccountId] = useState("");
+  const [transferAccountId, setTransferAccountId] = useState("");
+  const [kind, setKind] = useState<OperationType>("expense");
+  const [comment, setComment] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+
+  const load = async () => {
+    try {
+      const [txResponse, accountResponse] = await Promise.all([fetch("/api/transactions"), fetch("/api/accounts")]);
+      if (!txResponse.ok || !accountResponse.ok) throw new Error("Не удалось загрузить финансовые данные");
+      const [txData, accountData] = await Promise.all([txResponse.json(), accountResponse.json()]);
+      setItems(txData);
+      setAccounts(accountData);
+      if (accountData.length && !accountId) setAccountId(String(accountData[0].id));
+      if (accountData.length > 1 && !transferAccountId) setTransferAccountId(String(accountData[1].id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ошибка загрузки");
+    }
+  };
+  useEffect(() => { void load(); }, []);
+
+  const visible = useMemo(() => items.filter(item =>
+    (filter === "all" || item.type === filter) &&
+    (item.title + " " + item.category + " " + item.comment).toLowerCase().includes(query.toLowerCase())
+  ), [items, filter, query]);
+
+  const income = items.filter(x => x.type === "income").reduce((sum, x) => sum + cents(x.amount), 0n);
+  const expense = items.filter(x => x.type === "expense").reduce((sum, x) => sum + cents(x.amount), 0n);
+
+  const add = async () => {
+    setError("");
+    setSaving(true);
+    try {
+      const response = await fetch(editingId === null ? "/api/transactions" : `/api/transactions/${editingId}`, {
+        method: editingId === null ? "POST" : "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title, type: kind, amount: amount.replace(",", "."), category, date,
+          accountId: Number(accountId),
+          transferAccountId: kind === "transfer" ? Number(transferAccountId) : 0,
+          comment, ...(editingId === null ? { idempotencyKey: crypto.randomUUID() } : {}),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Не удалось сохранить операцию");
+      setItems(old => editingId === null ? [data, ...old.filter(item => item.id !== data.id)] : old.map(item => item.id === data.id ? data : item));
+      setTitle(""); setAmount(""); setComment(""); setShowForm(false); setEditingId(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ошибка сохранения");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const beginEdit = (item: Tx) => {
+    setEditingId(item.id);
+    setTitle(item.title);
+    setKind(item.type);
+    setAmount(item.amount);
+    setCategory(item.category);
+    setDate(item.date);
+    setAccountId(String(item.accountId));
+    setTransferAccountId(item.transferAccountId ? String(item.transferAccountId) : "");
+    setComment(item.comment);
+    setShowForm(true);
+  };
+
+  const remove = async (id: number) => {
+    if (!window.confirm("Удалить эту операцию?")) return;
+    try {
+      const response = await fetch(`/api/transactions/${id}`, { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Не удалось удалить операцию");
+      setItems(old => old.filter(item => item.id !== id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ошибка удаления");
+    }
+  };
+
+  return <div className="pure-page">
+    <PageHeading title="Операции" subtitle="Доходы, расходы и переводы между счетами" action={<button className="pure-button" onClick={() => setShowForm(v => !v)}><Plus size={16}/>Добавить операцию</button>}/>
+    <div className="pure-grid three">
+      <Stat label="Доходы" value={formatCents(income)} tone="mint" icon={<ArrowDownLeft size={17}/>}/>
+      <Stat label="Расходы" value={formatCents(expense)} tone="violet" icon={<ArrowUpRight size={17}/>}/>
+      <Stat label="Разница" value={formatCents(income - expense)} change="Без учёта переводов"/>
+    </div>
+    {showForm && <Panel title="Новая операция" className="form-panel">
+      {accounts.length === 0 ? <div className="empty-note">Сначала создайте хотя бы один счёт в разделе «Счета».</div> : <>
+        <div className="pure-grid three">
+          <label className="form-label">Тип<select className="pure-select" value={kind} onChange={e => setKind(e.target.value as OperationType)}>{Object.entries(typeLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+          <label className="form-label">Название<input className="pure-input" value={title} onChange={e => setTitle(e.target.value)} maxLength={160} placeholder="Например, Продукты"/></label>
+          <label className="form-label">Сумма, ₽<input className="pure-input" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00"/></label>
+          <label className="form-label">Категория<input className="pure-input" value={category} onChange={e => setCategory(e.target.value)} maxLength={80}/></label>
+          <label className="form-label">Дата<input className="pure-input" type="date" value={date} onChange={e => setDate(e.target.value)}/></label>
+          <label className="form-label">{kind === "transfer" ? "С какого счёта" : "Счёт"}<select className="pure-select" value={accountId} onChange={e => setAccountId(e.target.value)}>{accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
+          {kind === "transfer" && <label className="form-label">На какой счёт<select className="pure-select" value={transferAccountId} onChange={e => setTransferAccountId(e.target.value)}>{accounts.filter(a => String(a.id) !== accountId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>}
+          <label className="form-label">Комментарий<input className="pure-input" value={comment} onChange={e => setComment(e.target.value)} maxLength={1000}/></label>
+        </div>
+        <div className="form-row" style={{marginTop:14}}><button className="pure-button" disabled={saving || !title.trim() || !isPositiveAmount(amount) || (kind === "transfer" && (!transferAccountId || transferAccountId === accountId))} onClick={() => void add()}>{saving ? "Сохранение…" : editingId === null ? "Сохранить операцию" : "Сохранить изменения"}</button><button className="pure-button ghost" onClick={() => {setShowForm(false);setEditingId(null);}}><X size={15}/>Отмена</button></div>
+      </>}
+    </Panel>}
+    <RecurringPanel accounts={accounts}/>
+    <CSVTools accounts={accounts} onImported={()=>void load()}/>
+    <Panel title="История операций" subtitle={`${visible.length} записей`}>
+      <div className="form-row" style={{justifyContent:"space-between",marginBottom:16,flexWrap:"wrap"}}>
+        <div className="filter-pills">{[["all","Все"],["income","Доходы"],["expense","Расходы"],["transfer","Переводы"]].map(([key,label])=><button key={key} className={`filter-pill ${filter===key?"active":""}`} onClick={()=>setFilter(key)}>{label}</button>)}</div>
+        <input className="pure-input" style={{maxWidth:240}} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Поиск по операциям"/>
+      </div>
+      <div className="transaction-list">{visible.map(item => {
+        const isIncome = item.type === "income";
+        const isTransfer = item.type === "transfer";
+        const account = accounts.find(a => a.id === item.accountId)?.name || "Счёт";
+        const destination = accounts.find(a => a.id === item.transferAccountId)?.name;
+        const Icon = isIncome ? ArrowDownLeft : isTransfer ? ArrowLeftRight : item.category === "Транспорт" ? Car : item.category === "Кафе" ? Coffee : ShoppingBag;
+        return <div className="transaction-row" key={item.id}>
+          <span className={`transaction-icon ${isIncome ? "mint" : isTransfer ? "violet" : ""}`}><Icon size={16}/></span>
+          <span className="transaction-copy"><strong>{item.title}</strong><small>{item.category} · {typeLabels[item.type]} · {isTransfer ? account + " → " + (destination || "счёт") : account}</small></span>
+          <strong className={`transaction-amount ${isIncome ? "positive" : isTransfer ? "" : "negative"}`}>{isIncome ? "+" : isTransfer ? "↔ " : "−"}{item.amount} ₽</strong>
+          <span className="transaction-date">{item.date}</span>
+          <button type="button" className="pure-button ghost" aria-label="Изменить операцию" onClick={() => beginEdit(item)}><Pencil size={14}/></button><button type="button" className="pure-button ghost" aria-label="Удалить операцию" onClick={() => void remove(item.id)}><Trash2 size={14}/></button>
+        </div>;
+      })}{visible.length===0&&<div className="empty-note">Операций по выбранным условиям не найдено.</div>}</div>
+    </Panel>
+    {error && <p role="alert" style={{color:"#f87171",fontSize:12}}>{error}</p>}
+  </div>;
 }
 export default Operations;
