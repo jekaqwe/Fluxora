@@ -38,7 +38,7 @@ function Goals(){
  const save=async()=>{
   setError("");setSaving(true);
   try{
-   const response=await fetch(editingId===null?"/api/goals":`/api/goals/${editingId}`,{method:editingId===null?"POST":"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,description,targetAmount:target.replace(",", "."),startingAmount:starting.replace(",", "."),dueDate,priority,status:"active"})});
+   const response=await fetch(editingId===null?"/api/goals":`/api/goals/${editingId}`,{method:editingId===null?"POST":"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,description,targetAmount:target.replace(",", "."),startingAmount:starting.replace(",", "."),dueDate,priority,status:editingId===null?"active":(goals.find(g=>g.id===editingId)?.status||"active")})});
    const data=await response.json();if(!response.ok)throw new Error(data.error||"Не удалось сохранить цель");
    setGoals(old=>editingId===null?[data,...old]:old.map(g=>g.id===data.id?data:g));resetForm();
   }catch(e){setError(e instanceof Error?e.message:"Ошибка сохранения");}finally{setSaving(false);}
@@ -48,8 +48,8 @@ function Goals(){
   try{
    const response=await fetch(`/api/goals/${entryGoalId}/entries`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:entryType,amount:entryAmount.replace(",", "."),comment:""})});
    const data=await response.json();if(!response.ok)throw new Error(data.error||"Не удалось записать движение");
-   setEntryGoalId(null);setEntryAmount("");await load();
-   setHistory(old=>({...old,[data.goalId]:[data,...(old[data.goalId]||[])]}));
+   const savedGoalId=entryGoalId;setEntryGoalId(null);setEntryAmount("");await load();
+   const historyResponse=await fetch(`/api/goals/${savedGoalId}/entries`);const historyData=await historyResponse.json();if(historyResponse.ok)setHistory(old=>({...old,[savedGoalId]:historyData}));
   }catch(e){setError(e instanceof Error?e.message:"Ошибка операции");}
  };
  const remove=async(id:number)=>{if(!window.confirm("Удалить цель и её историю?"))return;try{const r=await fetch(`/api/goals/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить цель");setGoals(old=>old.filter(g=>g.id!==id));}catch(e){setError(e instanceof Error?e.message:"Ошибка удаления");}};
