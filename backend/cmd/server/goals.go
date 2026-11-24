@@ -222,9 +222,12 @@ func goalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
   linked=transactionID
  }
  if in.TransactionID>0 {
-  var exists bool
-  if err:=tx.QueryRow(r.Context(),"SELECT EXISTS(SELECT 1 FROM transactions WHERE id=$1 AND user_id=$2)",in.TransactionID,userID).Scan(&exists); err!=nil||!exists { http.Error(w,`{"error":"Связанная операция не найдена"}`,400); return }
-  linked=in.TransactionID
+  expectedOperation:="expense";if in.Type=="withdrawal"{expectedOperation="income"}
+  var linkedID int64
+  if err:=tx.QueryRow(r.Context(),`SELECT id FROM transactions WHERE id=$1 AND user_id=$2 AND amount=$3::numeric AND operation_type=$4 FOR UPDATE`,in.TransactionID,userID,in.Amount,expectedOperation).Scan(&linkedID);err!=nil{
+   http.Error(w,`{"error":"Связанная операция не найдена или её сумма и тип не совпадают с записью цели"}`,400);return
+  }
+  linked=linkedID
  }
  err=tx.QueryRow(r.Context(),`
   INSERT INTO goal_entries(goal_id,user_id,entry_type,amount,comment,transaction_id,idempotency_key)
