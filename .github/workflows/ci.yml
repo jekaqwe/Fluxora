@@ -37,6 +37,7 @@ jobs:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
       - run: go test ./...
+      - run: go vet ./...
       - run: go build -o /tmp/fluxora-server ./cmd/server
       - name: Build backend Docker image
         run: docker build -t fluxora-backend-ci -f Dockerfile .
@@ -81,7 +82,7 @@ jobs:
           test "$restored" = "t"
 
   frontend:
-    name: Frontend build
+    name: Frontend lint and build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -94,4 +95,5 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      - run: npm run lint
       - run: npm run build
