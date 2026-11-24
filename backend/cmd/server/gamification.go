@@ -59,14 +59,15 @@ func gamificationHandler(w http.ResponseWriter,r *http.Request,database *pgxpool
  userID,err:=authenticatedUserID(r,database);if err!=nil{http.Error(w,`{"error":"Пользователь не авторизован"}`,401);return}
  tx,err:=database.Begin(r.Context());if err!=nil{http.Error(w,`{"error":"Не удалось обновить достижения"}`,500);return};defer tx.Rollback(r.Context())
  var operations int64;var completedGoals,savings,family bool
- if err:=tx.QueryRow(r.Context(),`SELECT COUNT(*) FROM transactions WHERE user_id=$1`,userID).Scan(&operations);err!=nil{http.Error(w,`{"error":"Не удалось проверить операции"}`,500);return}
- if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM goals WHERE user_id=$1 AND status='completed')`,userID).Scan(&completedGoals);err!=nil{http.Error(w,`{"error":"Не удалось проверить цели"}`,500);return}
- if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM goal_entries WHERE user_id=$1 AND entry_type='contribution' UNION SELECT 1 FROM family_goal_entries WHERE author_user_id=$1)`,userID).Scan(&savings);err!=nil{http.Error(w,`{"error":"Не удалось проверить накопления"}`,500);return}
+ if err:=tx.QueryRow(r.Context(),`SELECT (SELECT COUNT(*) FROM transactions WHERE user_id=$1)+(SELECT COUNT(*) FROM family_transactions WHERE author_user_id=$1)`,userID).Scan(&operations);err!=nil{http.Error(w,`{"error":"Не удалось проверить операции"}`,500);return}
+ if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM goals WHERE user_id=$1 AND status='completed' UNION SELECT 1 FROM family_goals fg JOIN family_members fm ON fm.family_id=fg.family_id WHERE fm.user_id=$1 AND fg.status='completed')`,userID).Scan(&completedGoals);err!=nil{http.Error(w,`{"error":"Не удалось проверить цели"}`,500);return}
+ if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM goal_entries WHERE user_id=$1 AND entry_type='contribution' UNION SELECT 1 FROM family_goal_entries WHERE author_user_id=$1 AND entry_type='contribution')`,userID).Scan(&savings);err!=nil{http.Error(w,`{"error":"Не удалось проверить накопления"}`,500);return}
  if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM family_members WHERE user_id=$1)`,userID).Scan(&family);err!=nil{http.Error(w,`{"error":"Не удалось проверить семейный бюджет"}`,500);return}
  rows,err:=tx.Query(r.Context(),`SELECT activity_date FROM (
   SELECT operation_date AS activity_date FROM transactions WHERE user_id=$1
   UNION SELECT operation_date FROM family_transactions WHERE author_user_id=$1
   UNION SELECT created_at::date FROM goal_entries WHERE user_id=$1
+  UNION SELECT created_at::date FROM family_goal_entries WHERE author_user_id=$1 AND entry_type='contribution'
   UNION SELECT joined_at::date FROM family_members WHERE user_id=$1
  ) activity WHERE activity_date<=CURRENT_DATE ORDER BY activity_date DESC`,userID)
  if err!=nil{http.Error(w,`{"error":"Не удалось рассчитать активность"}`,500);return}
