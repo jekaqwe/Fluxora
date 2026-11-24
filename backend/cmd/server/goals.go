@@ -133,7 +133,7 @@ func goalItemHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Poo
   var item goalResponse; var dueText *string
   err=database.QueryRow(r.Context(),`
    UPDATE goals SET title=$3,description=$4,target_amount=$5::numeric,starting_amount=$6::numeric,due_date=$7,priority=$8,status=CASE
-			 WHEN starting_amount+COALESCE((SELECT SUM(CASE WHEN entry_type='contribution' THEN amount ELSE -amount END) FROM goal_entries WHERE goal_id=goals.id),0)>=$5::numeric THEN 'completed'
+			 WHEN $6::numeric+COALESCE((SELECT SUM(CASE WHEN entry_type='contribution' THEN amount ELSE -amount END) FROM goal_entries WHERE goal_id=goals.id),0)>=$5::numeric THEN 'completed'
 			 WHEN $9='paused' THEN 'paused' ELSE 'active' END,updated_at=NOW()
    WHERE id=$1 AND user_id=$2
    RETURNING id,title,description,target_amount::text,starting_amount::text,(starting_amount+COALESCE((SELECT SUM(CASE WHEN entry_type='contribution' THEN amount ELSE -amount END) FROM goal_entries WHERE goal_id=goals.id),0))::text,due_date::text,priority,status,created_at
