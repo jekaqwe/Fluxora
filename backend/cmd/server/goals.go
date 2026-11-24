@@ -213,3 +213,30 @@ func goalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
  if err:=tx.Commit(r.Context()); err!=nil { http.Error(w,`{"error":"Не удалось завершить операцию"}`,500); return }
  w.WriteHeader(201); _=json.NewEncoder(w).Encode(item)
 }
+
+func goalImageHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool,userID,goalID int64){
+ w.Header().Set("Content-Type","application/json");w.Header().Set("Cache-Control","no-store")
+ store,err:=newS3Store();if err!=nil{http.Error(w,`{"error":"S3-хранилище не настроено"}`,503);return}
+ var oldKey *string
+ if err:=database.QueryRow(r.Context(),`SELECT image_key FROM goals WHERE id=$1 AND user_id=$2`,goalID,userID).Scan(&oldKey);err!=nil{http.Error(w,`{"error":"Цель не найдена"}`,404);return}
+ if r.Method==http.MethodDelete{
+  if _,err:=database.Exec(r.Context(),`UPDATE goals SET image_key=NULL,updated_at=NOW() WHERE id=$1 AND user_id=$2`,goalID,userID);err!=nil{http.Error(w,`{"error":"Не удалось удалить изображение цели"}`,500);return}
+  if oldKey!=nil&&*oldKey!=""{if err:=store.delete(r.Context(),*oldKey);err!=nil{log.Printf("failed to delete goal image for goal %d: %v",goalID,err)}}
+  _=json.NewEncoder(w).Encode(map[string]bool{"success":true});return
+ }
+ if r.Method!=http.MethodPut{w.Header().Set("Allow","PUT, DELETE");http.Error(w,`{"error":"Метод не поддерживается"}`,405);return}
+ r.Body=http.MaxBytesReader(w,r.Body,6<<20)
+ if err:=r.ParseMultipartForm(6<<20);err!=nil{http.Error(w,`{"error":"Файл слишком большой"}`,400);return}
+ file,_,err:=r.FormFile("image");if err!=nil{http.Error(w,`{"error":"Выберите изображение"}`,400);return};defer file.Close()
+ data,err:=io.ReadAll(io.LimitReader(file,(5<<20)+1));if err!=nil||len(data)==0||len(data)>5<<20{http.Error(w,`{"error":"Изображение должно быть не больше 5 МБ"}`,400);return}
+ contentType:=http.DetectContentType(data);ext:=""
+ switch contentType{case "image/jpeg":ext="jpg";case "image/png":ext="png";case "image/webp":ext="webp";case "image/gif":ext="gif";default:http.Error(w,`{"error":"Поддерживаются JPEG, PNG, WebP и GIF"}`,400);return}
+ random:=make([]byte,16);if _,err:=rand.Read(random);err!=nil{http.Error(w,`{"error":"Не удалось создать ключ файла"}`,500);return}
+ key:="goals/"+strconv.FormatInt(userID,10)+"/"+hex.EncodeToString(random)+"."+ext
+ if err:=store.put(r.Context(),key,contentType,data);err!=nil{http.Error(w,`{"error":"Не удалось загрузить изображение в S3"}`,502);return}
+ tag,err:=database.Exec(r.Context(),`UPDATE goals SET image_key=$3,updated_at=NOW() WHERE id=$1 AND user_id=$2`,goalID,userID,key)
+ if err!=nil||tag.RowsAffected()==0{_ = store.delete(r.Context(),key);http.Error(w,`{"error":"Не удалось сохранить изображение цели"}`,500);return}
+ if oldKey!=nil&&*oldKey!=""{if err:=store.delete(r.Context(),*oldKey);err!=nil{log.Printf("failed to delete replaced goal image for goal %d: %v",goalID,err)}}
+ url,err:=store.presignGet(key,7*24*time.Hour);if err!=nil{http.Error(w,`{"error":"Изображение сохранено, но не удалось сформировать ссылку"}`,502);return}
+ _=json.NewEncoder(w).Encode(map[string]string{"imageUrl":url})
+}
