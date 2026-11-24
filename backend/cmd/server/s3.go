@@ -173,7 +173,7 @@ func (s *s3Store) presignGet(key string, lifetime time.Duration) (string, error)
 	query.Set("X-Amz-Expires", fmt.Sprintf("%d", int(lifetime.Seconds())))
 	query.Set("X-Amz-SignedHeaders", "host")
 	canonicalQuery := query.Encode()
-	canonicalRequest := buildS3CanonicalRequest(http.MethodGet, u.EscapedPath(), canonicalQuery, "host:"+u.Host+"\n", "host", "UNSIGNED-PAYLOAD")"
+	canonicalRequest := buildS3CanonicalRequest(http.MethodGet, u.EscapedPath(), canonicalQuery, "host:"+u.Host+"\n", "host", "UNSIGNED-PAYLOAD")
 	stringToSign := "AWS4-HMAC-SHA256\n" + amzDate + "\n" + scope + "\n" + sha256Hex([]byte(canonicalRequest))
 	signature := hex.EncodeToString(hmacSHA256(s.signingKey(dateStamp), stringToSign))
 	u.RawQuery = canonicalQuery + "&X-Amz-Signature=" + signature
