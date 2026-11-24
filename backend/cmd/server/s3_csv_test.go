@@ -1,7 +1,13 @@
 package main
 
 import (
+ "context"
+ "io"
+ "net/http"
+ "net/http/httptest"
  "net/url"
+ "os"
+ "strings"
  "testing"
 )
 
@@ -26,4 +32,41 @@ func TestSafeCSVCellPreventsFormulaInjection(t *testing.T){
   if got==value||got[0]!='\''{t.Fatalf("safeCSVCell(%q) = %q, expected apostrophe prefix",value,got)}
  }
  if got:=safeCSVCell("ordinary text");got!="ordinary text"{t.Fatalf("safeCSVCell changed ordinary text: %q",got)}
+}
+
+func TestS3PutReaderUploadsSeekableStream(t *testing.T) {
+ var received string
+ server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+  if r.Method != http.MethodPut { t.Errorf("method = %s, want PUT", r.Method) }
+  if r.ContentLength != int64(len("streamed archive payload")) { t.Errorf("content length = %d", r.ContentLength) }
+  if r.Header.Get("X-Amz-Content-Sha256") == "" { t.Error("missing payload hash") }
+  body, err := io.ReadAll(r.Body)
+  if err != nil { t.Errorf("read request body: %v", err); return }
+  received = string(body)
+  w.WriteHeader(http.StatusOK)
+ }))
+ defer server.Close()
+
+ endpoint, err := url.Parse(server.URL)
+ if err != nil { t.Fatal(err) }
+ store := &s3Store{
+  endpoint: endpoint,
+  bucket: "test-bucket",
+  region: "test-region-1",
+  access: "test-access",
+  secret: "test-secret",
+  client: server.Client(),
+ }
+ file, err := os.CreateTemp(t.TempDir(), "backup-*.dump")
+ if err != nil { t.Fatal(err) }
+ payload := "streamed archive payload"
+ if _, err := io.Copy(file, strings.NewReader(payload)); err != nil { t.Fatal(err) }
+ info, err := file.Stat()
+ if err != nil { t.Fatal(err) }
+ if _, err := file.Seek(0, io.SeekStart); err != nil { t.Fatal(err) }
+
+ if err := store.putReader(context.Background(), "backups/test.dump", "application/octet-stream", file, info.Size()); err != nil {
+  t.Fatalf("putReader() error = %v", err)
+ }
+ if received != payload { t.Fatalf("uploaded body = %q, want %q", received, payload) }
 }
