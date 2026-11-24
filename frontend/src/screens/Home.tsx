@@ -1,23 +1,86 @@
-import { ArrowDownLeft, ArrowUpRight, Coffee, ShoppingBag, Plane, Wallet } from "lucide-react";
-import { PageHeading, Panel, Stat, Donut, LineChart, Progress, money } from "./ui";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Coffee, ShoppingBag, Car, Wallet } from "lucide-react";
+import { PageHeading, Panel, Stat, Donut, LineChart } from "./ui";
 import "./Pure.css";
-const transactions=[{name:"Пятёрочка",category:"Продукты",amount:-1250,date:"Сегодня",icon:ShoppingBag,tone:"coral"},{name:"Зарплата",category:"Доход",amount:85000,date:"Вчера",icon:ArrowDownLeft,tone:"mint"},{name:"Кафе",category:"Рестораны",amount:-720,date:"14 мая",icon:Coffee,tone:"orange"}];
-function Home(){
- return <div className="pure-page"><PageHeading title="Главная" subtitle="Ваши финансы. Ваши цели. Вместе с Fluxora."/>
-  <div className="pure-grid four">
-   <Stat label="Общий баланс" value="125 750 ₽" change="+12,5%" icon={<Wallet size={17}/>}/>
-   <Stat label="Доходы за месяц" value="120 000 ₽" change="+8,2%" tone="mint" icon={<ArrowDownLeft size={17}/>}/>
-   <Stat label="Расходы за месяц" value="75 320 ₽" change="−3,4%" tone="violet" icon={<ArrowUpRight size={17}/>}/>
-   <Stat label="Остаток бюджета" value="44 680 ₽" change="+6,1%" tone="blue" icon={<Wallet size={17}/>}/>
-  </div>
-  <div className="pure-grid two" style={{marginTop:16}}>
-   <Panel title="Динамика доходов и расходов" subtitle="Сравнение по месяцам"><LineChart values={[35,48,42,66,58,78,72]}/></Panel>
-   <Panel title="Расходы по категориям" subtitle="Распределение за текущий месяц"><div style={{display:"flex",alignItems:"center",justifyContent:"space-around",gap:16,flexWrap:"wrap"}}><Donut segments={[31,25,20,24]} center="31%" caption="Продукты"/><div className="chart-legend">{[["Продукты","31%","#3478f6"],["Транспорт","25%","#78c9ee"],["Развлечения","20%","#8e7cf4"],["Другое","24%","#ffb56e"]].map(([a,b,c])=><div className="legend-row" key={a}><i className="legend-dot" style={{background:c}}/><span>{a}</span><strong>{b}</strong></div>)}</div></div></Panel>
-  </div>
-  <div className="pure-grid two" style={{marginTop:16}}>
-   <Panel title="Последние операции" action={<span className="muted" style={{fontSize:10}}>3 операции</span>}><div className="transaction-list">{transactions.map((t)=>{const Icon=t.icon;return <div className="transaction-row" key={t.name}><span className={`transaction-icon ${t.tone}`}><Icon size={16}/></span><span className="transaction-copy"><strong>{t.name}</strong><small>{t.category}</small></span><strong className={`transaction-amount ${t.amount>0?"positive":"negative"}`}>{t.amount>0?"+":""}{money(t.amount)}</strong><span className="transaction-date">{t.date}</span></div>})}</div></Panel>
-   <Panel title="Цель на отпуск" subtitle="Продолжайте двигаться к мечте"><div style={{display:"flex",alignItems:"center",gap:18}}><div className="goal-art" style={{width:105,height:90,borderRadius:12,flexShrink:0}}><Plane size={35}/></div><div style={{flex:1}}><strong style={{fontSize:24}}>62%</strong><p className="muted" style={{fontSize:10,margin:"4px 0 12px"}}>62 000 ₽ из 100 000 ₽</p><Progress value={62}/></div></div></Panel>
-  </div>
- </div>;
+
+type Tx = { id:number; title:string; type:"income"|"expense"|"transfer"; amount:string; category:string; date:string; accountId:number; transferAccountId?:number };
+type Dashboard = { totalBalance:string; monthIncome:string; monthExpense:string; monthNet:string; recent:Tx[] };
+type Category = { name:string; amount:string; count:number };
+type Point = { date:string; income:string; expense:string };
+type Analytics = { categories:Category[]; trend:Point[] };
+const money = (value:string) => {
+  const negative=value.startsWith("-");
+  const [whole,fraction=""]=value.replace("-","").split(".");
+  const cents=BigInt(whole||"0")*100n+BigInt((fraction+"00").slice(0,2));
+  return (negative?"−":"")+new Intl.NumberFormat("ru-RU").format(cents/100n)+","+(cents%100n).toString().padStart(2,"0")+" ₽";
+};
+const colors=["#3478f6","#78c9ee","#8e7cf4","#ffb56e","#08a47f","#ef8b8b"];
+
+function Home() {
+  const [dashboard,setDashboard]=useState<Dashboard|null>(null);
+  const [analytics,setAnalytics]=useState<Analytics|null>(null);
+  const [error,setError]=useState("");
+  useEffect(()=>{
+    let cancelled=false;
+    Promise.all([fetch("/api/dashboard"),fetch("/api/analytics?period=month")])
+      .then(async([a,b])=>{
+        const [summary,stats]=await Promise.all([a.json(),b.json()]);
+        if(!a.ok||!b.ok)throw new Error(summary.error||stats.error||"Не удалось загрузить главную страницу");
+        if(!cancelled){setDashboard(summary);setAnalytics(stats);}
+      })
+      .catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:"Ошибка загрузки");});
+    return()=>{cancelled=true;};
+  },[]);
+  const categoryTotal=useMemo(()=>analytics?.categories.reduce((sum,item)=>sum+BigInt(item.amount.split(".")[0]||"0")*100n+BigInt((item.amount.split(".")[1]||"").padEnd(2,"0").slice(0,2)),0n)??0n,[analytics]);
+  const shares=useMemo(()=>analytics?.categories.map(item=>{
+    const amount=BigInt(item.amount.split(".")[0]||"0")*100n+BigInt((item.amount.split(".")[1]||"").padEnd(2,"0").slice(0,2));
+    return categoryTotal===0n?0:Number(amount*10000n/categoryTotal)/100;
+  })??[],[analytics,categoryTotal]);
+  const trend=analytics?.trend??[];
+  const trendValues=trend.map(item=>Number(item.expense));
+  const max=Math.max(1,...trendValues);
+  const labels=trend.map(item=>new Date(item.date+"T00:00:00").toLocaleDateString("ru-RU",{day:"2-digit",month:"2-digit"}));
+  return <div className="pure-page">
+    <PageHeading title="Главная" subtitle="Ваши финансы. Ваши цели. Вместе с Fluxora."/>
+    {error&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{error}</p>}
+    {!dashboard?<div className="empty-note">Загружаем финансовую сводку…</div>:<>
+      <div className="pure-grid four">
+        <Stat label="Общий баланс" value={money(dashboard.totalBalance)} icon={<Wallet size={17}/>}/>
+        <Stat label="Доходы за месяц" value={money(dashboard.monthIncome)} tone="mint" icon={<ArrowDownLeft size={17}/>}/>
+        <Stat label="Расходы за месяц" value={money(dashboard.monthExpense)} tone="violet" icon={<ArrowUpRight size={17}/>}/>
+        <Stat label="Разница за месяц" value={money(dashboard.monthNet)} tone="blue" icon={<Wallet size={17}/>}/>
+      </div>
+      <div className="pure-grid two" style={{marginTop:16}}>
+        <Panel title="Динамика расходов" subtitle="По дням текущего месяца">
+          {trend.length?<LineChart values={trendValues.map(v=>Math.max(4,Math.round(v/max*100))} labels={labels}/>:<div className="empty-note">За этот месяц операций пока нет.</div>}
+        </Panel>
+        <Panel title="Расходы по категориям" subtitle="Распределение за текущий месяц">
+          {analytics?.categories.length?<div style={{display:"flex",alignItems:"center",justifyContent:"space-around",gap:16,flexWrap:"wrap"}}>
+            <Donut segments={shares} center="100%" caption="расходов"/>
+            <div className="chart-legend">{analytics.categories.map((item,index)=><div className="legend-row" key={item.name}><i className="legend-dot" style={{background:colors[index%colors.length]}}/><span>{item.name}</span><strong>{shares[index].toFixed(1).replace(".",",")}%</strong></div>)}</div>
+          </div>:<div className="empty-note">Нет расходов по категориям за этот месяц.</div>}
+        </Panel>
+      </div>
+      <div className="pure-grid two" style={{marginTop:16}}>
+        <Panel title="Последние операции" subtitle="Пять последних записей">
+          {dashboard.recent.length?<div className="transaction-list">{dashboard.recent.map(item=>{
+            const Icon=item.type==="income"?ArrowDownLeft:item.type==="transfer"?ArrowLeftRight:item.category==="Транспорт"?Car:item.category==="Кафе"?Coffee:ShoppingBag;
+            const tone=item.type==="income"?"mint":item.type==="transfer"?"violet":"";
+            return <div className="transaction-row" key={item.id}>
+              <span className={`transaction-icon ${tone}`}><Icon size={16}/></span>
+              <span className="transaction-copy"><strong>{item.title}</strong><small>{item.category} · {item.date}</small></span>
+              <strong className={`transaction-amount ${item.type==="income"?"positive":item.type==="expense"?"negative":""}`}>{item.type==="income"?"+":item.type==="expense"?"−":"↔ "}{money(item.amount)}</strong>
+            </div>;
+          })}</div>:<div className="empty-note">Добавьте первую операцию, и она появится здесь.</div>}
+        </Panel>
+        <Panel title="Финансовый итог" subtitle="Текущий месяц">
+          <div className="legend-row"><span>Доходы</span><strong className="positive">{money(dashboard.monthIncome)}</strong></div>
+          <div className="legend-row" style={{marginTop:12}}><span>Расходы</span><strong className="negative">{money(dashboard.monthExpense)}</strong></div>
+          <div className="legend-row" style={{marginTop:12}}><span>Чистый результат</span><strong>{money(dashboard.monthNet)}</strong></div>
+          <div className="empty-note" style={{marginTop:16}}>Переводы между вашими счетами не увеличивают доходы и расходы.</div>
+        </Panel>
+      </div>
+    </>}
+  </div>;
 }
 export default Home;
