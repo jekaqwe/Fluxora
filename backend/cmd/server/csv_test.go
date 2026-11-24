@@ -36,3 +36,12 @@ func TestSafeCSVCell(t *testing.T) {
  }
  for input,want:=range cases { if got:=safeCSVCell(input);got!=want { t.Errorf("safeCSVCell(%q)=%q, want %q",input,got,want) } }
 }
+
+func TestParseImportCSVWithUTF8BOM(t *testing.T) {
+ data := []byte("\uFEFFdate,title,type,amount,category,accountId,transferAccountId,comment\n2026-11-24,Salary,income,1200.50,Work,7,0,Monthly salary\n")
+ rows, err := parseImportCSV(data)
+ if err != nil { t.Fatalf("parseImportCSV rejected exported CSV with BOM: %v", err) }
+ if len(rows) != 1 || rows[0].Title != "Salary" {
+  t.Fatalf("unexpected parsed rows: %#v", rows)
+ }
+}
