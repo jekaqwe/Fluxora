@@ -124,6 +124,10 @@ func safeCSVCell(value string) string {
 }
 
 func normalizeCSVAmount(value string) string {
- if strings.Contains(value,".") { value=strings.TrimRight(strings.TrimRight(value,"0"),".") }
- return value
+ parts:=strings.SplitN(value,".",2)
+ whole:=strings.TrimLeft(parts[0],"0");if whole==""{whole="0"}
+ if len(parts)==1{return whole}
+ fraction:=strings.TrimRight(parts[1],"0")
+ if fraction==""{return whole}
+ return whole+"."+fraction
 }
