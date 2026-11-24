@@ -212,3 +212,20 @@ func (s *s3Store) listKeys(ctx context.Context,prefix string)([]string,error){
  }
  return keys,nil
 }
+
+func (s *s3Store) get(ctx context.Context,key string)([]byte,error){
+ u:=s.objectURL(key);now:=time.Now().UTC();dateStamp:=now.Format("20060102");amzDate:=now.Format("20060102T150405Z");payloadHash:=sha256Hex(nil)
+ canonicalHeaders:="host:"+u.Host+"\n"+"x-amz-content-sha256:"+payloadHash+"\n"+"x-amz-date:"+amzDate+"\n"
+ signedHeaders:="host;x-amz-content-sha256;x-amz-date"
+ canonicalRequest:=http.MethodGet+"\n"+u.EscapedPath()+"\n\n"+canonicalHeaders+"\n"+signedHeaders+"\n"+payloadHash
+ scope:=dateStamp+"/"+s.region+"/s3/aws4_request"
+ stringToSign:="AWS4-HMAC-SHA256\n"+amzDate+"\n"+scope+"\n"+sha256Hex([]byte(canonicalRequest))
+ signature:=hex.EncodeToString(hmacSHA256(s.signingKey(dateStamp),stringToSign))
+ req,err:=http.NewRequestWithContext(ctx,http.MethodGet,u.String(),nil);if err!=nil{return nil,err}
+ req.Header.Set("X-Amz-Date",amzDate);req.Header.Set("X-Amz-Content-Sha256",payloadHash)
+ req.Header.Set("Authorization","AWS4-HMAC-SHA256 Credential="+s.access+"/"+scope+", SignedHeaders="+signedHeaders+", Signature="+signature)
+ resp,err:=s.client.Do(req);if err!=nil{return nil,err};defer resp.Body.Close()
+ body,err:=io.ReadAll(io.LimitReader(resp.Body,1<<20));if err!=nil{return nil,err}
+ if resp.StatusCode<200||resp.StatusCode>=300{return nil,fmt.Errorf("S3 get failed with status %d: %s",resp.StatusCode,strings.TrimSpace(string(body)))}
+ return body,nil
+}
