@@ -120,8 +120,8 @@ func TestTinkoffCSVProfileAndAccountCurrencyAmounts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Tinkoff CSV parse failed: %v", err)
 	}
-	if skipped != 1 {
-		t.Fatalf("expected one failed-status row to be skipped, got %d", skipped)
+	if skipped != 2 {
+		t.Fatalf("expected failed-status and analytics-excluded rows to be skipped, got %d", skipped)
 	}
 	if len(rows) != 2 {
 		t.Fatalf("expected two successful rows, got %d", len(rows))
