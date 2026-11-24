@@ -20,6 +20,14 @@ func passwordChangeHandler(w http.ResponseWriter, r *http.Request, database *pgx
  if bcrypt.CompareHashAndPassword([]byte(oldHash), []byte(input.Current)) != nil { http.Error(w, `{"error":"Текущий пароль указан неверно"}`, http.StatusUnauthorized); return }
  nextHash, err := bcrypt.GenerateFromPassword([]byte(input.Next), bcrypt.DefaultCost)
  if err != nil { http.Error(w, `{"error":"Не удалось обработать новый пароль"}`, http.StatusInternalServerError); return }
- if _, err := database.Exec(r.Context(), "UPDATE users SET password_hash = $2 WHERE id = $1", userID, string(nextHash)); err != nil { http.Error(w, `{"error":"Не удалось сохранить новый пароль"}`, http.StatusInternalServerError); return }
- _ = json.NewEncoder(w).Encode(map[string]string{"message":"Пароль успешно изменён"})
+ sessionHash, err := currentSessionHash(r)
+ if err != nil { http.Error(w, `{"error":"Текущая сессия не найдена"}`, http.StatusUnauthorized); return }
+ tx, err := database.Begin(r.Context())
+ if err != nil { http.Error(w, `{"error":"Не удалось начать смену пароля"}`, http.StatusInternalServerError); return }
+ defer tx.Rollback(r.Context())
+ if _, err := tx.Exec(r.Context(), "UPDATE users SET password_hash = $2 WHERE id = $1", userID, string(nextHash)); err != nil { http.Error(w, `{"error":"Не удалось сохранить новый пароль"}`, http.StatusInternalServerError); return }
+ if _, err := tx.Exec(r.Context(), "DELETE FROM sessions WHERE user_id = $1 AND token_hash <> $2", userID, sessionHash); err != nil { http.Error(w, `{"error":"Не удалось завершить остальные сессии"}`, http.StatusInternalServerError); return }
+ _, _ = tx.Exec(r.Context(), "INSERT INTO notifications(user_id,notification_type,title,message,related_type) VALUES($1,'account_password','Пароль изменён','Пароль аккаунта успешно обновлён. Остальные сессии завершены.','account')", userID)
+ if err := tx.Commit(r.Context()); err != nil { http.Error(w, `{"error":"Не удалось завершить смену пароля"}`, http.StatusInternalServerError); return }
+ _ = json.NewEncoder(w).Encode(map[string]string{"message":"Пароль успешно изменён. Остальные сессии завершены."})
 }
