@@ -100,3 +100,47 @@ func TestCSVSuggestedMappingDoesNotTreatAccountNameAsID(t *testing.T) {
   t.Fatalf("accountName must not be auto-mapped to numeric accountId: %#v", mapping)
  }
 }
+
+
+func TestTinkoffCSVProfileAndAccountCurrencyAmounts(t *testing.T) {
+	data := []byte("\uFEFFИмя счёта;Дата операции;Сумма операции;Валюта операции;Сумма в валюте счёта;Валюта счёта;Статус;Категория по-умолчанию;Описание;Сообщение\n" +
+		"Black;17.03.2026 14:38:23;-1,00;USD;-86,15;RUB;Ок;Переводы;Между своими счетами;\n" +
+		"Black;18.03.2026 10:00:00;12,50;RUB;12,50;RUB;Ок;Пополнения;Пополнение;\n" +
+		"Black;19.03.2026 10:00:00;-5,00;RUB;-5,00;RUB;Ошибка;Покупки;Неуспешная операция;\n")
+	headers, err := parseCSVHeaders(data)
+	if err != nil {
+		t.Fatalf("parseCSVHeaders failed: %v", err)
+	}
+	if !isTinkoffCSV(headers) || csvFormat(headers) != "tinkoff" {
+		t.Fatalf("Tinkoff format was not detected: %#v", headers)
+	}
+	mapping := csvSuggestedMapping(headers)
+	mapping["accountId"] = csvTinkoffAccountPrefix + "42"
+	rows, skipped, err := parseImportCSVWithMappingStats(data, mapping)
+	if err != nil {
+		t.Fatalf("Tinkoff CSV parse failed: %v", err)
+	}
+	if skipped != 1 {
+		t.Fatalf("expected one failed-status row to be skipped, got %d", skipped)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("expected two successful rows, got %d", len(rows))
+	}
+	if rows[0].Date != "2026-03-17" || rows[0].Amount != "86.15" || rows[0].Type != "expense" || rows[0].AccountID != 42 {
+		t.Fatalf("unexpected converted USD operation: %#v", rows[0])
+	}
+	if rows[1].Date != "2026-03-18" || rows[1].Amount != "12.50" || rows[1].Type != "income" {
+		t.Fatalf("unexpected income operation: %#v", rows[1])
+	}
+}
+
+func TestParseImportDateSupportsTinkoffDateTime(t *testing.T) {
+	parsed, err := parseImportDate("24.11.2026 09:49:42")
+	if err != nil {
+		t.Fatalf("Tinkoff date parsing failed: %v", err)
+	}
+	if got := parsed.Format("2006-01-02"); got != "2026-11-24" {
+		t.Fatalf("unexpected normalized date: %s", got)
+	}
+}
+
