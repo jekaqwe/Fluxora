@@ -125,6 +125,7 @@ func debtPaymentsHandler(w http.ResponseWriter,r *http.Request,database *pgxpool
  if err!=nil{http.Error(w,`{"error":"Не удалось сохранить историю платежа"}`,500);return};if paymentTxID.Valid{v:=paymentTxID.Int64;payment.TransactionID=&v}
  _,err=tx.Exec(r.Context(),`UPDATE debts SET status=CASE WHEN initial_amount-COALESCE((SELECT SUM(amount) FROM debt_payments WHERE debt_id=$1),0)<=0 THEN 'closed' ELSE status END,updated_at=NOW() WHERE id=$1`,debtID)
  if err!=nil{http.Error(w,`{"error":"Не удалось обновить остаток долга"}`,500);return}
+ _,_=tx.Exec(r.Context(),`INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) VALUES($1,'debt_payment','Записан платёж по долгу',$2,'debt',$3)`,userID,in.Amount+" ₽",debtID)
  if err:=tx.Commit(r.Context());err!=nil{http.Error(w,`{"error":"Не удалось завершить платёж"}`,500);return}
  w.WriteHeader(201);_=json.NewEncoder(w).Encode(payment)
 }
