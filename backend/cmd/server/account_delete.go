@@ -2,8 +2,6 @@ package main
 
 import (
  "context"
- "crypto/sha256"
- "encoding/hex"
  "encoding/json"
  "errors"
  "log"
@@ -21,12 +19,10 @@ var errFamilyOwnerAlone=errors.New("владелец является единс
 
 type deletionLedgerEntry struct {
  UserID int64 `json:"user_id"`
- EmailHash string `json:"email_hash"`
  UserCreatedAt time.Time `json:"user_created_at"`
  Status string `json:"status"`
  DeletedAt time.Time `json:"deleted_at"`
 }
-func emailIdentityHash(email string)string{sum:=sha256.Sum256([]byte(strings.ToLower(strings.TrimSpace(email))));return hex.EncodeToString(sum[:])}
 
 func deleteUserData(ctx context.Context,database *pgxpool.Pool,userID int64,allowOwnerAlone bool)([]string,error){
  tx,err:=database.Begin(ctx);if err!=nil{return nil,err};defer tx.Rollback(ctx)
@@ -65,11 +61,11 @@ func deleteAccountHandler(w http.ResponseWriter,r *http.Request,database *pgxpoo
  r.Body=http.MaxBytesReader(w,r.Body,12<<10);var input struct{Password string `json:"password"`;Confirmation string `json:"confirmation"`}
  if err:=json.NewDecoder(r.Body).Decode(&input);err!=nil{http.Error(w,`{"error":"Некорректные данные"}`,400);return}
  if input.Confirmation!="DELETE"||strings.TrimSpace(input.Password)==""{http.Error(w,`{"error":"Введите пароль и подтверждение DELETE"}`,400);return}
- var email,passwordHash string;var userCreatedAt time.Time
- if err:=database.QueryRow(r.Context(),`SELECT email,password_hash,created_at FROM users WHERE id=$1`,userID).Scan(&email,&passwordHash,&userCreatedAt);err!=nil{http.Error(w,`{"error":"Пользователь не найден"}`,404);return}
+ var passwordHash string;var userCreatedAt time.Time
+ if err:=database.QueryRow(r.Context(),`SELECT password_hash,created_at FROM users WHERE id=$1`,userID).Scan(&passwordHash,&userCreatedAt);err!=nil{http.Error(w,`{"error":"Пользователь не найден"}`,404);return}
  if bcrypt.CompareHashAndPassword([]byte(passwordHash),[]byte(input.Password))!=nil{http.Error(w,`{"error":"Неверный пароль"}`,401);return}
  store,err:=newS3Store();if err!=nil{http.Error(w,`{"error":"Удаление аккаунта временно недоступно: не настроено защищённое хранилище журнала удаления"}`,503);return}
- ledger:=deletionLedgerEntry{UserID:userID,EmailHash:emailIdentityHash(email),UserCreatedAt:userCreatedAt,DeletedAt:time.Now().UTC(),Status:"pending"}
+ ledger:=deletionLedgerEntry{UserID:userID,UserCreatedAt:userCreatedAt,DeletedAt:time.Now().UTC(),Status:"pending"}
  body,err:=json.Marshal(ledger);if err!=nil{http.Error(w,`{"error":"Не удалось подготовить журнал удаления"}`,500);return}
  ledgerName:=strconv.FormatInt(userID,10)+"-"+ledger.UserCreatedAt.UTC().Format("20060102T150405.000000000Z")+".json"
  pendingKey:="deletion-ledger/pending/"+ledgerName
