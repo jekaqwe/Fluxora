@@ -43,7 +43,7 @@ func deleteUserData(ctx context.Context,database *pgxpool.Pool,userID int64,allo
   err=tx.QueryRow(ctx,`SELECT user_id FROM family_members WHERE family_id=$1 AND user_id<>$2 ORDER BY CASE role WHEN 'admin' THEN 0 ELSE 1 END,joined_at,id LIMIT 1 FOR UPDATE`,familyID.Int64,userID).Scan(&successor)
   if err==pgx.ErrNoRows{
    if !allowOwnerAlone{return nil,errFamilyOwnerAlone}
-   if _,err:=tx.Exec(ctx,`UPDATE families SET owner_id=NULL,updated_at=NOW() WHERE id=$1`,familyID.Int64);err!=nil{return nil,err}
+   if _,err:=tx.Exec(ctx,`DELETE FROM families WHERE id=$1`,familyID.Int64);err!=nil{return nil,err}
   }else if err!=nil{return nil,err
   }else{
    if _,err:=tx.Exec(ctx,`UPDATE family_members SET role='owner' WHERE family_id=$1 AND user_id=$2`,familyID.Int64,successor);err!=nil{return nil,err}
