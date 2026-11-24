@@ -98,6 +98,14 @@ func main() {
 		familyHandler(w, r, db)
 	})
 
+	// Регулярные операции
+	http.HandleFunc("/api/recurring", func(w http.ResponseWriter, r *http.Request) {
+		recurringHandler(w, r, db)
+	})
+	http.HandleFunc("/api/recurring/", func(w http.ResponseWriter, r *http.Request) {
+		recurringHandler(w, r, db)
+	})
+
 	// Смена пароля
 	http.HandleFunc("/api/account/password", func(w http.ResponseWriter, r *http.Request) {
 		passwordChangeHandler(w, r, db)
@@ -120,6 +128,7 @@ func main() {
 		json.NewEncoder(w).Encode(response)
 	})
 
+	startRecurringScheduler(db)
 	log.Println("Fluxora Backend запущен на http://localhost:8080")
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
