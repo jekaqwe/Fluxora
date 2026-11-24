@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Home, ArrowLeftRight, ChartNoAxesCombined, Target, Users, UserRound, Settings as SettingsIcon, LogOut, Menu, X, Droplet } from "lucide-react";
+import { Home, ArrowLeftRight, ChartNoAxesCombined, Target, Users, UserRound, Settings as SettingsIcon, LogOut, Menu, X } from "lucide-react";
 import HomeScreen from "./screens/Home";
 import Operations from "./screens/Operations";
 import Analytics from "./screens/Analytics";
