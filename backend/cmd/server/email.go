@@ -2,10 +2,13 @@ package main
 
 import (
  "crypto/rand"
+ "crypto/tls"
+ "errors"
  "crypto/sha256"
  "encoding/base64"
  "encoding/hex"
  "encoding/json"
+ "io"
  "net"
  "net/http"
  "net/mail"
@@ -17,22 +20,21 @@ import (
  "github.com/jackc/pgx/v5/pgxpool"
 )
 
-func sendEmailChangeMessage(to, token string) error {
- host:=strings.TrimSpace(os.Getenv("SMTP_HOST"))
- port:=strings.TrimSpace(os.Getenv("SMTP_PORT"))
- from:=strings.TrimSpace(os.Getenv("SMTP_FROM"))
- username:=os.Getenv("SMTP_USER")
- password:=os.Getenv("SMTP_PASSWORD")
- if host==""||from=="" { return pgx.ErrNoRows }
- if port=="" { port="587" }
+func sendEmailChangeMessage(to,token string)error{
+ host:=strings.TrimSpace(os.Getenv("SMTP_HOST"));port:=strings.TrimSpace(os.Getenv("SMTP_PORT"));from:=strings.TrimSpace(os.Getenv("SMTP_FROM"))
+ username:=os.Getenv("SMTP_USER");password:=os.Getenv("SMTP_PASSWORD")
+ if host==""||from==""{return errors.New("SMTP is not configured")};if port==""{port="587"}
  subject:=base64.StdEncoding.EncodeToString([]byte("Подтверждение нового email Fluxora"))
  body:="From: "+from+"\r\nTo: "+to+"\r\nSubject: =?UTF-8?B?"+subject+"?=\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n"+
   "Для подтверждения нового адреса в Fluxora введите этот код в настройках аккаунта:\r\n\r\n"+token+"\r\n\r\nКод действует 30 минут. Если вы не запрашивали смену email, проигнорируйте письмо.\r\n"
- var auth smtp.Auth
- if username!="" { auth=smtp.PlainAuth("",username,password,host) }
- return smtp.SendMail(net.JoinHostPort(host,port),auth,from,[]string{to},[]byte(body))
+ client,err:=smtp.Dial(net.JoinHostPort(host,port));if err!=nil{return err};defer client.Close()
+ if ok,_:=client.Extension("STARTTLS");!ok{return errors.New("SMTP server does not support STARTTLS")}
+ if err:=client.StartTLS(&tls.Config{ServerName:host,MinVersion:tls.VersionTLS12});err!=nil{return err}
+ if username!=""{if err:=client.Auth(smtp.PlainAuth("",username,password,host));err!=nil{return err}}
+ if err:=client.Mail(from);err!=nil{return err};if err:=client.Rcpt(to);err!=nil{return err}
+ writer,err:=client.Data();if err!=nil{return err};if _,err:=io.WriteString(writer,body);err!=nil{_ = writer.Close();return err};if err:=writer.Close();err!=nil{return err}
+ return client.Quit()
 }
-
 func emailChangeHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool) {
  w.Header().Set("Content-Type","application/json")
  w.Header().Set("Cache-Control","no-store")
@@ -49,6 +51,8 @@ func emailChangeHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
   var current string
   if err:=database.QueryRow(r.Context(),`SELECT email FROM users WHERE id=$1`,userID).Scan(&current);err!=nil { http.Error(w,`{"error":"Пользователь не найден"}`,404);return }
   if strings.EqualFold(current,in.Email) { http.Error(w,`{"error":"Это уже текущий email"}`,400);return }
+  var recent bool
+  if err:=database.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM email_change_requests WHERE user_id=$1 AND created_at>NOW()-INTERVAL '1 minute')`,userID).Scan(&recent);err!=nil{http.Error(w,`{"error":"Не удалось проверить запросы email"}`,500);return};if recent{http.Error(w,`{"error":"Подождите минуту перед повторной отправкой"}`,429);return}
   var taken bool
   if err:=database.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM users WHERE LOWER(email)=LOWER($1) AND id<>$2)`,in.Email,userID).Scan(&taken);err!=nil||taken { http.Error(w,`{"error":"Этот email уже используется"}`,409);return }
   tokenBytes:=make([]byte,32)
