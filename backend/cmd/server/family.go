@@ -135,7 +135,10 @@ func familyHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool)
   _=json.NewEncoder(w).Encode(map[string]bool{"success":true})
  case "/api/family/transactions":
   familyTransactionsHandler(w,r,database,userID)
+ case "/api/family/goals":
+  familyGoalsHandler(w,r,database,userID)
  default:
+  if strings.HasPrefix(path,"/api/family/goals/"){familyGoalsHandler(w,r,database,userID);return}
   if strings.HasPrefix(path,"/api/family/members/"){familyMemberHandler(w,r,database,userID,strings.TrimPrefix(path,"/api/family/members/"));return}
   if strings.HasPrefix(path,"/api/family/transactions/"){familyTransactionItemHandler(w,r,database,userID,strings.TrimPrefix(path,"/api/family/transactions/"));return}
   http.NotFound(w,r)
