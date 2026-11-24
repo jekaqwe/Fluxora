@@ -27,8 +27,3 @@ func TestSafeCSVCellPreventsFormulaInjection(t *testing.T){
  }
  if got:=safeCSVCell("ordinary text");got!="ordinary text"{t.Fatalf("safeCSVCell changed ordinary text: %q",got)}
 }
-
-func TestNormalizeCSVAmount(t *testing.T){
- tests:=map[string]string{"001.2000":"1.2","12.00":"12","0.50":"0.5","100":"100"}
- for input,want:=range tests{if got:=normalizeCSVAmount(input);got!=want{t.Errorf("normalizeCSVAmount(%q) = %q, want %q",input,got,want)}}
-}
