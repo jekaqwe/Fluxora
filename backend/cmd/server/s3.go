@@ -126,7 +126,7 @@ func (s *s3Store) doSignedURLReader(ctx context.Context, method string, u *url.U
 	signedHeaders += "host;x-amz-content-sha256;x-amz-date"
 	canonicalHeaders += "x-amz-content-sha256:" + payloadHash + "\n"
 	canonicalHeaders += "x-amz-date:" + amzDate + "\n"
-	canonicalRequest := method + "\n" + u.EscapedPath() + "\n\n" + canonicalHeaders + "\n" + signedHeaders + "\n" + payloadHash
+	canonicalRequest := method + "\n" + u.EscapedPath() + "\n\n" + canonicalHeaders + signedHeaders + "\n" + payloadHash
 	scope := dateStamp + "/" + s.region + "/s3/aws4_request"
 	stringToSign := "AWS4-HMAC-SHA256\n" + amzDate + "\n" + scope + "\n" + sha256Hex([]byte(canonicalRequest))
 	signature := hex.EncodeToString(hmacSHA256(s.signingKey(dateStamp), stringToSign))
@@ -168,7 +168,7 @@ func (s *s3Store) presignGet(key string, lifetime time.Duration) (string, error)
 	query.Set("X-Amz-Expires", fmt.Sprintf("%d", int(lifetime.Seconds())))
 	query.Set("X-Amz-SignedHeaders", "host")
 	canonicalQuery := query.Encode()
-	canonicalRequest := http.MethodGet + "\n" + u.EscapedPath() + "\n" + canonicalQuery + "\nhost:" + u.Host + "\n\nhost\nUNSIGNED-PAYLOAD"
+	canonicalRequest := http.MethodGet + "\n" + u.EscapedPath() + "\n" + canonicalQuery + "\nhost:" + u.Host + "\nhost\nUNSIGNED-PAYLOAD"
 	stringToSign := "AWS4-HMAC-SHA256\n" + amzDate + "\n" + scope + "\n" + sha256Hex([]byte(canonicalRequest))
 	signature := hex.EncodeToString(hmacSHA256(s.signingKey(dateStamp), stringToSign))
 	u.RawQuery = canonicalQuery + "&X-Amz-Signature=" + signature
@@ -205,7 +205,7 @@ func (s *s3Store) listKeys(ctx context.Context,prefix string)([]string,error){
   now:=time.Now().UTC();payloadHash:=sha256Hex(nil);amzDate:=now.Format("20060102T150405Z");dateStamp:=now.Format("20060102")
   canonicalHeaders:="host:"+u.Host+"\n"+"x-amz-content-sha256:"+payloadHash+"\n"+"x-amz-date:"+amzDate+"\n"
   signedHeaders:="host;x-amz-content-sha256;x-amz-date"
-  canonicalRequest:=http.MethodGet+"\n"+u.EscapedPath()+"\n"+u.Query().Encode()+"\n"+canonicalHeaders+"\n"+signedHeaders+"\n"+payloadHash
+  canonicalRequest:=http.MethodGet+"\n"+u.EscapedPath()+"\n"+u.Query().Encode()+"\n"+canonicalHeaders+signedHeaders+"\n"+payloadHash
   scope:=dateStamp+"/"+s.region+"/s3/aws4_request"
   stringToSign:="AWS4-HMAC-SHA256\n"+amzDate+"\n"+scope+"\n"+sha256Hex([]byte(canonicalRequest))
   signature:=hex.EncodeToString(hmacSHA256(s.signingKey(dateStamp),stringToSign))
@@ -226,7 +226,7 @@ func (s *s3Store) get(ctx context.Context,key string)([]byte,error){
  u:=s.objectURL(key);now:=time.Now().UTC();dateStamp:=now.Format("20060102");amzDate:=now.Format("20060102T150405Z");payloadHash:=sha256Hex(nil)
  canonicalHeaders:="host:"+u.Host+"\n"+"x-amz-content-sha256:"+payloadHash+"\n"+"x-amz-date:"+amzDate+"\n"
  signedHeaders:="host;x-amz-content-sha256;x-amz-date"
- canonicalRequest:=http.MethodGet+"\n"+u.EscapedPath()+"\n\n"+canonicalHeaders+"\n"+signedHeaders+"\n"+payloadHash
+ canonicalRequest:=http.MethodGet+"\n"+u.EscapedPath()+"\n\n"+canonicalHeaders+signedHeaders+"\n"+payloadHash
  scope:=dateStamp+"/"+s.region+"/s3/aws4_request"
  stringToSign:="AWS4-HMAC-SHA256\n"+amzDate+"\n"+scope+"\n"+sha256Hex([]byte(canonicalRequest))
  signature:=hex.EncodeToString(hmacSHA256(s.signingKey(dateStamp),stringToSign))
