@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Panel } from "./ui";
-import { Plus, Pause, Play, Trash2, Check, X } from "lucide-react";
+import { Plus, Pause, Play, Trash2, Check, X, Pencil } from "lucide-react";
 
 type Account={id:number;name:string};
 type Item={id:number;title:string;type:"income"|"expense";amount:string;category:string;accountId?:number;frequency:string;nextDate:string;endDate?:string;status:"active"|"paused"|"completed"};
@@ -12,6 +12,7 @@ export default function RecurringPanel({accounts}:{accounts:Account[]}){
  const [accountSelections,setAccountSelections]=useState<Record<number,string>>({});
  const [missed,setMissed]=useState<Missed[]>([]);
  const [show,setShow]=useState(false);
+ const [editingId,setEditingId]=useState<number|null>(null);
  const [title,setTitle]=useState("");
  const [type,setType]=useState<"income"|"expense">("expense");
  const [amount,setAmount]=useState("");
@@ -24,14 +25,16 @@ export default function RecurringPanel({accounts}:{accounts:Account[]}){
  const [saving,setSaving]=useState(false);
  const load=async()=>{try{const r=await fetch("/api/recurring");const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось загрузить расписание");setItems(d.items||[]);setMissed(d.missed||[]);}catch(e){setError(e instanceof Error?e.message:"Ошибка расписания");}};
  useEffect(()=>{void load();},[]);
- const create=async()=>{setSaving(true);setError("");try{const r=await fetch("/api/recurring",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,type,amount:amount.replace(",", "."),category,accountId:Number(accountId),frequency,nextDate,endDate})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось создать расписание");setItems(old=>[...old,d]);setShow(false);setTitle("");setAmount("");}catch(e){setError(e instanceof Error?e.message:"Ошибка создания");}finally{setSaving(false);}};
+ const resetForm=()=>{setShow(false);setEditingId(null);setTitle("");setAmount("");setCategory("Регулярные платежи");setEndDate("");};
+ const create=async()=>{setSaving(true);setError("");try{const url=editingId===null?"/api/recurring":`/api/recurring/${editingId}`;const r=await fetch(url,{method:editingId===null?"POST":"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,type,amount:amount.replace(",", "."),category,accountId:Number(accountId),frequency,nextDate,endDate,status:"active"})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось сохранить расписание");resetForm();await load();}catch(e){setError(e instanceof Error?e.message:"Ошибка сохранения");}finally{setSaving(false);}};
+ const edit=(item:Item)=>{setEditingId(item.id);setTitle(item.title);setType(item.type);setAmount(item.amount);setCategory(item.category);setAccountId(String(item.accountId||""));setFrequency(item.frequency);setNextDate(item.nextDate);setEndDate(item.endDate||"");setShow(true);};
  const update=async(item:Item,status:"active"|"paused")=>{const selected=item.accountId||Number(accountSelections[item.id]||accountId);try{const r=await fetch(`/api/recurring/${item.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status,accountId:selected})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось обновить расписание");await load();}catch(e){setError(e instanceof Error?e.message:"Ошибка обновления");}};
  const remove=async(id:number)=>{if(!window.confirm("Удалить регулярную операцию?"))return;try{const r=await fetch(`/api/recurring/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить расписание");await load();}catch(e){setError(e instanceof Error?e.message:"Ошибка удаления");}};
  const resolve=async(id:number,action:"confirm"|"skip")=>{try{const r=await fetch(`/api/recurring/occurrences/${id}/${action}`,{method:"POST"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось обработать дату");await load();}catch(e){setError(e instanceof Error?e.message:"Ошибка обработки даты");}};
  const confirmAll=async()=>{for(const item of missed){try{const r=await fetch(`/api/recurring/occurrences/${item.id}/confirm`,{method:"POST"});if(!r.ok){const d=await r.json();throw new Error(d.error||"Не удалось подтвердить операцию");}}catch(e){setError(e instanceof Error?e.message:"Ошибка подтверждения");break;}}await load();};
  return <>
   <Panel title="Регулярные операции" subtitle="Операции по расписанию">
-   <div className="form-row" style={{justifyContent:"flex-end"}}><button className="pure-button" onClick={()=>setShow(v=>!v)}><Plus size={15}/>Добавить расписание</button></div>
+   <div className="form-row" style={{justifyContent:"flex-end"}}><button className="pure-button" onClick={()=>{if(show){resetForm();}else{setEditingId(null);setShow(true);}}}><Plus size={15}/>Добавить расписание</button></div>
    {show&&<div className="pure-grid three" style={{marginTop:12}}>
     <label className="form-label">Название<input className="pure-input" value={title} onChange={e=>setTitle(e.target.value)}/></label>
     <label className="form-label">Тип<select className="pure-select" value={type} onChange={e=>setType(e.target.value as "income"|"expense")}><option value="expense">Расход</option><option value="income">Доход</option></select></label>
@@ -41,14 +44,14 @@ export default function RecurringPanel({accounts}:{accounts:Account[]}){
     <label className="form-label">Периодичность<select className="pure-select" value={frequency} onChange={e=>setFrequency(e.target.value)}>{Object.entries(frequencies).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
     <label className="form-label">Следующая дата<input className="pure-input" type="date" value={nextDate} onChange={e=>setNextDate(e.target.value)}/></label>
     <label className="form-label">Последняя дата<input className="pure-input" type="date" value={endDate} onChange={e=>setEndDate(e.target.value)}/></label>
-    <div className="form-row" style={{alignItems:"end"}}><button className="pure-button" disabled={saving||!title.trim()||!accountId||!/^\d+(?:[.,]\d{1,2})?$/.test(amount)} onClick={()=>void create()}>{saving?"Сохранение…":"Создать"}</button><button className="pure-button ghost" onClick={()=>setShow(false)}>Отмена</button></div>
+    <div className="form-row" style={{alignItems:"end"}}><button className="pure-button" disabled={saving||!title.trim()||!accountId||!/^\d+(?:[.,]\d{1,2})?$/.test(amount)} onClick={()=>void create()}>{saving?"Сохранение…":editingId===null?"Создать":"Сохранить изменения"}</button><button className="pure-button ghost" onClick={resetForm}>Отмена</button></div>
    </div>}
    {items.length===0?<div className="empty-note">Регулярных операций пока нет.</div>:<div className="transaction-list">{items.map(item=><div className="transaction-row" key={item.id}>
     <span className={`transaction-icon ${item.type==="income"?"mint":""}`}>{item.type==="income"?"+":"↻"}</span>
     <span className="transaction-copy"><strong>{item.title}</strong><small>{frequencies[item.frequency]} · Следующая дата: {item.nextDate} · {item.status==="active"?"Активна":item.status==="paused"?"Приостановлена":"Завершена"}</small></span>
     <strong className="transaction-amount">{item.amount} ₽</strong>
     {item.status==="paused"&&!item.accountId&&<select className="pure-select" aria-label="Выберите счёт для возобновления" value={accountSelections[item.id]||""} onChange={e=>setAccountSelections(old=>({...old,[item.id]:e.target.value}))}><option value="">Счёт для возобновления</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>}{item.status!=="completed"&&<button className="pure-button ghost" aria-label={item.status==="active"?"Приостановить":"Возобновить"} disabled={item.status==="paused"&&!item.accountId&&!accountSelections[item.id]&&!accountId} onClick={()=>void update(item,item.status==="active"?"paused":"active")}>{item.status==="active"?<Pause size={14}/>:<Play size={14}/>}</button>}
-    <button className="pure-button ghost" aria-label="Удалить расписание" onClick={()=>void remove(item.id)}><Trash2 size={14}/></button>
+    <button className="pure-button ghost" aria-label="Изменить расписание" onClick={()=>edit(item)}><Pencil size={14}/></button><button className="pure-button ghost" aria-label="Удалить расписание" onClick={()=>void remove(item.id)}><Trash2 size={14}/></button>
    </div>)}</div>}
   </Panel>
   {missed.length>0&&<Panel title={`Пропущенные даты: ${missed.length}`} subtitle="Они не были созданы автоматически. Подтвердите каждую или все сразу." action={<button className="pure-button" onClick={()=>void confirmAll()}><Check size={14}/>Подтвердить все</button>}>
