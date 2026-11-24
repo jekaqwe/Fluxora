@@ -157,8 +157,15 @@ func goalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
  in.Type=strings.TrimSpace(in.Type); in.Amount=strings.TrimSpace(in.Amount); in.Comment=strings.TrimSpace(in.Comment)
  if (in.Type!="contribution"&&in.Type!="withdrawal")||!validGoalAmount(in.Amount,false)||len([]rune(in.Comment))>500 { http.Error(w,`{"error":"Проверьте тип, сумму и комментарий"}`,400); return }
  tx,err:=database.Begin(r.Context()); if err!=nil { http.Error(w,`{"error":"Не удалось начать операцию"}`,500); return }; defer tx.Rollback(r.Context())
+ var goalStatus string
+ if err:=tx.QueryRow(r.Context(),"SELECT status FROM goals WHERE id=$1 AND user_id=$2 FOR UPDATE",goalID,userID).Scan(&goalStatus); err!=nil { http.Error(w,`{"error":"Цель не найдена"}`,404); return }
+ if goalStatus=="paused" || goalStatus=="completed" { http.Error(w,`{"error":"Пополнение или снятие недоступно для приостановленной или завершённой цели"}`,409); return }
+ if in.Type=="withdrawal" {
+  var sufficient bool
+  err:=tx.QueryRow(r.Context(),`SELECT g.starting_amount+COALESCE(SUM(CASE WHEN e.entry_type='contribution' THEN e.amount ELSE -e.amount END),0) >= $2::numeric FROM goals g LEFT JOIN goal_entries e ON e.goal_id=g.id WHERE g.id=$1 GROUP BY g.id`,goalID,in.Amount).Scan(&sufficient)
+  if err!=nil || !sufficient { http.Error(w,`{"error":"Недостаточно средств в цели для снятия"}`,409); return }
+ }
  var exists bool
- if err:=tx.QueryRow(r.Context(),"SELECT EXISTS(SELECT 1 FROM goals WHERE id=$1 AND user_id=$2 FOR UPDATE)",goalID,userID).Scan(&exists); err!=nil||!exists { http.Error(w,`{"error":"Цель не найдена"}`,404); return }
  var linked any
  if in.TransactionID>0 {
   if err:=tx.QueryRow(r.Context(),"SELECT EXISTS(SELECT 1 FROM transactions WHERE id=$1 AND user_id=$2)",in.TransactionID,userID).Scan(&exists); err!=nil||!exists { http.Error(w,`{"error":"Связанная операция не найдена"}`,400); return }; linked=in.TransactionID
