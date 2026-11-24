@@ -22,6 +22,7 @@ function Family(){
  const [authorFilter,setAuthorFilter]=useState("");
  const [fromFilter,setFromFilter]=useState("");
  const [toFilter,setToFilter]=useState("");
+ const [categoryFilter,setCategoryFilter]=useState("");
  const [familyGoals,setFamilyGoals]=useState<FamilyGoal[]>([]);
  const [accounts,setAccounts]=useState<Account[]>([]);
  const [familyGoalAccountId,setFamilyGoalAccountId]=useState("");
@@ -126,7 +127,10 @@ function Family(){
  const currentMonth=today().slice(0,7);
  const monthExpense=transactions.filter(x=>x.type==="expense"&&x.date.startsWith(currentMonth)).reduce((s,x)=>s+cents(x.amount),0n);
  const authors=Array.from(new Set(transactions.map(item=>item.author))).sort((a,b)=>a.localeCompare(b,"ru"));
- const filteredTransactions=transactions.filter(item=>(!authorFilter||item.author===authorFilter)&&(!fromFilter||item.date>=fromFilter)&&(!toFilter||item.date<=toFilter));
+ const familyCategories=Array.from(new Set(transactions.map(item=>item.category))).sort((a,b)=>a.localeCompare(b,"ru"));
+ const filteredTransactions=transactions.filter(item=>(!authorFilter||item.author===authorFilter)&&(!fromFilter||item.date>=fromFilter)&&(!toFilter||item.date<=toFilter)&&(!categoryFilter||item.category===categoryFilter));
+ const filteredIncome=filteredTransactions.filter(item=>item.type==="income").reduce((sum,item)=>sum+cents(item.amount),0n);
+ const filteredExpense=filteredTransactions.filter(item=>item.type==="expense").reduce((sum,item)=>sum+cents(item.amount),0n);
 
  if(loading)return <div className="pure-page"><div className="empty-note">Загружаем семейный бюджет…</div></div>;
  return <div className="pure-page">
@@ -177,6 +181,11 @@ function Family(){
      <label className="form-label">Участник<select className="pure-select" value={authorFilter} onChange={e=>setAuthorFilter(e.target.value)}><option value="">Все участники</option>{authors.map(author=><option key={author} value={author}>{author}</option>)}</select></label>
      <label className="form-label">С даты<input className="pure-input" type="date" value={fromFilter} max={toFilter||undefined} onChange={e=>setFromFilter(e.target.value)}/></label>
      <label className="form-label">По дату<input className="pure-input" type="date" value={toFilter} min={fromFilter||undefined} onChange={e=>setToFilter(e.target.value)}/></label>
+     <label className="form-label">Категория<select className="pure-select" value={categoryFilter} onChange={e=>setCategoryFilter(e.target.value)}><option value="">Все категории</option>{familyCategories.map(item=><option key={item} value={item}>{item}</option>)}</select></label>
+    </div>
+    <div className="pure-grid two" style={{marginBottom:12}}>
+     <Stat label="Доходы по фильтру" value={money(filteredIncome.toString())} tone="mint"/>
+     <Stat label="Расходы по фильтру" value={money(filteredExpense.toString())} tone="violet"/>
     </div>
     {filteredTransactions.length?<div className="transaction-list">{filteredTransactions.map(t=><div className="transaction-row" key={t.id}>
      <span className={`transaction-icon ${t.type==="income"?"mint":""}`}><HomeIcon size={16}/></span>
