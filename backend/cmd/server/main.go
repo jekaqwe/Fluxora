@@ -70,6 +70,11 @@ func main() {
 		accountsHandler(w, r, db)
 	})
 
+	// Финансовые операции
+	http.HandleFunc("/api/transactions", func(w http.ResponseWriter, r *http.Request) {
+		transactionsHandler(w, r, db)
+	})
+
 	// Смена пароля
 	http.HandleFunc("/api/account/password", func(w http.ResponseWriter, r *http.Request) {
 		passwordChangeHandler(w, r, db)
