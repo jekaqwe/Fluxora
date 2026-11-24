@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/mail"
 	"os"
 	"strings"
 	"time"
@@ -41,7 +42,8 @@ func registerHandler(w http.ResponseWriter, r *http.Request, database *pgxpool.P
 		return
 	}
 
-	// Получаем данные пользователя
+	// Ограничиваем размер тела запроса до разбора JSON.
+	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
 	var user RegisterRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
@@ -61,10 +63,19 @@ func registerHandler(w http.ResponseWriter, r *http.Request, database *pgxpool.P
 		http.Error(w, `{"error":"Заполните все поля"}`, http.StatusBadRequest)
 		return
 	}
+	if len([]rune(user.FirstName)) > 100 || len([]rune(user.LastName)) > 100 || len(user.Username) > 50 || len(user.Email) > 255 {
+		http.Error(w, `{"error":"Проверьте длину имени, фамилии, логина и email"}`, http.StatusBadRequest)
+		return
+	}
+	parsedEmail, emailErr := mail.ParseAddress(user.Email)
+	if emailErr != nil || parsedEmail.Address != user.Email {
+		http.Error(w, `{"error":"Укажите корректный email"}`, http.StatusBadRequest)
+		return
+	}
 
-	// Проверяем длину пароля
-	if len(user.Password) < 8 {
-		http.Error(w, `{"error":"Пароль должен содержать минимум 8 символов"}`, http.StatusBadRequest)
+	// bcrypt поддерживает не более 72 байт пароля.
+	if len(user.Password) < 8 || len(user.Password) > 72 {
+		http.Error(w, `{"error":"Пароль должен содержать от 8 до 72 байт"}`, http.StatusBadRequest)
 		return
 	}
 
@@ -115,6 +126,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request, database *pgxpool.Pool
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
 	var user LoginRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
@@ -124,13 +136,13 @@ func loginHandler(w http.ResponseWriter, r *http.Request, database *pgxpool.Pool
 
 	user.Identifier = strings.TrimSpace(user.Identifier)
 
-	if user.Identifier == "" || user.Password == "" {
+	if user.Identifier == "" || user.Password == "" || len(user.Password) > 72 {
 		http.Error(w, `{"error":"Заполните все поля"}`, http.StatusBadRequest)
 		return
 	}
 
 	// Ищем пользователя по логину или email
-	var userID int
+	var userID int64
 	var passwordHash string
 
 	err := database.QueryRow(r.Context(),
