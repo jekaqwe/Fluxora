@@ -75,8 +75,6 @@ function Family(){
   try{const r=await fetch("/api/family/leave",{method:"POST"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось покинуть семейный бюджет");await load();}
   catch(e){setError(e instanceof Error?e.message:"Ошибка выхода");}
  };
- const income=transactions.filter(x=>x.type==="income").reduce((s,x)=>s+cents(x.amount),0n);
- const expense=transactions.filter(x=>x.type==="expense").reduce((s,x)=>s+cents(x.amount),0n);
  const currentMonth=today().slice(0,7);
  const monthExpense=transactions.filter(x=>x.type==="expense"&&x.date.startsWith(currentMonth)).reduce((s,x)=>s+cents(x.amount),0n);
 
