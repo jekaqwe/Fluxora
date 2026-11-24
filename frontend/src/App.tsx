@@ -44,7 +44,7 @@ function App() {
       .then((response) => response.ok ? response.json() : null)
       .then((preferences) => {
         if (!preferences?.theme) return;
-        document.documentElement.dataset.theme = preferences.theme;
+        document.documentElement.dataset.theme = preferences.theme === "auto" ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : preferences.theme;
         localStorage.setItem("fluxora_theme", preferences.theme);
       })
       .catch(() => {});
