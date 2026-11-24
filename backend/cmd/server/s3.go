@@ -14,8 +14,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -100,7 +100,7 @@ func (s *s3Store) put(ctx context.Context, key, contentType string, data []byte)
 
 const s3SinglePutLimit int64 = 5_000_000_000
 const s3MultipartPartSize int64 = 64 * 1024 * 1024
-const s3MaximumObjectSize int64 = 5 * 1024 * 1024 * 1024 * 1024
+const s3MaximumObjectSize int64 = 5_000_000_000_000
 
 func (s *s3Store) putReader(ctx context.Context, key, contentType string, body io.ReadSeeker, size int64) error {
 	if size < 0 || size > s3MaximumObjectSize {
@@ -214,7 +214,7 @@ func (s *s3Store) putReaderMultipartWithPartSize(ctx context.Context, key, conte
 		partSize = (size + 9999) / 10000
 		partCount = (size + partSize - 1) / partSize
 	}
-	if partSize > 5*1024*1024*1024 || partCount > 10000 {
+	if partSize > 5_000_000_000 || partCount > 10000 {
 		return errors.New("multipart S3 upload exceeds supported part limits")
 	}
 
