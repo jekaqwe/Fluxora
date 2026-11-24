@@ -31,9 +31,6 @@ func newS3Store() (*s3Store, error) {
 	endpointValue := strings.TrimSpace(os.Getenv("S3_ENDPOINT"))
 	bucket := strings.TrimSpace(os.Getenv("S3_BUCKET"))
 	region := strings.TrimSpace(os.Getenv("S3_REGION"))
-	if region == "" {
-		region = "us-east-1"
-	}
 	access := strings.TrimSpace(os.Getenv("S3_ACCESS_KEY_ID"))
 	secret := strings.TrimSpace(os.Getenv("S3_SECRET_ACCESS_KEY"))
 	if endpointValue == "" || bucket == "" || region == "" || access == "" || secret == "" {
