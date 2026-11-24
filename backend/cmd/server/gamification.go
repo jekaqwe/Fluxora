@@ -63,7 +63,7 @@ func gamificationHandler(w http.ResponseWriter,r *http.Request,database *pgxpool
  if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM goals WHERE user_id=$1 AND status='completed' UNION SELECT 1 FROM family_goals fg JOIN family_members fm ON fm.family_id=fg.family_id WHERE fm.user_id=$1 AND fg.status='completed')`,userID).Scan(&completedGoals);err!=nil{http.Error(w,`{"error":"Не удалось проверить цели"}`,500);return}
  if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM goal_entries WHERE user_id=$1 AND entry_type='contribution' UNION SELECT 1 FROM family_goal_entries WHERE author_user_id=$1 AND entry_type='contribution')`,userID).Scan(&savings);err!=nil{http.Error(w,`{"error":"Не удалось проверить накопления"}`,500);return}
  if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM family_members WHERE user_id=$1)`,userID).Scan(&family);err!=nil{http.Error(w,`{"error":"Не удалось проверить семейный бюджет"}`,500);return}
- rows,err:=tx.Query(r.Context(),`SELECT activity_date FROM (
+ rows,err:=tx.Query(r.Context(),`SELECT DISTINCT activity_date FROM (
   SELECT operation_date AS activity_date FROM transactions WHERE user_id=$1
   UNION SELECT operation_date FROM family_transactions WHERE author_user_id=$1
   UNION SELECT created_at::date FROM goal_entries WHERE user_id=$1
