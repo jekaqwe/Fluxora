@@ -148,15 +148,21 @@ func familyMemberHandler(w http.ResponseWriter,r *http.Request,database *pgxpool
  var role string
  err=database.QueryRow(r.Context(),`SELECT role FROM family_members WHERE id=$1 AND family_id=$2`,memberID,family.ID).Scan(&role)
  if err!=nil{http.Error(w,`{"error":"Участник не найден"}`,404);return}
- if role=="owner"{http.Error(w,`{"error":"Нельзя удалить владельца"}`,409);return}
- if family.Role=="admin"&&role=="admin"{http.Error(w,`{"error":"Администратор не может удалить другого администратора"}`,403);return}
+ if role=="owner"{http.Error(w,`{"error":"Нельзя изменить или удалить владельца"}`,409);return}
+ if family.Role=="admin"&&role=="admin"{http.Error(w,`{"error":"Администратор не может управлять другим администратором"}`,403);return}
  if r.Method==http.MethodDelete{
   _,err=database.Exec(r.Context(),`DELETE FROM family_members WHERE id=$1 AND family_id=$2`,memberID,family.ID)
   if err!=nil{http.Error(w,`{"error":"Не удалось удалить участника"}`,500);return};_=json.NewEncoder(w).Encode(map[string]bool{"success":true});return
  }
- w.Header().Set("Allow","DELETE");http.Error(w,`{"error":"Метод не поддерживается"}`,405)
+ if r.Method==http.MethodPatch{
+  if family.Role!="owner"{http.Error(w,`{"error":"Только владелец может менять роли"}`,403);return}
+  var input struct{Role string `json:"role"`}
+  if err:=json.NewDecoder(r.Body).Decode(&input);err!=nil||(input.Role!="admin"&&input.Role!="member"){http.Error(w,`{"error":"Допустимые роли: admin или member"}`,400);return}
+  _,err=database.Exec(r.Context(),`UPDATE family_members SET role=$3 WHERE id=$1 AND family_id=$2`,memberID,family.ID,input.Role)
+  if err!=nil{http.Error(w,`{"error":"Не удалось изменить роль"}`,500);return};_=json.NewEncoder(w).Encode(map[string]string{"role":input.Role});return
+ }
+ w.Header().Set("Allow","PATCH, DELETE");http.Error(w,`{"error":"Метод не поддерживается"}`,405)
 }
-
 func familyTransactionsHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool,userID int64){
  family,err:=loadFamily(database,userID);if err!=nil{http.Error(w,`{"error":"Семейный бюджет не найден"}`,404);return}
  if r.Method==http.MethodGet{
