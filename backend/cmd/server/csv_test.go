@@ -72,8 +72,8 @@ func TestParseImportCSVWithSemicolonDelimiter(t *testing.T) {
 
 func TestParseImportCSVAllowsExactly5000Rows(t *testing.T) {
  var b strings.Builder
- b.WriteString("date,title,type,amount,category,accountId\\n")
- row := "2026-11-24,Coffee,expense,2.50,Food,7\\n"
+ b.WriteString("date,title,type,amount,category,accountId\n")
+ row := "2026-11-24,Coffee,expense,2.50,Food,7\n"
  b.WriteString(strings.Repeat(row, 5000))
  rows, err := parseImportCSV([]byte(b.String()))
  if err != nil {
@@ -86,8 +86,8 @@ func TestParseImportCSVAllowsExactly5000Rows(t *testing.T) {
 
 func TestParseImportCSVRejectsMoreThan5000Rows(t *testing.T) {
  var b strings.Builder
- b.WriteString("date,title,type,amount,category,accountId\\n")
- row := "2026-11-24,Coffee,expense,2.50,Food,7\\n"
+ b.WriteString("date,title,type,amount,category,accountId\n")
+ row := "2026-11-24,Coffee,expense,2.50,Food,7\n"
  b.WriteString(strings.Repeat(row, 5001))
  if _, err := parseImportCSV([]byte(b.String())); err == nil {
   t.Fatal("expected files with more than 5000 rows to be rejected")
