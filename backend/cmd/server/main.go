@@ -90,6 +90,14 @@ func main() {
 		goalsHandler(w, r, db)
 	})
 
+	// Семейный бюджет и общие операции
+	http.HandleFunc("/api/family", func(w http.ResponseWriter, r *http.Request) {
+		familyHandler(w, r, db)
+	})
+	http.HandleFunc("/api/family/", func(w http.ResponseWriter, r *http.Request) {
+		familyHandler(w, r, db)
+	})
+
 	// Смена пароля
 	http.HandleFunc("/api/account/password", func(w http.ResponseWriter, r *http.Request) {
 		passwordChangeHandler(w, r, db)
