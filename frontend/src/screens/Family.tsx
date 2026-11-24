@@ -195,7 +195,7 @@ function Family(){
      <button className="pure-button ghost" aria-label="Изменить операцию" onClick={()=>editTransaction(t)}><Pencil size={14}/></button><button className="pure-button ghost" aria-label="Удалить операцию" onClick={()=>void removeTransaction(t.id)}><Trash2 size={14}/></button>
     </div>)}</div>:<div className="empty-note">Операций по выбранным фильтрам нет.</div>}
    </Panel>
-   <Panel title="Общие семейные цели" subtitle="Каждый участник может пополнять семейные накопления" action={<button className="pure-button" onClick={()=>setShowGoalForm(v=>!v)}><Plus size={15}/>Создать цель</button>}>
+   <Panel title="Общие семейные цели" subtitle="Участники могут пополнять накопления и снимать средства с учётом остатка" action={<button className="pure-button" onClick={()=>setShowGoalForm(v=>!v)}><Plus size={15}/>Создать цель</button>}>
     {showGoalForm&&<div className="pure-grid three" style={{marginBottom:14}}>
      <label className="form-label">Название<input className="pure-input" value={goalTitle} onChange={e=>setGoalTitle(e.target.value)}/></label>
      <label className="form-label">Целевая сумма<input className="pure-input" value={goalTarget} onChange={e=>setGoalTarget(e.target.value)}/></label>
