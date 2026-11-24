@@ -161,7 +161,7 @@ func transactionsHandler(w http.ResponseWriter, r *http.Request, database *pgxpo
 			return
 		}
 		if linkedToDebt {
-			http.Error(w, `{"error":"Эта операция связана с платежом по долгу. Измените платёж в разделе долгов, чтобы сохранить финансовую историю."}`, http.StatusConflict)
+			http.Error(w, `{"error":"Эта операция создана из платежа по долгу и защищена от отдельного изменения. Управляйте связанным долгом в разделе «Долги»."}`, http.StatusConflict)
 			return
 		}
 		var exists bool
