@@ -47,18 +47,21 @@ type recurringOccurrence struct {
  AccountID *int64 `json:"accountId,omitempty"`
  Date string `json:"date"`
 }
-func nextRecurringDate(d time.Time,frequency string) time.Time {
+func nextRecurringDate(d time.Time,frequency string,anchors ...int) time.Time {
+ anchorDay:=d.Day();anchorMonth:=int(d.Month())
+ if len(anchors)>0&&anchors[0]>=1&&anchors[0]<=31{anchorDay=anchors[0]}
+ if len(anchors)>1&&anchors[1]>=1&&anchors[1]<=12{anchorMonth=anchors[1]}
  switch frequency {
  case "daily": return d.AddDate(0,0,1)
  case "weekly": return d.AddDate(0,0,7)
  case "monthly":
   first:=time.Date(d.Year(),d.Month(),1,0,0,0,0,time.UTC).AddDate(0,1,0)
-  day:=d.Day();last:=first.AddDate(0,1,-1).Day();if day>last{day=last}
+  last:=first.AddDate(0,1,-1).Day();day:=anchorDay;if day>last{day=last}
   return time.Date(first.Year(),first.Month(),day,0,0,0,0,time.UTC)
  case "yearly":
-  year:=d.Year()+1;month:=d.Month();day:=d.Day()
-  first:=time.Date(year,month,1,0,0,0,0,time.UTC);last:=first.AddDate(0,1,-1).Day();if day>last{day=last}
-  return time.Date(year,month,day,0,0,0,0,time.UTC)
+  first:=time.Date(d.Year()+1,time.Month(anchorMonth),1,0,0,0,0,time.UTC)
+  last:=first.AddDate(0,1,-1).Day();day:=anchorDay;if day>last{day=last}
+  return time.Date(first.Year(),first.Month(),day,0,0,0,0,time.UTC)
  default:return d
  }
 }
@@ -110,7 +113,7 @@ func recurringHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Po
   if in.Frequency!="daily"&&in.Frequency!="weekly"&&in.Frequency!="monthly"&&in.Frequency!="yearly"{http.Error(w,`{"error":"Неизвестная периодичность"}`,400);return}
   var exists bool;if err:=database.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM accounts WHERE id=$1 AND user_id=$2)`,in.AccountID,userID).Scan(&exists);err!=nil||!exists{http.Error(w,`{"error":"Счёт не найден"}`,400);return}
   var item recurringResponse
-  err=database.QueryRow(r.Context(),`INSERT INTO recurring_operations(user_id,account_id,title,operation_type,amount,category,frequency,next_date,end_date) VALUES($1,$2,$3,$4,$5::numeric,$6,$7,$8,$9) RETURNING id,title,operation_type,amount::text,category,account_id,frequency,next_date::text,end_date::text,status`,userID,in.AccountID,in.Title,in.Type,in.Amount,in.Category,in.Frequency,next,endDate).Scan(&item.ID,&item.Title,&item.Type,&item.Amount,&item.Category,&item.AccountID,&item.Frequency,&item.NextDate,&item.EndDate,&item.Status)
+  err=database.QueryRow(r.Context(),`INSERT INTO recurring_operations(user_id,account_id,title,operation_type,amount,category,frequency,next_date,end_date,anchor_day,anchor_month) VALUES($1,$2,$3,$4,$5::numeric,$6,$7,$8,$9,EXTRACT(DAY FROM $8::date)::smallint,EXTRACT(MONTH FROM $8::date)::smallint) RETURNING id,title,operation_type,amount::text,category,account_id,frequency,next_date::text,end_date::text,status`,userID,in.AccountID,in.Title,in.Type,in.Amount,in.Category,in.Frequency,next,endDate).Scan(&item.ID,&item.Title,&item.Type,&item.Amount,&item.Category,&item.AccountID,&item.Frequency,&item.NextDate,&item.EndDate,&item.Status)
   if err!=nil{http.Error(w,`{"error":"Не удалось создать расписание"}`,500);return};w.WriteHeader(201);_=json.NewEncoder(w).Encode(item)
  default:w.Header().Set("Allow","GET, POST");http.Error(w,`{"error":"Метод не поддерживается"}`,405)
  }
@@ -141,7 +144,7 @@ func recurringItemHandler(w http.ResponseWriter,r *http.Request,database *pgxpoo
   var endDate any;var endValue time.Time
   if in.EndDate!=""{v,e:=recurringPayloadDate(in.EndDate);if e!=nil{http.Error(w,`{"error":"Некорректная дата завершения"}`,400);return};endDate=v;endValue=v}
   if in.Title==""||len([]rune(in.Title))>160||(in.Type!="income"&&in.Type!="expense")||!accountAmountPattern.MatchString(in.Amount)||strings.HasPrefix(in.Amount,"-")||strings.Trim(in.Amount,"0.")==""||in.Category==""||len([]rune(in.Category))>80||in.AccountID<=0||(in.Frequency!="daily"&&in.Frequency!="weekly"&&in.Frequency!="monthly"&&in.Frequency!="yearly")||(in.EndDate!=""&&endValue.Before(nextDate)){http.Error(w,`{"error":"Проверьте поля регулярной операции"}`,400);return}
-  tag,err:=database.Exec(r.Context(),`UPDATE recurring_operations SET title=$3,operation_type=$4,amount=$5::numeric,category=$6,account_id=$7,frequency=$8,next_date=$9,end_date=$10,status=$11,updated_at=NOW() WHERE id=$1 AND user_id=$2 AND status<>'deleted'`,id,userID,in.Title,in.Type,in.Amount,in.Category,in.AccountID,in.Frequency,nextDate,endDate,in.Status)
+  tag,err:=database.Exec(r.Context(),`UPDATE recurring_operations SET title=$3,operation_type=$4,amount=$5::numeric,category=$6,account_id=$7,frequency=$8,next_date=$9,end_date=$10,anchor_day=EXTRACT(DAY FROM $9::date)::smallint,anchor_month=EXTRACT(MONTH FROM $9::date)::smallint,status=$11,updated_at=NOW() WHERE id=$1 AND user_id=$2 AND status<>'deleted'`,id,userID,in.Title,in.Type,in.Amount,in.Category,in.AccountID,in.Frequency,nextDate,endDate,in.Status)
   if err!=nil{http.Error(w,`{"error":"Не удалось изменить регулярную операцию"}`,500);return};if tag.RowsAffected()==0{http.Error(w,`{"error":"Расписание не найдено"}`,404);return};_=json.NewEncoder(w).Encode(map[string]bool{"success":true})
 
  default:w.Header().Set("Allow","PATCH, DELETE");http.Error(w,`{"error":"Метод не поддерживается"}`,405)
@@ -180,8 +183,8 @@ func processRecurringDue(database *pgxpool.Pool){
 }
 func processOneRecurring(ctx context.Context,database *pgxpool.Pool,id int64,today time.Time){
  tx,err:=database.Begin(ctx);if err!=nil{log.Printf("recurring begin: %v",err);return};defer tx.Rollback(ctx)
- var userID,accountID int64;var title,kind,amount,category,frequency string;var next time.Time;var end *time.Time
- err=tx.QueryRow(ctx,`SELECT user_id,account_id,title,operation_type,amount::text,category,frequency,next_date,end_date FROM recurring_operations WHERE id=$1 AND status='active' FOR UPDATE`,id).Scan(&userID,&accountID,&title,&kind,&amount,&category,&frequency,&next,&end)
+ var userID,accountID int64;var title,kind,amount,category,frequency string;var next time.Time;var end *time.Time;var anchorDay,anchorMonth int
+ err=tx.QueryRow(ctx,`SELECT user_id,account_id,title,operation_type,amount::text,category,frequency,next_date,end_date,anchor_day,anchor_month FROM recurring_operations WHERE id=$1 AND status='active' FOR UPDATE`,id).Scan(&userID,&accountID,&title,&kind,&amount,&category,&frequency,&next,&end,&anchorDay,&anchorMonth)
  if err!=nil{return}
  next=next.UTC();if end!=nil{v:=end.UTC();end=&v}
  missedCount:=0
@@ -195,7 +198,7 @@ func processOneRecurring(ctx context.Context,database *pgxpool.Pool,id int64,tod
   tag,err:=tx.Exec(ctx,`INSERT INTO recurring_occurrences(recurring_id,user_id,occurrence_date) VALUES($1,$2,$3) ON CONFLICT(recurring_id,occurrence_date) DO NOTHING`,id,userID,next)
   if err!=nil{log.Printf("recurring missed date: %v",err);return}
   if tag.RowsAffected()>0{missedCount++}
-  next=nextRecurringDate(next,frequency)
+  next=nextRecurringDate(next,frequency,anchorDay,anchorMonth)
  }
  if missedCount>0{_,_=tx.Exec(ctx,`INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) VALUES($1,'recurring_missed','Есть пропущенные регулярные операции',$2,'recurring',$3)`,userID,title+" · пропущено дат: "+strconv.Itoa(missedCount),id)}
  if next.Equal(today){
