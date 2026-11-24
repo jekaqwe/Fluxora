@@ -133,7 +133,9 @@ func parseImportCSVWithMapping(data []byte, mapping map[string]string) ([]import
   }
   accountID, _ := strconv.ParseInt(value("accountId"),10,64)
   transferID, _ := strconv.ParseInt(value("transferAccountId"),10,64)
-  rows = append(rows, importCSVRow{Date:value("date"),Title:value("title"),Type:value("type"),Amount:value("amount"),Category:value("category"),AccountID:accountID,TransferAccountID:transferID,Comment:value("comment"),Errors:[]string{}})
+  amount:=value("amount")
+  if detectCSVDelimiter(data)==';' { amount=strings.ReplaceAll(amount,",",".") }
+  rows = append(rows, importCSVRow{Date:value("date"),Title:value("title"),Type:value("type"),Amount:amount,Category:value("category"),AccountID:accountID,TransferAccountID:transferID,Comment:value("comment"),Errors:[]string{}})
   if len(rows)>=5000 { return nil, fmt.Errorf("Файл содержит больше 5000 строк") }
  }
  return rows,nil
