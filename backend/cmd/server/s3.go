@@ -92,19 +92,30 @@ func (s *s3Store) put(ctx context.Context, key, contentType string, data []byte)
 	return s.doSigned(ctx, http.MethodPut, key, contentType, data)
 }
 
+func (s *s3Store) putReader(ctx context.Context, key, contentType string, body io.ReadSeeker, size int64) error {
+	return s.doSignedURLReader(ctx, http.MethodPut, s.objectURL(key), contentType, body, size)
+}
+
 func (s *s3Store) delete(ctx context.Context, key string) error {
 	return s.doSigned(ctx, http.MethodDelete, key, "", nil)
 }
 
 func (s *s3Store) doSigned(ctx context.Context, method, key, contentType string, data []byte) error {
-	return s.doSignedURL(ctx, method, s.objectURL(key), contentType, data)
+	return s.doSignedURLReader(ctx, method, s.objectURL(key), contentType, bytes.NewReader(data), int64(len(data)))
 }
 
-func (s *s3Store) doSignedURL(ctx context.Context, method string, u *url.URL, contentType string, data []byte) error {
+func (s *s3Store) doSignedURLReader(ctx context.Context, method string, u *url.URL, contentType string, body io.ReadSeeker, size int64) error {
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, body); err != nil {
+		return err
+	}
+	if _, err := body.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
+	payloadHash := hex.EncodeToString(hasher.Sum(nil))
 	now := time.Now().UTC()
 	dateStamp := now.Format("20060102")
 	amzDate := now.Format("20060102T150405Z")
-	payloadHash := sha256Hex(data)
 	canonicalHeaders := ""
 	signedHeaders := ""
 	if contentType != "" {
@@ -120,10 +131,11 @@ func (s *s3Store) doSignedURL(ctx context.Context, method string, u *url.URL, co
 	stringToSign := "AWS4-HMAC-SHA256\n" + amzDate + "\n" + scope + "\n" + sha256Hex([]byte(canonicalRequest))
 	signature := hex.EncodeToString(hmacSHA256(s.signingKey(dateStamp), stringToSign))
 
-	req, err := http.NewRequestWithContext(ctx, method, u.String(), bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), body)
 	if err != nil {
 		return err
 	}
+	req.ContentLength = size
 	req.Header.Set("X-Amz-Date", amzDate)
 	req.Header.Set("X-Amz-Content-Sha256", payloadHash)
 	if contentType != "" {
