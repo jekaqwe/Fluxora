@@ -114,6 +114,17 @@ func main() {
 		debtsHandler(w, r, db)
 	})
 
+	// Уровни, достижения и уведомления
+	http.HandleFunc("/api/gamification", func(w http.ResponseWriter, r *http.Request) {
+		gamificationHandler(w, r, db)
+	})
+	http.HandleFunc("/api/notifications", func(w http.ResponseWriter, r *http.Request) {
+		notificationsHandler(w, r, db)
+	})
+	http.HandleFunc("/api/notifications/", func(w http.ResponseWriter, r *http.Request) {
+		notificationsHandler(w, r, db)
+	})
+
 	// Смена пароля
 	http.HandleFunc("/api/account/password", func(w http.ResponseWriter, r *http.Request) {
 		passwordChangeHandler(w, r, db)
