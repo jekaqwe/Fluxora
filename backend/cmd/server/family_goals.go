@@ -126,7 +126,7 @@ func familyGoalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pg
  if status=="paused"||(status=="completed"&&in.EntryType=="contribution"){http.Error(w,`{"error":"Операция недоступна для приостановленной или завершённой цели"}`,409);return}
  if in.EntryType=="withdrawal"{var enough bool;if err:=tx.QueryRow(r.Context(),`SELECT starting_amount+COALESCE((SELECT SUM(CASE WHEN entry_type='withdrawal' THEN -amount ELSE amount END) FROM family_goal_entries WHERE goal_id=$1),0)>=$2::numeric FROM family_goals WHERE id=$1`,goalID,in.Amount).Scan(&enough);err!=nil{http.Error(w,`{"error":"Не удалось проверить остаток цели"}`,500);return};if !enough{http.Error(w,`{"error":"Сумма снятия превышает остаток семейной цели"}`,409);return}}
  if in.AccountID>0&&in.TransactionID>0{http.Error(w,`{"error":"Укажите счёт или готовую операцию, но не оба поля"}`,400);return}
- if in.EntryType=="withdrawal"&&in.AccountID==0&&in.TransactionID==0{http.Error(w,`{"error":"Для снятия выберите личный счёт или связанную операцию дохода"}`,400);return}
+ if in.AccountID==0&&in.TransactionID==0{http.Error(w,`{"error":"Для операции выберите личный счёт или связанную финансовую запись"}`,400);return}
  if in.AccountID>0{
   var exists bool;if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM accounts WHERE id=$1 AND user_id=$2)`,in.AccountID,userID).Scan(&exists);err!=nil||!exists{http.Error(w,`{"error":"Личный счёт не найден"}`,400);return}
   var goalTitle string;if err:=tx.QueryRow(r.Context(),`SELECT title FROM family_goals WHERE id=$1 AND family_id=$2`,goalID,familyID).Scan(&goalTitle);err!=nil{http.Error(w,`{"error":"Семейная цель не найдена"}`,404);return}
