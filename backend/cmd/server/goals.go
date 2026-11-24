@@ -214,11 +214,12 @@ func goalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
   if err:=tx.QueryRow(r.Context(),`SELECT title FROM goals WHERE id=$1 AND user_id=$2`,goalID,userID).Scan(&goalTitle);err!=nil{http.Error(w,`{"error":"Цель не найдена"}`,404);return}
   txType:="expense";if in.Type=="withdrawal"{txType="income"}
   txKey:="goal-entry:"+strconv.FormatInt(userID,10)+":"+in.IdempotencyKey
+  transactionTitle:=map[bool]string{true:"Снятие из цели: ",false:"Пополнение цели: "}[in.Type=="withdrawal"]+goalTitle
   var transactionID int64
-  err=tx.QueryRow(r.Context(),`INSERT INTO transactions(user_id,account_id,title,operation_type,amount,category,operation_date,comment,idempotency_key) VALUES($1,$2,$3,$4,$5::numeric,'Цели',CURRENT_DATE,$6,$7) ON CONFLICT(user_id,idempotency_key) DO UPDATE SET idempotency_key=EXCLUDED.idempotency_key RETURNING id`,userID,in.AccountID,map[bool]string{true:"Снятие из цели: ",false:"Пополнение цели: "}[in.Type=="withdrawal"]+goalTitle,txType,in.Amount,in.Comment,txKey).Scan(&transactionID)
+  err=tx.QueryRow(r.Context(),`INSERT INTO transactions(user_id,account_id,title,operation_type,amount,category,operation_date,comment,idempotency_key) VALUES($1,$2,$3,$4,$5::numeric,'Цели',CURRENT_DATE,$6,$7) ON CONFLICT(user_id,idempotency_key) DO UPDATE SET idempotency_key=EXCLUDED.idempotency_key RETURNING id`,userID,in.AccountID,transactionTitle,txType,in.Amount,in.Comment,txKey).Scan(&transactionID)
   if err!=nil{http.Error(w,`{"error":"Не удалось создать связанную финансовую операцию"}`,500);return}
   var transactionMatches bool
-  if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM transactions WHERE id=$1 AND user_id=$2 AND account_id=$3 AND amount=$4::numeric AND operation_type=$5 AND category='Цели' AND comment=$6)`,transactionID,userID,in.AccountID,in.Amount,txType,in.Comment).Scan(&transactionMatches);err!=nil{http.Error(w,`{"error":"Не удалось проверить связанную операцию"}`,500);return}
+  if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM transactions WHERE id=$1 AND user_id=$2 AND account_id=$3 AND amount=$4::numeric AND operation_type=$5 AND category='Цели' AND comment=$6 AND title=$7)`,transactionID,userID,in.AccountID,in.Amount,txType,in.Comment,transactionTitle).Scan(&transactionMatches);err!=nil{http.Error(w,`{"error":"Не удалось проверить связанную операцию"}`,500);return}
   if !transactionMatches{http.Error(w,`{"error":"Ключ операции уже использован для другой финансовой записи"}`,409);return}
   linked=transactionID
  }
