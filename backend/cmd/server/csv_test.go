@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+ "strings"
+ "testing"
+)
 
 func TestParseImportCSV(t *testing.T) {
  data:=[]byte("date,title,type,amount,category,accountId,transferAccountId,comment\n2026-11-24,Salary,income,1200.50,Work,7,0,Monthly salary\n")
@@ -65,4 +68,35 @@ func TestParseImportCSVWithSemicolonDelimiter(t *testing.T) {
  rows,err:=parseImportCSV(data)
  if err!=nil { t.Fatalf("semicolon-delimited CSV failed: %v",err) }
  if len(rows)!=1||rows[0].Title!="Кофе"||rows[0].Amount!="250.00"||rows[0].AccountID!=7 { t.Fatalf("unexpected semicolon-delimited row: %#v",rows) }
+}
+
+func TestParseImportCSVAllowsExactly5000Rows(t *testing.T) {
+ var b strings.Builder
+ b.WriteString("date,title,type,amount,category,accountId\\n")
+ row := "2026-11-24,Coffee,expense,2.50,Food,7\\n"
+ b.WriteString(strings.Repeat(row, 5000))
+ rows, err := parseImportCSV([]byte(b.String()))
+ if err != nil {
+  t.Fatalf("expected 5000 rows to be accepted, got error: %v", err)
+ }
+ if len(rows) != 5000 {
+  t.Fatalf("expected 5000 rows, got %d", len(rows))
+ }
+}
+
+func TestParseImportCSVRejectsMoreThan5000Rows(t *testing.T) {
+ var b strings.Builder
+ b.WriteString("date,title,type,amount,category,accountId\\n")
+ row := "2026-11-24,Coffee,expense,2.50,Food,7\\n"
+ b.WriteString(strings.Repeat(row, 5001))
+ if _, err := parseImportCSV([]byte(b.String())); err == nil {
+  t.Fatal("expected files with more than 5000 rows to be rejected")
+ }
+}
+
+func TestCSVSuggestedMappingDoesNotTreatAccountNameAsID(t *testing.T) {
+ mapping := csvSuggestedMapping([]string{"date", "title", "type", "amount", "category", "accountName"})
+ if _, ok := mapping["accountId"]; ok {
+  t.Fatalf("accountName must not be auto-mapped to numeric accountId: %#v", mapping)
+ }
 }
