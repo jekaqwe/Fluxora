@@ -2,11 +2,13 @@ package main
 
 import (
  "context"
+ "encoding/xml"
  "io"
  "net/http"
  "net/http/httptest"
  "net/url"
  "os"
+ "strconv"
  "strings"
  "testing"
 )
