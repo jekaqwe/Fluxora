@@ -20,6 +20,7 @@ function Settings(){
  const [draft,setDraft]=useState<ProfileDraft>({firstName:"",lastName:"",username:""});
  const [savingField,setSavingField]=useState<ProfileField|null>(null);
  const [profileMessage,setProfileMessage]=useState("");
+ const [prefsError,setPrefsError]=useState("");
  const [profileError,setProfileError]=useState("");
  const [prefs,setPrefs]=useState(()=>{try{return JSON.parse(localStorage.getItem("fluxora_preferences")||"{}")}catch{return {}}});
  const [theme,setTheme]=useState(localStorage.getItem("fluxora_theme")||"light");
@@ -90,6 +91,7 @@ function Settings(){
    catch(e){setSessionError(e instanceof Error?e.message:"Ошибка сессий");}
    finally{setRevokingSessions(false);}
  };
+ useEffect(()=>{fetch("/api/settings/preferences").then(r=>{if(!r.ok)throw new Error("Не удалось загрузить настройки");return r.json();}).then(data=>{setTheme(data.theme||"light");document.documentElement.dataset.theme=data.theme||"light";localStorage.setItem("fluxora_theme",data.theme||"light");const merged={...(data.notifications||{}),...(data.privacy||{})};setPrefs(merged);localStorage.setItem("fluxora_preferences",JSON.stringify(merged));}).catch(e=>console.error(e));},[]);
  useEffect(()=>{fetch("/api/profile").then(r=>{if(!r.ok)throw new Error("Не удалось загрузить аккаунт");return r.json();}).then((data:UserProfile)=>{setUser(data);setDraft({firstName:data.firstName,lastName:data.lastName,username:data.username});}).catch(e=>console.error(e));},[]);
  const saveProfileField=async(field:ProfileField)=>{
    setProfileError("");setProfileMessage("");setSavingField(field);
@@ -109,7 +111,17 @@ function Settings(){
    return "Можно изменить: "+new Date(date).toLocaleString("ru-RU",{dateStyle:"short",timeStyle:"short"});
  };
  const isCooling=(date:string|null)=>!!date&&new Date(date).getTime()>Date.now();
- const toggle=(key:string)=>setPrefs((old:Record<string,boolean>)=>{const next={...old,[key]:!(old[key]??true)};localStorage.setItem("fluxora_preferences",JSON.stringify(next));return next;});
+ const toggle=async(key:string)=>{
+   const next={...prefs,[key]:!(prefs[key]??true)};setPrefs(next);localStorage.setItem("fluxora_preferences",JSON.stringify(next));setPrefsError("");
+   const patch=section==="notifications"?{notifications:{[key]:next[key]}}:{privacy:{[key]:next[key]}};
+   try{const r=await fetch("/api/settings/preferences",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(patch)});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось сохранить настройку");}
+   catch(e){setPrefs(prefs);localStorage.setItem("fluxora_preferences",JSON.stringify(prefs));setPrefsError(e instanceof Error?e.message:"Ошибка сохранения настроек");}
+ };
+ const saveTheme=async(value:string)=>{
+   setTheme(value);localStorage.setItem("fluxora_theme",value);document.documentElement.dataset.theme=value;setPrefsError("");
+   try{const r=await fetch("/api/settings/preferences",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({theme:value})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось сохранить тему");}
+   catch(e){setPrefsError(e instanceof Error?e.message:"Ошибка сохранения темы");}
+ };
  const isOn=(key:string)=>prefs[key]??true;
  return <div className="pure-page"><PageHeading title="Настройки" subtitle="Управляйте аккаунтом и параметрами Fluxora"/>
  <div className="pure-grid two" style={{gridTemplateColumns:"minmax(170px,.65fr) minmax(0,2fr)"}}>
@@ -148,8 +160,9 @@ function Settings(){
  {deleteMessage&&<><p role="status">{deleteMessage}</p><button type="button" className="pure-button secondary" onClick={()=>window.location.reload()}>Вернуться ко входу</button></>}
  </div></>}
  {section==="notifications"&&<>{[["operations","Уведомления об операциях","Сообщать о новых доходах и расходах"],["goals","Прогресс целей","Напоминать о важных этапах накоплений"],["family","Семейные события","Получать обновления общего бюджета"]].map(([k,t,d])=><div className="toggle-row" key={k}><span><strong>{t}</strong><br/><small className="muted">{d}</small></span><button type="button" aria-label={t} aria-pressed={isOn(k)} className={`toggle ${isOn(k)?"on":""}`} onClick={()=>toggle(k)}/></div>)}</>}
- {section==="appearance"&&<><div className="toggle-row"><span><strong>Тема оформления</strong><br/><small className="muted">Выберите внешний вид интерфейса</small></span></div><div className="filter-pills">{["light","dark","auto"].map(t=><button key={t} className={`filter-pill ${theme===t?"active":""}`} onClick={()=>{setTheme(t);localStorage.setItem("fluxora_theme",t);}}>{t==="light"?"Светлая":t==="dark"?"Тёмная":"Авто"}</button>)}</div><p className="muted" style={{fontSize:10,marginTop:12}}>Выбор темы сохраняется в этом браузере. Полная тёмная тема будет добавлена отдельно.</p></>}
+ {section==="appearance"&&<><div className="toggle-row"><span><strong>Тема оформления</strong><br/><small className="muted">Выберите внешний вид интерфейса</small></span></div><div className="filter-pills">{["light","dark","auto"].map(t=><button key={t} className={`filter-pill ${theme===t?"active":""}`} onClick={()=>void saveTheme(t)}>{t==="light"?"Светлая":t==="dark"?"Тёмная":"Авто"}</button>)}</div><p className="muted" style={{fontSize:10,marginTop:12}}>Тема и параметры сохраняются в аккаунте и синхронизируются между устройствами.</p></>}
  {section==="privacy"&&<>{[["profile","Публичный профиль","Разрешить другим видеть имя и достижения"],["achievements","Достижения","Показывать полученные награды"],["activity","Активность","Показывать события в ленте профиля"]].map(([k,t,d])=><div className="toggle-row" key={k}><span><strong>{t}</strong><br/><small className="muted">{d}</small></span><button type="button" aria-label={t} aria-pressed={isOn(k)} className={`toggle ${isOn(k)?"on":""}`} onClick={()=>toggle(k)}/></div>)}<div className="empty-note" style={{marginTop:14}}>Финансовые суммы и история операций не публикуются в профиле.</div></>}
+ {prefsError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{prefsError}</p>}
  {section==="integrations"&&<div className="empty-note">Подключённых интеграций пока нет. Раздел подготовлен для будущего подключения банковских и внешних сервисов.</div>}
  </Panel></div></div>;
 }
