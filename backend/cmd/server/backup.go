@@ -86,14 +86,34 @@ func runDailyBackup() {
  }
 }
 
+func dailyBackupExists() bool {
+ store, err := newS3Store()
+ if err != nil {
+  log.Printf("backup: cannot check today's archive: %v", err)
+  return false
+ }
+ ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+ defer cancel()
+ keys, err := store.listKeys(ctx, "backups/postgres/")
+ if err != nil {
+  log.Printf("backup: today's archive check failed: %v", err)
+  return false
+ }
+ expected := time.Now().UTC().Format("2006-01-02") + ".dump"
+ for _, key := range keys {
+  if path.Base(key) == expected { return true }
+ }
+ return false
+}
+
 func startBackupScheduler() {
  go func() {
+  // If the service was offline at 03:00 UTC, create the missing daily archive on startup.
+  if !dailyBackupExists() { runDailyBackup() }
   for {
    now := time.Now().UTC()
    next := time.Date(now.Year(), now.Month(), now.Day(), 3, 0, 0, 0, time.UTC)
-   if !next.After(now) {
-    next = next.AddDate(0, 0, 1)
-   }
+   if !next.After(now) { next = next.AddDate(0, 0, 1) }
    timer := time.NewTimer(time.Until(next))
    <-timer.C
    runDailyBackup()
