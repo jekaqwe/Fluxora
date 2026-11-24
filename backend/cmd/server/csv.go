@@ -71,7 +71,7 @@ func csvHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool){
   file,header,err:=r.FormFile("file");if err!=nil{http.Error(w,`{"error":"Выберите CSV-файл"}`,400);return};defer file.Close()
   if header.Size>5<<20{http.Error(w,`{"error":"Максимальный размер файла 5 МБ"}`,400);return}
   data,err:=io.ReadAll(io.LimitReader(file,(5<<20)+1));if err!=nil||len(data)>5<<20{http.Error(w,`{"error":"Не удалось прочитать CSV-файл"}`,400);return}
-  items,err:=parseImportCSV(data);if err!=nil{http.Error(w,"{\\"error\\":\\"Ошибка CSV: "+err.Error()+"\\"}",400);return}
+  items,err:=parseImportCSV(data);if err!=nil{http.Error(w,"{\"error\":\"Ошибка CSV: "+err.Error()+"\"}",400);return}
   valid:=0
   for i:=range items{validateImportRow(&items[i]);if len(items[i].Errors)==0{
    var source,destination bool
