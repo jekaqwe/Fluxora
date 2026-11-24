@@ -101,8 +101,8 @@ func notificationsHandler(w http.ResponseWriter,r *http.Request,database *pgxpoo
   if r.Method!=http.MethodGet{w.Header().Set("Allow","GET");http.Error(w,`{"error":"Метод не поддерживается"}`,405);return}
   rows,err:=database.Query(r.Context(),`SELECT id,notification_type,title,message,related_type,related_id,read_at,created_at FROM notifications WHERE user_id=$1
    AND CASE
-    WHEN notification_type IN ('family_goal','family_transaction','family_invitation') THEN COALESCE((SELECT (preferences->'notifications'->>'family')::boolean FROM user_preferences WHERE user_id=$1),true)
-    WHEN notification_type IN ('goal','goal_completed','achievement','savings_goal') THEN COALESCE((SELECT (preferences->'notifications'->>'goals')::boolean FROM user_preferences WHERE user_id=$1),true)
+    WHEN notification_type IN ('family_goal','family_transaction','family_invitation','family_invite','family_activity') THEN COALESCE((SELECT (preferences->'notifications'->>'family')::boolean FROM user_preferences WHERE user_id=$1),true)
+    WHEN notification_type IN ('goal','goal_entry','goal_completed','achievement','savings_goal') THEN COALESCE((SELECT (preferences->'notifications'->>'goals')::boolean FROM user_preferences WHERE user_id=$1),true)
     WHEN notification_type IN ('transaction','recurring_created','recurring_missed','debt_payment') THEN COALESCE((SELECT (preferences->'notifications'->>'operations')::boolean FROM user_preferences WHERE user_id=$1),true)
     ELSE true END
    ORDER BY created_at DESC,id DESC LIMIT 100`,userID)
@@ -110,8 +110,8 @@ func notificationsHandler(w http.ResponseWriter,r *http.Request,database *pgxpoo
   for rows.Next(){var x notificationResponse;if err:=rows.Scan(&x.ID,&x.Type,&x.Title,&x.Message,&x.RelatedType,&x.RelatedID,&x.ReadAt,&x.CreatedAt);err!=nil{http.Error(w,`{"error":"Ошибка чтения уведомлений"}`,500);return};items=append(items,x)}
   var unread int64;_=database.QueryRow(r.Context(),`SELECT COUNT(*) FROM notifications WHERE user_id=$1 AND read_at IS NULL
    AND CASE
-    WHEN notification_type IN ('family_goal','family_transaction','family_invitation') THEN COALESCE((SELECT (preferences->'notifications'->>'family')::boolean FROM user_preferences WHERE user_id=$1),true)
-    WHEN notification_type IN ('goal','goal_completed','achievement','savings_goal') THEN COALESCE((SELECT (preferences->'notifications'->>'goals')::boolean FROM user_preferences WHERE user_id=$1),true)
+    WHEN notification_type IN ('family_goal','family_transaction','family_invitation','family_invite','family_activity') THEN COALESCE((SELECT (preferences->'notifications'->>'family')::boolean FROM user_preferences WHERE user_id=$1),true)
+    WHEN notification_type IN ('goal','goal_entry','goal_completed','achievement','savings_goal') THEN COALESCE((SELECT (preferences->'notifications'->>'goals')::boolean FROM user_preferences WHERE user_id=$1),true)
     WHEN notification_type IN ('transaction','recurring_created','recurring_missed','debt_payment') THEN COALESCE((SELECT (preferences->'notifications'->>'operations')::boolean FROM user_preferences WHERE user_id=$1),true)
     ELSE true END`,userID).Scan(&unread)
   _=json.NewEncoder(w).Encode(map[string]any{"items":items,"unread":unread});return
