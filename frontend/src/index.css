@@ -1,14 +1,6 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
-
 * { box-sizing: border-box; }
 html { min-width: 320px; scroll-behavior: smooth; }
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  font-family: "Inter", "Roboto", Arial, sans-serif;
-  background: #0f0b1e;
-  color: #f4f0fb;
-}
-button { font-family: inherit; }
+body { margin:0; min-width:320px; min-height:100vh; font-family:"Inter","Roboto",Arial,sans-serif; background:#eaf0fb; color:#142b55; }
+button,input,select,textarea { font-family:inherit; }
