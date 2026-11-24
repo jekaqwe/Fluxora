@@ -180,6 +180,19 @@ func goalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
  var item goalEntryResponse; var txID pgtype.Int8
  err=tx.QueryRow(r.Context(),`SELECT id,entry_type,amount::text,comment,transaction_id,created_at FROM goal_entries WHERE user_id=$1 AND idempotency_key=$2`,userID,in.IdempotencyKey).Scan(&item.ID,&item.Type,&item.Amount,&item.Comment,&txID,&item.CreatedAt)
  if err==nil {
+  expectedType:="expense";if in.Type=="withdrawal"{expectedType="income"}
+  var samePayload bool
+  err=tx.QueryRow(r.Context(),`SELECT EXISTS(
+   SELECT 1 FROM goal_entries e
+   WHERE e.id=$1 AND e.goal_id=$2 AND e.entry_type=$3 AND e.amount=$4::numeric AND e.comment=$5
+   AND (
+    ($6::bigint>0 AND EXISTS(SELECT 1 FROM transactions t WHERE t.id=e.transaction_id AND t.user_id=$7 AND t.account_id=$6 AND t.amount=$4::numeric AND t.operation_type=$8))
+    OR ($9::bigint>0 AND e.transaction_id=$9)
+    OR ($6::bigint=0 AND $9::bigint=0 AND e.transaction_id IS NULL)
+   )
+  )`,item.ID,goalID,in.Type,in.Amount,in.Comment,in.AccountID,userID,expectedType,in.TransactionID).Scan(&samePayload)
+  if err!=nil { http.Error(w,`{"error":"Не удалось проверить повтор операции"}`,500); return }
+  if !samePayload { http.Error(w,`{"error":"Ключ идемпотентности уже использован для другой записи цели"}`,409); return }
   if txID.Valid { value:=txID.Int64; item.TransactionID=&value }
   if commitErr:=tx.Commit(r.Context()); commitErr!=nil { http.Error(w,`{"error":"Не удалось завершить операцию"}`,500); return }
   _=json.NewEncoder(w).Encode(item); return
