@@ -156,6 +156,7 @@ func main() {
 	})
 
 	startRecurringScheduler(db)
+	startBackupScheduler()
 	log.Println("Fluxora Backend запущен на http://localhost:8080")
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
