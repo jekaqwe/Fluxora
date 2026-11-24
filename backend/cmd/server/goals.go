@@ -138,8 +138,11 @@ func goalItemHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Poo
   `,id,userID,in.Title,in.Description,in.TargetAmount,in.StartingAmount,due,in.Priority,in.Status).Scan(&item.ID,&item.Title,&item.Description,&item.TargetAmount,&item.StartingAmount,&item.CurrentAmount,&dueText,&item.Priority,&item.Status,&item.CreatedAt)
   if err!=nil { http.Error(w,`{"error":"Цель не найдена или не удалось сохранить"}`,404); return }; item.DueDate=dueText; _=json.NewEncoder(w).Encode(item)
  case http.MethodDelete:
+  var imageKey *string
+  if err:=database.QueryRow(r.Context(),"SELECT image_key FROM goals WHERE id=$1 AND user_id=$2",id,userID).Scan(&imageKey);err!=nil{http.Error(w,`{"error":"Цель не найдена"}`,404);return}
   tag,err:=database.Exec(r.Context(),"DELETE FROM goals WHERE id=$1 AND user_id=$2",id,userID)
   if err!=nil { http.Error(w,`{"error":"Не удалось удалить цель"}`,500); return }; if tag.RowsAffected()==0 { http.Error(w,`{"error":"Цель не найдена"}`,404); return }
+  if imageKey!=nil&&*imageKey!=""{if store,e:=newS3Store();e==nil{if e:=store.delete(r.Context(),*imageKey);e!=nil{log.Printf("failed to delete goal image %d: %v",id,e)}}}
   _=json.NewEncoder(w).Encode(map[string]bool{"success":true})
  default:
   w.Header().Set("Allow","PATCH, DELETE"); http.Error(w,`{"error":"Метод не поддерживается"}`,405)
