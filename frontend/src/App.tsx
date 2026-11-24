@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Home, ArrowLeftRight, ChartNoAxesCombined, Target, Users, UserRound, Settings as SettingsIcon, LogOut, Menu, X, WalletCards, HandCoins } from "lucide-react";
+import { Home, ArrowLeftRight, ChartNoAxesCombined, Target, Users, UserRound, Settings as SettingsIcon, LogOut, Menu, X, WalletCards, HandCoins, Bell } from "lucide-react";
 import HomeScreen from "./screens/Home";
 import Debts from "./screens/Debts";
+import Notifications from "./screens/Notifications";
 import Operations from "./screens/Operations";
 import Accounts from "./screens/Accounts";
 import Analytics from "./screens/Analytics";
@@ -13,7 +14,7 @@ import Auth from "./screens/Auth";
 import logo from "./assets/fluxora-logo.png";
 import "./App.css";
 
-type PageKey = "home" | "operations" | "accounts" | "analytics" | "goals" | "debts" | "family" | "profile" | "settings";
+type PageKey = "home" | "operations" | "accounts" | "analytics" | "goals" | "debts" | "notifications" | "family" | "profile" | "settings";
 const navigation = [
   { id: "home", label: "Главная", icon: Home },
   { id: "operations", label: "Операции", icon: ArrowLeftRight },
@@ -21,6 +22,7 @@ const navigation = [
   { id: "analytics", label: "Аналитика", icon: ChartNoAxesCombined },
   { id: "goals", label: "Цели", icon: Target },
   { id: "debts", label: "Долги", icon: HandCoins },
+  { id: "notifications", label: "Уведомления", icon: Bell },
   { id: "family", label: "Семья", icon: Users },
   { id: "profile", label: "Профиль", icon: UserRound },
   { id: "settings", label: "Настройки", icon: SettingsIcon },
@@ -70,6 +72,7 @@ function App() {
     case "analytics": page = <Analytics />; break;
     case "goals": page = <Goals />; break;
     case "debts": page = <Debts />; break;
+    case "notifications": page = <Notifications />; break;
     case "family": page = <Family />; break;
     case "profile": page = <Profile />; break;
     case "settings": page = <Settings />; break;
