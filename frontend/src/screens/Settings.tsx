@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { UserRound, ShieldCheck, Bell, Palette, Eye, Link2, LockKeyhole } from "lucide-react";
+import { UserRound, ShieldCheck, Bell, Palette, Eye, Link2, LockKeyhole, MonitorSmartphone, LogOut } from "lucide-react";
 import { PageHeading, Panel } from "./ui";
 import "./Pure.css";
 type ProfileField = "firstName" | "lastName" | "username";
@@ -13,6 +13,7 @@ type UserProfile = {
   usernameAvailableAt: string | null;
 };
 type ProfileDraft = Pick<UserProfile, ProfileField>;
+type Session = { id:number; createdAt:string; expiresAt:string; current:boolean };
 const sections=[{id:"account",label:"Аккаунт",Icon:UserRound},{id:"security",label:"Безопасность",Icon:ShieldCheck},{id:"notifications",label:"Уведомления",Icon:Bell},{id:"appearance",label:"Оформление",Icon:Palette},{id:"privacy",label:"Приватность",Icon:Eye},{id:"integrations",label:"Интеграции",Icon:Link2}];
 function Settings(){
  const [section,setSection]=useState("account");const [user,setUser]=useState<UserProfile|null>(null);
@@ -32,6 +33,9 @@ function Settings(){
  const [deleteBusy,setDeleteBusy]=useState(false);
  const [deleteError,setDeleteError]=useState("");
  const [deleteMessage,setDeleteMessage]=useState("");
+ const [sessions,setSessions]=useState<Session[]>([]);
+ const [sessionError,setSessionError]=useState("");
+ const [revokingSessions,setRevokingSessions]=useState(false);
  const deleteAccount=async()=>{
    setDeleteError("");setDeleteMessage("");setDeleteBusy(true);
    try{
@@ -52,6 +56,21 @@ function Settings(){
      setPasswordMessage(data.message||"Пароль изменён");setCurrentPassword("");setNewPassword("");
    }catch(error){setPasswordError(error instanceof Error?error.message:"Ошибка смены пароля");}
    finally{setSavingPassword(false);}
+ };
+ useEffect(()=>{
+   if(section!=="security")return;
+   fetch("/api/account/sessions").then(r=>{if(!r.ok)throw new Error("Не удалось загрузить сессии");return r.json();}).then(setSessions).catch(e=>setSessionError(e.message));
+ },[section]);
+ const revokeSession=async(id:number)=>{
+   setSessionError("");
+   try{const r=await fetch(`/api/account/sessions/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось завершить сессию");setSessions(old=>old.filter(s=>s.id!==id));}
+   catch(e){setSessionError(e instanceof Error?e.message:"Ошибка сессии");}
+ };
+ const revokeOtherSessions=async()=>{
+   setRevokingSessions(true);setSessionError("");
+   try{const r=await fetch("/api/account/sessions/revoke-others",{method:"POST"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось завершить сессии");setSessions(old=>old.filter(s=>s.current));}
+   catch(e){setSessionError(e instanceof Error?e.message:"Ошибка сессий");}
+   finally{setRevokingSessions(false);}
  };
  useEffect(()=>{fetch("/api/profile").then(r=>{if(!r.ok)throw new Error("Не удалось загрузить аккаунт");return r.json();}).then((data:UserProfile)=>{setUser(data);setDraft({firstName:data.firstName,lastName:data.lastName,username:data.username});}).catch(e=>console.error(e));},[]);
  const saveProfileField=async(field:ProfileField)=>{
@@ -95,6 +114,10 @@ function Settings(){
  {profileMessage&&<p role="status" style={{color:"#86efac",fontSize:12}}>{profileMessage}</p>}
  <div className="empty-note">Имя, фамилия и логин изменяются независимо друг от друга. Для каждого поля действует отдельное ограничение: один раз в 14 дней.</div></>}
  {section==="security"&&<><div className="toggle-row"><span><strong>Пароль</strong><br/><small className="muted">Для смены подтвердите текущий пароль</small></span><LockKeyhole size={18}/></div><label className="setting-field">Текущий пароль<input type="password" autoComplete="current-password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} /></label><label className="setting-field">Новый пароль<input type="password" autoComplete="new-password" minLength={8} maxLength={72} value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="От 8 до 72 символов"/></label><button type="button" className="pure-button" disabled={savingPassword||!currentPassword||newPassword.length<8||newPassword.length>72} onClick={changePassword}>{savingPassword?"Сохранение…":"Изменить пароль"}</button>{passwordError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{passwordError}</p>}{passwordMessage&&<p role="status" style={{color:"#86efac",fontSize:12}}>{passwordMessage}</p>}<p className="muted" style={{fontSize:10}}>Пароль хранится в базе только в виде bcrypt-хеша.</p>
+ <div style={{marginTop:18}}><div className="form-row" style={{justifyContent:"space-between"}}><strong>Активные сессии</strong><button className="pure-button ghost" disabled={revokingSessions||sessions.length<2} onClick={()=>void revokeOtherSessions()}><LogOut size={14}/>Завершить остальные</button></div>
+ {sessions.map(s=><div className="member-row" key={s.id}><div className="transaction-icon"><MonitorSmartphone size={16}/></div><div className="member-copy"><strong>{s.current?"Текущая сессия":"Активная сессия"}</strong><small>Создана: {new Date(s.createdAt).toLocaleString("ru-RU")} · Истекает: {new Date(s.expiresAt).toLocaleDateString("ru-RU")}</small></div>{!s.current&&<button className="pure-button ghost" onClick={()=>void revokeSession(s.id)}>Завершить</button>}</div>)}
+ {sessionError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{sessionError}</p>}
+ </div>
  <div className="empty-note" style={{marginTop:18,borderColor:"#a33"}}><strong>Удаление аккаунта</strong><p>Личные данные, счета, операции и файлы будут удалены из активной системы. Семейные операции сохранятся с обезличенным автором. Резервные копии могут хранить данные до 7 дней.</p>
  <label className="setting-field">Подтвердите текущим паролем<input type="password" autoComplete="current-password" value={deletePassword} onChange={e=>setDeletePassword(e.target.value)}/></label>
  <label className="setting-field">Введите DELETE для подтверждения<input value={deleteConfirmation} onChange={e=>setDeleteConfirmation(e.target.value)} placeholder="DELETE"/></label>
