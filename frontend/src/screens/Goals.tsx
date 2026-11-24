@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Plus, Target, Plane, CarFront, Laptop, X, Pause, Play, Trash2, Pencil, History } from "lucide-react";
+import { useEffect, useState, type ChangeEvent } from "react";
+import { Plus, Target, Plane, CarFront, Laptop, X, Pause, Play, Trash2, Pencil, History, Image, XCircle } from "lucide-react";
 import { PageHeading, Panel, Stat, Progress } from "./ui";
 import "./Pure.css";
 
@@ -53,6 +53,15 @@ function Goals(){
    const historyResponse=await fetch(`/api/goals/${savedGoalId}/entries`);const historyData=await historyResponse.json();if(historyResponse.ok)setHistory(old=>({...old,[savedGoalId]:historyData}));
   }catch(e){setError(e instanceof Error?e.message:"Ошибка операции");}
  };
+ const uploadGoalImage=async(id:number,event:ChangeEvent<HTMLInputElement>)=>{
+  const file=event.target.files?.[0];event.target.value="";if(!file)return;setError("");
+  try{const form=new FormData();form.append("image",file);const r=await fetch(`/api/goals/${id}/image`,{method:"PUT",body:form});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось загрузить изображение");setGoals(old=>old.map(g=>g.id===id?{...g,imageUrl:d.imageUrl}:g));}
+  catch(e){setError(e instanceof Error?e.message:"Ошибка изображения");}
+ };
+ const deleteGoalImage=async(id:number)=>{
+  try{const r=await fetch(`/api/goals/${id}/image`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить изображение");setGoals(old=>old.map(g=>g.id===id?{...g,imageUrl:undefined}:g));}
+  catch(e){setError(e instanceof Error?e.message:"Ошибка удаления изображения");}
+ };
  const remove=async(id:number)=>{if(!window.confirm("Удалить цель и её историю?"))return;try{const r=await fetch(`/api/goals/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить цель");setGoals(old=>old.filter(g=>g.id!==id));}catch(e){setError(e instanceof Error?e.message:"Ошибка удаления");}};
  const togglePause=async(g:Goal)=>{try{const r=await fetch(`/api/goals/${g.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({...g,status:g.status==="paused"?"active":"paused"})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось изменить статус");setGoals(old=>old.map(x=>x.id===g.id?d:x));}catch(e){setError(e instanceof Error?e.message:"Ошибка статуса");}};
  const showHistory=async(id:number)=>{if(historyGoalId===id){setHistoryGoalId(null);return;}try{const r=await fetch(`/api/goals/${id}/entries`);const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось загрузить историю");setHistory(old=>({...old,[id]:d}));setHistoryGoalId(id);}catch(e){setError(e instanceof Error?e.message:"Ошибка истории");}};
@@ -79,7 +88,7 @@ function Goals(){
     const pct=Math.max(0,Math.min(100,Number(current*10000n/targetCents)/100));
     const Icon=g.title.toLowerCase().includes("авто")||g.title.toLowerCase().includes("машин")?CarFront:g.title.toLowerCase().includes("отпуск")||g.title.toLowerCase().includes("путеше")?Plane:Laptop;
     return <Panel key={g.id} className="goal-card">
-     <div className="goal-art"><Icon/></div><div className="goal-content">
+     <div className="goal-art">{g.imageUrl?<img src={g.imageUrl} alt={g.title} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Icon/>}</div><div className="goal-content">
       <div className="form-row" style={{justifyContent:"space-between"}}><h3>{g.title}</h3><span className="muted">{g.priority==="high"?"Высокий":g.priority==="low"?"Низкий":"Средний"}</span></div>
       <p>{g.description||"Цель накоплений"}</p><strong style={{fontSize:21}}>{pct.toFixed(1).replace(".",",")}%</strong>
       <div className="goal-meta"><span>{money(g.currentAmount)}</span><span>{money(g.targetAmount)}</span></div><Progress value={pct}/>
@@ -90,7 +99,7 @@ function Goals(){
        <button className="pure-button ghost" onClick={()=>{setEntryGoalId(g.id);setEntryType("withdrawal");setEntryKey(crypto.randomUUID());}} disabled={g.status!=="active"||current<=0n}>Снять</button>
        <button className="pure-button ghost" onClick={()=>beginEdit(g)}><Pencil size={14}/></button>
        <button className="pure-button ghost" onClick={()=>void togglePause(g)} disabled={g.status==="completed"}>{g.status==="paused"?<Play size={14}/>:<Pause size={14}/>}</button>
-       <button className="pure-button ghost" onClick={()=>void showHistory(g.id)}><History size={14}/></button>
+       <button className="pure-button ghost" onClick={()=>void showHistory(g.id)}><History size={14}/></button><label className="pure-button ghost" title="Изменить изображение"><Image size={14}/><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={e=>void uploadGoalImage(g.id,e)}/></label>{g.imageUrl&&<button className="pure-button ghost" title="Удалить изображение" onClick={()=>void deleteGoalImage(g.id)}><XCircle size={14}/></button>}
        <button className="pure-button ghost" onClick={()=>void remove(g.id)}><Trash2 size={14}/></button>
       </div>
       {entryGoalId===g.id&&<div style={{marginTop:12}}><label className="form-label">{entryType==="contribution"?"Пополнение, ₽":"Снятие, ₽"}<input className="pure-input" value={entryAmount} onChange={e=>setEntryAmount(e.target.value)} placeholder="0.00"/></label><div className="form-row" style={{marginTop:8}}><button className="pure-button" disabled={!validAmount(entryAmount)} onClick={()=>void recordEntry()}>Подтвердить</button><button className="pure-button ghost" onClick={()=>setEntryGoalId(null)}>Отмена</button></div></div>}
