@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"path"
 	"strings"
@@ -50,6 +51,7 @@ func authenticatedUserID(r *http.Request, database *pgxpool.Pool) (int64, error)
 
 func profileHandler(w http.ResponseWriter, r *http.Request, database *pgxpool.Pool) {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
 	userID, err := authenticatedUserID(r, database)
 	if err != nil {
 		http.Error(w, `{"error":"Пользователь не авторизован"}`, http.StatusUnauthorized)
@@ -87,7 +89,7 @@ func getProfileHandler(w http.ResponseWriter, r *http.Request, database *pgxpool
 	if avatarKey != nil && *avatarKey != "" {
 		store, storeErr := newS3Store()
 		if storeErr == nil {
-			if signedURL, signErr := store.presignGet(*avatarKey, 15*time.Minute); signErr == nil {
+			if signedURL, signErr := store.presignGet(*avatarKey, time.Hour); signErr == nil {
 				profile.AvatarURL = &signedURL
 			}
 		}
@@ -344,8 +346,7 @@ func deleteAvatarHandler(w http.ResponseWriter, r *http.Request, database *pgxpo
 	}
 	if key != nil && *key != "" {
 		if err := store.delete(r.Context(), *key); err != nil {
-			http.Error(w, `{"error":"Аватар отвязан, но файл не удалось удалить из хранилища"}`, http.StatusBadGateway)
-			return
+			log.Printf("failed to delete avatar object for user %d: %v", userID, err)
 		}
 	}
 	_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
