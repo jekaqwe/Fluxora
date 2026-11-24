@@ -12,6 +12,8 @@ cp backend/.env.s3.example .env
 
 Keep the resulting `.env` file private. It must not be committed to Git.
 
+Before starting Compose, replace `POSTGRES_PASSWORD` with a unique random value (for example, generate one with `openssl rand -hex 32`). The same value is used by PostgreSQL and the backend connection string. Do not change it on an already initialized database unless you also deliberately rotate the PostgreSQL role password inside that database. Compose refuses to start if this value is missing.
+
 ## 2. REG.RU S3
 
 Create or select a **private** S3 bucket in REG.RU Cloud and configure:
