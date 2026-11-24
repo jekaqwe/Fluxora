@@ -62,6 +62,9 @@ func main() {
 	})
 
 	// Профиль пользователя
+	http.HandleFunc("/api/settings/preferences", func(w http.ResponseWriter, r *http.Request) {
+		preferencesHandler(w, r, db)
+	})
 	http.HandleFunc("/api/profile", func(w http.ResponseWriter, r *http.Request) {
 		profileHandler(w, r, db)
 	})
