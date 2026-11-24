@@ -250,11 +250,6 @@ func parseImportCSVWithMappingStats(data []byte, mapping map[string]string) ([]i
 		amountRaw := value("amount")
 		amount := normalizeImportAmount(amountRaw, tinkoff)
 		dateValue := value("date")
-		if tinkoff {
-			if parsedDate, dateErr := parseImportDate(dateValue); dateErr == nil {
-				dateValue = parsedDate.Format("2006-01-02")
-			}
-		}
 		kind := value("type")
 		if tinkoff {
 			if strings.HasPrefix(strings.TrimSpace(amountRaw), "-") {
