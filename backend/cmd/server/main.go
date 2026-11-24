@@ -157,6 +157,14 @@ func main() {
 		sessionsHandler(w, r, db)
 	})
 
+	// Подтверждение смены email
+	http.HandleFunc("/api/account/email/change", func(w http.ResponseWriter, r *http.Request) {
+		emailChangeHandler(w, r, db)
+	})
+	http.HandleFunc("/api/account/email/confirm", func(w http.ResponseWriter, r *http.Request) {
+		emailChangeHandler(w, r, db)
+	})
+
 	// Выход из аккаунта
 	http.HandleFunc("/api/logout", func(w http.ResponseWriter, r *http.Request) {
 		logoutHandler(w, r, db)
