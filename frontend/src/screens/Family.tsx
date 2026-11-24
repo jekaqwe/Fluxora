@@ -19,6 +19,9 @@ function Family(){
  const [family,setFamily]=useState<FamilyInfo|null>(null);
  const [members,setMembers]=useState<Member[]>([]);
  const [transactions,setTransactions]=useState<FamilyTx[]>([]);
+ const [authorFilter,setAuthorFilter]=useState("");
+ const [fromFilter,setFromFilter]=useState("");
+ const [toFilter,setToFilter]=useState("");
  const [familyGoals,setFamilyGoals]=useState<FamilyGoal[]>([]);
  const [accounts,setAccounts]=useState<Account[]>([]);
  const [familyGoalAccountId,setFamilyGoalAccountId]=useState("");
@@ -122,6 +125,8 @@ function Family(){
  };
  const currentMonth=today().slice(0,7);
  const monthExpense=transactions.filter(x=>x.type==="expense"&&x.date.startsWith(currentMonth)).reduce((s,x)=>s+cents(x.amount),0n);
+ const authors=Array.from(new Set(transactions.map(item=>item.author))).sort((a,b)=>a.localeCompare(b,"ru"));
+ const filteredTransactions=transactions.filter(item=>(!authorFilter||item.author===authorFilter)&&(!fromFilter||item.date>=fromFilter)&&(!toFilter||item.date<=toFilter));
 
  if(loading)return <div className="pure-page"><div className="empty-note">Загружаем семейный бюджет…</div></div>;
  return <div className="pure-page">
@@ -168,12 +173,17 @@ function Family(){
      <label className="form-label">Дата<input className="pure-input" type="date" value={date} onChange={e=>setDate(e.target.value)}/></label>
      <div className="form-row" style={{alignItems:"end"}}><button className="pure-button" disabled={!title.trim()||!/^\d+(?:[.,]\d{1,2})?$/.test(amount)||cents(amount.replace(",", "."))<=0n} onClick={()=>void addTransaction()}>{editingTxId===null?"Сохранить":"Сохранить изменения"}</button><button className="pure-button ghost" onClick={()=>{setShowForm(false);setEditingTxId(null);}}>Отмена</button></div>
     </div>}
-    {transactions.length?<div className="transaction-list">{transactions.map(t=><div className="transaction-row" key={t.id}>
+    <div className="pure-grid three" style={{marginBottom:12}}>
+     <label className="form-label">Участник<select className="pure-select" value={authorFilter} onChange={e=>setAuthorFilter(e.target.value)}><option value="">Все участники</option>{authors.map(author=><option key={author} value={author}>{author}</option>)}</select></label>
+     <label className="form-label">С даты<input className="pure-input" type="date" value={fromFilter} max={toFilter||undefined} onChange={e=>setFromFilter(e.target.value)}/></label>
+     <label className="form-label">По дату<input className="pure-input" type="date" value={toFilter} min={fromFilter||undefined} onChange={e=>setToFilter(e.target.value)}/></label>
+    </div>
+    {filteredTransactions.length?<div className="transaction-list">{filteredTransactions.map(t=><div className="transaction-row" key={t.id}>
      <span className={`transaction-icon ${t.type==="income"?"mint":""}`}><HomeIcon size={16}/></span>
      <span className="transaction-copy"><strong>{t.title}</strong><small>{t.category} · {t.author} · {t.date}</small></span>
      <strong className={`transaction-amount ${t.type==="income"?"positive":"negative"}`}>{t.type==="income"?"+":"−"}{money(t.amount)}</strong>
      <button className="pure-button ghost" aria-label="Изменить операцию" onClick={()=>editTransaction(t)}><Pencil size={14}/></button><button className="pure-button ghost" aria-label="Удалить операцию" onClick={()=>void removeTransaction(t.id)}><Trash2 size={14}/></button>
-    </div>)}</div>:<div className="empty-note">Семейных операций пока нет.</div>}
+    </div>)}</div>:<div className="empty-note">Операций по выбранным фильтрам нет.</div>}
    </Panel>
    <Panel title="Общие семейные цели" subtitle="Каждый участник может пополнять семейные накопления" action={<button className="pure-button" onClick={()=>setShowGoalForm(v=>!v)}><Plus size={15}/>Создать цель</button>}>
     {showGoalForm&&<div className="pure-grid three" style={{marginBottom:14}}>
