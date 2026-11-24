@@ -206,6 +206,7 @@ func goalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
  }
  var linked any
  if in.AccountID>0&&in.TransactionID>0{http.Error(w,`{"error":"Укажите счёт или готовую операцию, но не оба поля"}`,400);return}
+ if in.AccountID==0&&in.TransactionID==0{http.Error(w,`{"error":"Для записи цели выберите личный счёт или связанную финансовую операцию"}`,400);return}
  if in.AccountID>0{
   var accountExists bool
   if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM accounts WHERE id=$1 AND user_id=$2)`,in.AccountID,userID).Scan(&accountExists);err!=nil||!accountExists{http.Error(w,`{"error":"Счёт не найден"}`,400);return}
@@ -228,6 +229,11 @@ func goalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
    http.Error(w,`{"error":"Связанная операция не найдена или её сумма и тип не совпадают с записью цели"}`,400);return
   }
   linked=linkedID
+ }
+ if linked!=nil{
+  var alreadyLinked bool
+  if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM goal_entries WHERE transaction_id=$1 UNION ALL SELECT 1 FROM family_goal_entries WHERE transaction_id=$1)`,linked).Scan(&alreadyLinked);err!=nil{http.Error(w,`{"error":"Не удалось проверить связанную операцию"}`,500);return}
+  if alreadyLinked{http.Error(w,`{"error":"Эта финансовая операция уже связана с другой целью"}`,409);return}
  }
  err=tx.QueryRow(r.Context(),`
   INSERT INTO goal_entries(goal_id,user_id,entry_type,amount,comment,transaction_id,idempotency_key)
