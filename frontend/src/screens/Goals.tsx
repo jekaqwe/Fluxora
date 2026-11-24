@@ -46,7 +46,7 @@ function Goals(){
  const recordEntry=async()=>{
   if(entryGoalId===null)return;setError("");
   try{
-   const response=await fetch(`/api/goals/${entryGoalId}/entries`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:entryType,amount:entryAmount.replace(",", "."),comment:""})});
+   const response=await fetch(`/api/goals/${entryGoalId}/entries`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:entryType,amount:entryAmount.replace(",", "."),comment:"",idempotencyKey:crypto.randomUUID()})});
    const data=await response.json();if(!response.ok)throw new Error(data.error||"Не удалось записать движение");
    const savedGoalId=entryGoalId;setEntryGoalId(null);setEntryAmount("");await load();
    const historyResponse=await fetch(`/api/goals/${savedGoalId}/entries`);const historyData=await historyResponse.json();if(historyResponse.ok)setHistory(old=>({...old,[savedGoalId]:historyData}));
