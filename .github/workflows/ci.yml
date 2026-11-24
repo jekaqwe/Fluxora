@@ -38,6 +38,8 @@ jobs:
           cache-dependency-path: backend/go.sum
       - run: go test ./...
       - run: go build -o /tmp/fluxora-server ./cmd/server
+      - name: Build backend Docker image
+        run: docker build -t fluxora-backend-ci -f Dockerfile .
       - name: Apply all migrations against PostgreSQL
         env:
           DATABASE_URL: postgres://fluxora_test:fluxora_test@localhost:5432/fluxora_test?sslmode=disable
