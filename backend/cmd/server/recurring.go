@@ -72,17 +72,13 @@ func insertRecurringTransaction(ctx context.Context,tx pgx.Tx,userID,accountID i
   userID,accountID,title,kind,amount,category,date,comment,key).Scan(&id)
  if err==nil{return id,nil}
  if err!=pgx.ErrNoRows{return 0,err}
- var existingTitle,existingType,existingAmount,existingCategory,existingComment string
- var existingAccountID int64
- var existingDate time.Time
- err=tx.QueryRow(ctx,`SELECT id,title,operation_type,amount::text,category,operation_date,account_id,comment
-  FROM transactions WHERE user_id=$1 AND idempotency_key=$2`,userID,key).
-  Scan(&id,&existingTitle,&existingType,&existingAmount,&existingCategory,&existingDate,&existingAccountID,&existingComment)
+ err=tx.QueryRow(ctx,`SELECT id FROM transactions
+  WHERE user_id=$1 AND idempotency_key=$2 AND title=$3 AND operation_type=$4
+   AND amount=$5::numeric AND category=$6 AND operation_date=$7::date
+   AND account_id=$8 AND comment=$9`,
+  userID,key,title,kind,amount,category,date,accountID,comment).Scan(&id)
+ if err==pgx.ErrNoRows{return 0,fmt.Errorf("idempotency key %q is already used for a different transaction",key)}
  if err!=nil{return 0,err}
- if existingTitle!=title||existingType!=kind||existingAmount!=amount||existingCategory!=category||
-  existingDate.Format("2006-01-02")!=date.Format("2006-01-02")||existingAccountID!=accountID||existingComment!=comment{
-  return 0,fmt.Errorf("idempotency key %q is already used for a different transaction",key)
- }
  return id,nil
 }
 func recurringHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool){
