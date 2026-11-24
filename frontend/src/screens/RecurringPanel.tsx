@@ -52,13 +52,24 @@ export default function RecurringPanel({accounts}:{accounts:Account[]}){
     <label className="form-label">Последняя дата<input className="pure-input" type="date" value={endDate} onChange={e=>setEndDate(e.target.value)}/></label>
     <div className="form-row" style={{alignItems:"end"}}><button className="pure-button" disabled={saving||!title.trim()||!accountId||!/^\d+(?:[.,]\d{1,2})?$/.test(amount)} onClick={()=>void create()}>{saving?"Сохранение…":editingId===null?"Создать":"Сохранить изменения"}</button><button className="pure-button ghost" onClick={resetForm}>Отмена</button></div>
    </div>}
-   {activeItems.length===0?<div className="empty-note">Регулярных операций пока нет.</div>:<div className="transaction-list">{activeItems.map(item=><div className="transaction-row" key={item.id}>
-    <span className={`transaction-icon ${item.type==="income"?"mint":""}`}>{item.type==="income"?"+":"↻"}</span>
-    <span className="transaction-copy"><strong>{item.title}</strong><small>{frequencies[item.frequency]} · Следующая дата: {item.nextDate} · {item.status==="active"?"Активна":item.status==="paused"?"Приостановлена":"Завершена"}</small></span>
-    <strong className="transaction-amount">{item.amount} ₽</strong>
-    {item.status==="paused"&&!item.accountId&&<select className="pure-select" aria-label="Выберите счёт для возобновления" value={accountSelections[item.id]||""} onChange={e=>setAccountSelections(old=>({...old,[item.id]:e.target.value}))}><option value="">Счёт для возобновления</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>}{item.status!=="completed"&&<button className="pure-button ghost" aria-label={item.status==="active"?"Приостановить":"Возобновить"} disabled={item.status==="paused"&&!item.accountId&&!accountSelections[item.id]&&!accountId} onClick={()=>void update(item,item.status==="active"?"paused":"active")}>{item.status==="active"?<Pause size={14}/>:<Play size={14}/>}</button>}
-    <button className="pure-button ghost" aria-label="История расписания" onClick={()=>void showHistory(item.id)}><History size={14}/></button>{item.status!=="completed"&&<button className="pure-button ghost" aria-label="Изменить расписание" onClick={()=>edit(item)}><Pencil size={14}/></button>}<button className="pure-button ghost" aria-label="Удалить расписание" onClick={()=>void remove(item.id)}><Trash2 size={14}/></button>
-   </div>)}</div>}
+    {activeItems.length===0 ? (
+      <div className="empty-note">Активных регулярных операций пока нет.</div>
+    ) : (
+      <div className="transaction-list">
+        {activeItems.map(item => (
+          <div className="transaction-row" key={item.id}>
+            <span className={`transaction-icon ${item.type==="income"?"mint":""}`}>{item.type==="income"?"+":"↻"}</span>
+            <span className="transaction-copy"><strong>{item.title}</strong><small>{frequencies[item.frequency]} · Следующая дата: {item.nextDate} · {item.status==="active"?"Активна":item.status==="paused"?"Приостановлена":"Завершена"}</small></span>
+            <strong className="transaction-amount">{item.amount} ₽</strong>
+            {item.status==="paused"&&!item.accountId&&<select className="pure-select" aria-label="Выберите счёт для возобновления" value={accountSelections[item.id]||""} onChange={e=>setAccountSelections(old=>({...old,[item.id]:e.target.value}))}><option value="">Счёт для возобновления</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>}
+            {item.status!=="completed"&&<button className="pure-button ghost" aria-label={item.status==="active"?"Приостановить":"Возобновить"} disabled={item.status==="paused"&&!item.accountId&&!accountSelections[item.id]&&!accountId} onClick={()=>void update(item,item.status==="active"?"paused":"active")}>{item.status==="active"?<Pause size={14}/>:<Play size={14}/>}</button>}
+            <button className="pure-button ghost" aria-label="История расписания" onClick={()=>void showHistory(item.id)}><History size={14}/></button>
+            {item.status!=="completed"&&<button className="pure-button ghost" aria-label="Изменить расписание" onClick={()=>edit(item)}><Pencil size={14}/></button>}
+            <button className="pure-button ghost" aria-label="Удалить расписание" onClick={()=>void remove(item.id)}><Trash2 size={14}/></button>
+          </div>
+        ))}
+      </div>
+    )}
   </Panel>
   {deletedItems.length>0&&<Panel title="Архив регулярных операций" subtitle="Удалённые расписания сохранены вместе с историей">
    <div className="transaction-list">{deletedItems.map(item=><div className="transaction-row" key={item.id}><span className="transaction-copy"><strong>{item.title}</strong><small>{frequencies[item.frequency]} · Архивировано</small></span><strong className="transaction-amount">{item.amount} ₽</strong><button className="pure-button ghost" onClick={()=>void showHistory(item.id)}><History size={14}/>История</button></div>)}</div>
