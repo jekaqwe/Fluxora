@@ -80,6 +80,11 @@ func main() {
 		analyticsHandler(w, r, db)
 	})
 
+	// Сводка главной страницы
+	http.HandleFunc("/api/dashboard", func(w http.ResponseWriter, r *http.Request) {
+		dashboardHandler(w, r, db)
+	})
+
 	// Смена пароля
 	http.HandleFunc("/api/account/password", func(w http.ResponseWriter, r *http.Request) {
 		passwordChangeHandler(w, r, db)
