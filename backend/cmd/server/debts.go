@@ -135,7 +135,7 @@ func debtPaymentsHandler(w http.ResponseWriter,r *http.Request,database *pgxpool
   if !samePayload{http.Error(w,`{"error":"Ключ идемпотентности уже использован для другого платежа"}`,409);return}
   if existingAccountID.Valid{v:=existingAccountID.Int64;existing.AccountID=&v};if existingTxID.Valid{v:=existingTxID.Int64;existing.TransactionID=&v};if e:=tx.Commit(r.Context());e!=nil{http.Error(w,`{"error":"Не удалось завершить платёж"}`,500);return};_=json.NewEncoder(w).Encode(existing);return
  }
- if err!=nil&&err!=pgx.ErrNoRows{http.Error(w,`{"error":"Не удалось проверить повтор платежа"}`,500);return}
+ if err!=pgx.ErrNoRows{http.Error(w,`{"error":"Не удалось проверить повтор платежа"}`,500);return}
  if status!="open"{http.Error(w,`{"error":"Долг уже закрыт"}`,409);return}
  var accountExists bool
  if err:=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM accounts WHERE id=$1 AND user_id=$2)`,in.AccountID,userID).Scan(&accountExists);err!=nil||!accountExists{http.Error(w,`{"error":"Счёт не найден"}`,400);return}
