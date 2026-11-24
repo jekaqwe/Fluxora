@@ -35,6 +35,11 @@ func main() {
 
 	log.Println("Подключение к PostgreSQL успешно!")
 
+	if err := runMigrations(db); err != nil {
+		log.Fatal("Ошибка применения миграций: ", err)
+	}
+	log.Println("Миграции базы данных применены")
+
 	// Регистрация пользователя
 	http.HandleFunc("/api/register", func(w http.ResponseWriter, r *http.Request) {
 		registerHandler(w, r, db)
@@ -48,6 +53,16 @@ func main() {
 	// Проверка авторизации
 	http.HandleFunc("/api/me", func(w http.ResponseWriter, r *http.Request) {
 		meHandler(w, r, db)
+	})
+
+	// Профиль пользователя
+	http.HandleFunc("/api/profile", func(w http.ResponseWriter, r *http.Request) {
+		profileHandler(w, r, db)
+	})
+
+	// Аватар пользователя
+	http.HandleFunc("/api/profile/avatar", func(w http.ResponseWriter, r *http.Request) {
+		avatarHandler(w, r, db)
 	})
 
 	// Выход из аккаунта
