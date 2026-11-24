@@ -106,7 +106,8 @@ func applyDeletionLedger(ctx context.Context,database *pgxpool.Pool)error{
   err=database.QueryRow(ctx,`SELECT created_at FROM users WHERE id=$1`,entry.UserID).Scan(&createdAt)
   if err==pgx.ErrNoRows{continue};if err!=nil{return err}
   if !createdAt.Equal(entry.UserCreatedAt){log.Printf("deletion ledger account incarnation mismatch for user id %d",entry.UserID);continue}
-  if _,err:=deleteUserData(ctx,database,entry.UserID,true);err!=nil{return err}
+  objectKeys,err:=deleteUserData(ctx,database,entry.UserID,true);if err!=nil{return err}
+  for _,objectKey:=range objectKeys{if deleteErr:=store.delete(ctx,objectKey);deleteErr!=nil{log.Printf("deletion ledger: could not remove S3 object %s for user id %d: %v",objectKey,entry.UserID,deleteErr)}}
   log.Printf("deletion ledger reapplied for user id %d",entry.UserID)
  }
  return nil
