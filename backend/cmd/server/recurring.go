@@ -71,7 +71,7 @@ func recurringHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Po
   if err!=nil{http.Error(w,`{"error":"Не удалось загрузить регулярные операции"}`,500);return};defer rows.Close()
   items:=make([]recurringResponse,0)
   for rows.Next(){var x recurringResponse;var account pgtype.Int8;var end *string;if err:=rows.Scan(&x.ID,&x.Title,&x.Type,&x.Amount,&x.Category,&account,&x.Frequency,&x.NextDate,&end,&x.Status);err!=nil{http.Error(w,`{"error":"Ошибка чтения расписания"}`,500);return};if account.Valid{v:=account.Int64;x.AccountID=&v};x.EndDate=end;items=append(items,x)}
-  missedRows,err:=database.Query(r.Context(),`SELECT o.id,o.recurring_id,r.title,r.operation_type,r.amount::text,r.category,r.account_id,o.occurrence_date::text FROM recurring_occurrences o JOIN recurring_operations r ON r.id=o.recurring_id WHERE o.user_id=$1 AND o.status='pending' ORDER BY o.occurrence_date,o.id`,userID)
+  missedRows,err:=database.Query(r.Context(),`SELECT o.id,o.recurring_id,r.title,r.operation_type,r.amount::text,r.category,r.account_id,o.occurrence_date::text FROM recurring_occurrences o JOIN recurring_operations r ON r.id=o.recurring_id WHERE o.user_id=$1 AND o.status='pending' AND r.status<>'deleted' ORDER BY o.occurrence_date,o.id`,userID)
   if err!=nil{http.Error(w,`{"error":"Не удалось загрузить пропущенные даты"}`,500);return};defer missedRows.Close()
   missed:=make([]recurringOccurrence,0)
   for missedRows.Next(){var x recurringOccurrence;var account pgtype.Int8;if err:=missedRows.Scan(&x.ID,&x.RecurringID,&x.Title,&x.Type,&x.Amount,&x.Category,&account,&x.Date);err!=nil{http.Error(w,`{"error":"Ошибка чтения пропущенных дат"}`,500);return};if account.Valid{v:=account.Int64;x.AccountID=&v};missed=append(missed,x)}
@@ -113,7 +113,7 @@ func recurringItemHandler(w http.ResponseWriter,r *http.Request,database *pgxpoo
   if in.AccountID>0{var ok bool;if err:=database.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM accounts WHERE id=$1 AND user_id=$2)`,in.AccountID,userID).Scan(&ok);err!=nil||!ok{http.Error(w,`{"error":"Счёт не найден"}`,400);return}}
   if in.Title==""{
    if in.Status=="active"&&in.AccountID<=0{var currentAccount pgtype.Int8;if err:=database.QueryRow(r.Context(),`SELECT account_id FROM recurring_operations WHERE id=$1 AND user_id=$2`,id,userID).Scan(&currentAccount);err!=nil||!currentAccount.Valid{http.Error(w,`{"error":"Для возобновления выберите счёт"}`,400);return}}
-   tag,err:=database.Exec(r.Context(),`UPDATE recurring_operations SET status=$3,account_id=CASE WHEN $4>0 THEN $4 ELSE account_id END,updated_at=NOW() WHERE id=$1 AND user_id=$2 AND status<>'deleted' AND status<>'deleted'`,id,userID,in.Status,in.AccountID)
+   tag,err:=database.Exec(r.Context(),`UPDATE recurring_operations SET status=$3,account_id=CASE WHEN $4>0 THEN $4 ELSE account_id END,updated_at=NOW() WHERE id=$1 AND user_id=$2 AND status<>'deleted'`,id,userID,in.Status,in.AccountID)
    if err!=nil{http.Error(w,`{"error":"Не удалось обновить расписание"}`,500);return};if tag.RowsAffected()==0{http.Error(w,`{"error":"Расписание не найдено"}`,404);return};_=json.NewEncoder(w).Encode(map[string]bool{"success":true});return
   }
   in.Title=strings.TrimSpace(in.Title);in.Type=strings.TrimSpace(in.Type);in.Amount=strings.TrimSpace(in.Amount);in.Category=strings.TrimSpace(in.Category)
