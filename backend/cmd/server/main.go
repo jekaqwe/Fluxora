@@ -106,6 +106,14 @@ func main() {
 		recurringHandler(w, r, db)
 	})
 
+	// Долги и кредиты
+	http.HandleFunc("/api/debts", func(w http.ResponseWriter, r *http.Request) {
+		debtsHandler(w, r, db)
+	})
+	http.HandleFunc("/api/debts/", func(w http.ResponseWriter, r *http.Request) {
+		debtsHandler(w, r, db)
+	})
+
 	// Смена пароля
 	http.HandleFunc("/api/account/password", func(w http.ResponseWriter, r *http.Request) {
 		passwordChangeHandler(w, r, db)
