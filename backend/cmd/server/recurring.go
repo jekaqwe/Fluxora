@@ -3,11 +3,13 @@ package main
 import (
  "context"
  "encoding/json"
+ "fmt"
  "log"
  "net/http"
  "strconv"
  "strings"
  "time"
+ "github.com/jackc/pgx/v5"
  "github.com/jackc/pgx/v5/pgtype"
  "github.com/jackc/pgx/v5/pgxpool"
 )
@@ -61,6 +63,28 @@ func nextRecurringDate(d time.Time,frequency string) time.Time {
  }
 }
 func recurringPayloadDate(v string)(time.Time,error){return time.Parse("2006-01-02",v)}
+
+func insertRecurringTransaction(ctx context.Context,tx pgx.Tx,userID,accountID int64,title,kind,amount,category string,date time.Time,comment,key string)(int64,error){
+ var id int64
+ err:=tx.QueryRow(ctx,`INSERT INTO transactions(user_id,account_id,title,operation_type,amount,category,operation_date,comment,idempotency_key)
+  VALUES($1,$2,$3,$4,$5::numeric,$6,$7,$8,$9)
+  ON CONFLICT(user_id,idempotency_key) DO NOTHING RETURNING id`,
+  userID,accountID,title,kind,amount,category,date,comment,key).Scan(&id)
+ if err==nil{return id,nil}
+ if err!=pgx.ErrNoRows{return 0,err}
+ var existingTitle,existingType,existingAmount,existingCategory,existingComment string
+ var existingAccountID int64
+ var existingDate time.Time
+ err=tx.QueryRow(ctx,`SELECT id,title,operation_type,amount::text,category,operation_date,account_id,comment
+  FROM transactions WHERE user_id=$1 AND idempotency_key=$2`,userID,key).
+  Scan(&id,&existingTitle,&existingType,&existingAmount,&existingCategory,&existingDate,&existingAccountID,&existingComment)
+ if err!=nil{return 0,err}
+ if existingTitle!=title||existingType!=kind||existingAmount!=amount||existingCategory!=category||
+  existingDate.Format("2006-01-02")!=date.Format("2006-01-02")||existingAccountID!=accountID||existingComment!=comment{
+  return 0,fmt.Errorf("idempotency key %q is already used for a different transaction",key)
+ }
+ return id,nil
+}
 func recurringHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool){
  if r.URL.Path!="/api/recurring"{recurringItemHandler(w,r,database);return}
  w.Header().Set("Content-Type","application/json");w.Header().Set("Cache-Control","no-store")
@@ -141,8 +165,8 @@ func occurrenceAction(w http.ResponseWriter,r *http.Request,database *pgxpool.Po
   if !accountID.Valid||accountID.Int64<=0{http.Error(w,`{"error":"Сначала назначьте счёт регулярной операции"}`,409);return}
   parsed,_:=time.Parse("2006-01-02",date)
   var idValue int64
-  err=tx.QueryRow(r.Context(),`INSERT INTO transactions(user_id,account_id,title,operation_type,amount,category,operation_date,comment,idempotency_key) VALUES($1,$2,$3,$4,$5::numeric,$6,$7,'Создано из регулярной операции',$8) ON CONFLICT(user_id,idempotency_key) DO UPDATE SET idempotency_key=EXCLUDED.idempotency_key RETURNING id`,userID,accountID.Int64,title,kind,amount,category,parsed,"recurring-occurrence:"+strconv.FormatInt(id,10)).Scan(&idValue)
-  if err!=nil{http.Error(w,`{"error":"Не удалось создать операцию"}`,500);return};transactionID=idValue
+  idValue,err=insertRecurringTransaction(r.Context(),tx,userID,accountID.Int64,title,kind,amount,category,parsed,"Создано из регулярной операции","recurring-occurrence:"+strconv.FormatInt(id,10))
+  if err!=nil{http.Error(w,`{"error":"Ключ регулярной операции уже занят другой финансовой записью или не удалось создать операцию"}`,409);return};transactionID=idValue
  }
  newStatus:="skipped";if action=="confirm"{newStatus="confirmed"}
  _,err=tx.Exec(r.Context(),`UPDATE recurring_occurrences SET status=$2,transaction_id=$3,resolved_at=NOW() WHERE id=$1`,id,newStatus,transactionID)
@@ -181,7 +205,7 @@ func processOneRecurring(ctx context.Context,database *pgxpool.Pool,id int64,tod
  if next.Equal(today){
   if end!=nil&&next.After(*end){_,_=tx.Exec(ctx,`UPDATE recurring_operations SET status='completed',updated_at=NOW() WHERE id=$1`,id);_=tx.Commit(ctx);return}
   key:="recurring:"+strconv.FormatInt(id,10)+":"+next.Format("2006-01-02")
-  _,err=tx.Exec(ctx,`INSERT INTO transactions(user_id,account_id,title,operation_type,amount,category,operation_date,comment,idempotency_key) VALUES($1,$2,$3,$4,$5::numeric,$6,$7,'Автоматическая регулярная операция',$8) ON CONFLICT(user_id,idempotency_key) DO NOTHING`,userID,accountID,title,kind,amount,category,next,key)
+  _,err=insertRecurringTransaction(ctx,tx,userID,accountID,title,kind,amount,category,next,"Автоматическая регулярная операция",key)
   if err!=nil{log.Printf("recurring create transaction: %v",err);return};_,_=tx.Exec(ctx,`INSERT INTO notifications(user_id,notification_type,title,message,related_type,related_id) VALUES($1,'recurring_created','Создана регулярная операция',$2,'recurring',$3)`,userID,title+" · "+next.Format("02.01.2006"),id);next=nextRecurringDate(next,frequency)
  }
  status:="active";if end!=nil&&next.After(*end){status="completed"}
