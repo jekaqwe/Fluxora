@@ -45,3 +45,17 @@ func TestParseImportCSVWithUTF8BOM(t *testing.T) {
   t.Fatalf("unexpected parsed rows: %#v", rows)
  }
 }
+
+func TestParseImportCSVWithCustomColumnMapping(t *testing.T) {
+ data:=[]byte("Дата операции,Описание,Вид,Сумма,Категория,Счёт,Заметка\n2026-11-24,Кофе,expense,250.00,Еда,7,Утренний кофе\n")
+ mapping:=map[string]string{"date":"Дата операции","title":"Описание","type":"Вид","amount":"Сумма","category":"Категория","accountId":"Счёт","comment":"Заметка"}
+ rows,err:=parseImportCSVWithMapping(data,mapping)
+ if err!=nil { t.Fatalf("custom mapping failed: %v",err) }
+ if len(rows)!=1||rows[0].Title!="Кофе"||rows[0].AccountID!=7||rows[0].Comment!="Утренний кофе" { t.Fatalf("unexpected mapped row: %#v",rows) }
+}
+
+func TestCSVSuggestedMappingRussianHeaders(t *testing.T) {
+ headers:=[]string{"Дата операции","Описание","Тип","Сумма","Категория","Счёт","Комментарий"}
+ mapping:=csvSuggestedMapping(headers)
+ if mapping["date"]!="Дата операции"||mapping["title"]!="Описание"||mapping["accountId"]!="Счёт"||mapping["comment"]!="Комментарий" { t.Fatalf("unexpected suggested mapping: %#v",mapping) }
+}
