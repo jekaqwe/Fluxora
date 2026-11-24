@@ -27,6 +27,22 @@ function Settings(){
  const [passwordMessage,setPasswordMessage]=useState("");
  const [passwordError,setPasswordError]=useState("");
  const [savingPassword,setSavingPassword]=useState(false);
+ const [deletePassword,setDeletePassword]=useState("");
+ const [deleteConfirmation,setDeleteConfirmation]=useState("");
+ const [deleteBusy,setDeleteBusy]=useState(false);
+ const [deleteError,setDeleteError]=useState("");
+ const [deleteMessage,setDeleteMessage]=useState("");
+ const deleteAccount=async()=>{
+   setDeleteError("");setDeleteMessage("");setDeleteBusy(true);
+   try{
+     const response=await fetch("/api/account/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:deletePassword,confirmation:deleteConfirmation})});
+     const data=await response.json();
+     if(!response.ok)throw new Error(data.error||"Не удалось удалить аккаунт");
+     setDeleteMessage(data.message||"Аккаунт удалён");
+     window.location.reload();
+   }catch(error){setDeleteError(error instanceof Error?error.message:"Ошибка удаления аккаунта");}
+   finally{setDeleteBusy(false);}
+ };
  const changePassword=async()=>{
    setPasswordMessage("");setPasswordError("");setSavingPassword(true);
    try{
@@ -78,7 +94,14 @@ function Settings(){
  {profileError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{profileError}</p>}
  {profileMessage&&<p role="status" style={{color:"#86efac",fontSize:12}}>{profileMessage}</p>}
  <div className="empty-note">Имя, фамилия и логин изменяются независимо друг от друга. Для каждого поля действует отдельное ограничение: один раз в 14 дней.</div></>}
- {section==="security"&&<><div className="toggle-row"><span><strong>Пароль</strong><br/><small className="muted">Для смены подтвердите текущий пароль</small></span><LockKeyhole size={18}/></div><label className="setting-field">Текущий пароль<input type="password" autoComplete="current-password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} /></label><label className="setting-field">Новый пароль<input type="password" autoComplete="new-password" minLength={8} maxLength={72} value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="От 8 до 72 символов"/></label><button type="button" className="pure-button" disabled={savingPassword||!currentPassword||newPassword.length<8||newPassword.length>72} onClick={changePassword}>{savingPassword?"Сохранение…":"Изменить пароль"}</button>{passwordError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{passwordError}</p>}{passwordMessage&&<p role="status" style={{color:"#86efac",fontSize:12}}>{passwordMessage}</p>}<p className="muted" style={{fontSize:10}}>Пароль хранится в базе только в виде bcrypt-хеша.</p></>}
+ {section==="security"&&<><div className="toggle-row"><span><strong>Пароль</strong><br/><small className="muted">Для смены подтвердите текущий пароль</small></span><LockKeyhole size={18}/></div><label className="setting-field">Текущий пароль<input type="password" autoComplete="current-password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} /></label><label className="setting-field">Новый пароль<input type="password" autoComplete="new-password" minLength={8} maxLength={72} value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="От 8 до 72 символов"/></label><button type="button" className="pure-button" disabled={savingPassword||!currentPassword||newPassword.length<8||newPassword.length>72} onClick={changePassword}>{savingPassword?"Сохранение…":"Изменить пароль"}</button>{passwordError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{passwordError}</p>}{passwordMessage&&<p role="status" style={{color:"#86efac",fontSize:12}}>{passwordMessage}</p>}<p className="muted" style={{fontSize:10}}>Пароль хранится в базе только в виде bcrypt-хеша.</p>
+ <div className="empty-note" style={{marginTop:18,borderColor:"#a33"}}><strong>Удаление аккаунта</strong><p>Личные данные, счета, операции и файлы будут удалены из активной системы. Семейные операции сохранятся с обезличенным автором. Резервные копии могут хранить данные до 7 дней.</p>
+ <label className="setting-field">Подтвердите текущим паролем<input type="password" autoComplete="current-password" value={deletePassword} onChange={e=>setDeletePassword(e.target.value)}/></label>
+ <label className="setting-field">Введите DELETE для подтверждения<input value={deleteConfirmation} onChange={e=>setDeleteConfirmation(e.target.value)} placeholder="DELETE"/></label>
+ <button type="button" className="pure-button" disabled={deleteBusy||!deletePassword||deleteConfirmation!=="DELETE"} onClick={()=>void deleteAccount()}>{deleteBusy?"Удаление…":"Безвозвратно удалить аккаунт"}</button>
+ {deleteError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{deleteError}</p>}
+ {deleteMessage&&<p role="status">{deleteMessage}</p>}
+ </div></>}
  {section==="notifications"&&<>{[["operations","Уведомления об операциях","Сообщать о новых доходах и расходах"],["goals","Прогресс целей","Напоминать о важных этапах накоплений"],["family","Семейные события","Получать обновления общего бюджета"]].map(([k,t,d])=><div className="toggle-row" key={k}><span><strong>{t}</strong><br/><small className="muted">{d}</small></span><button type="button" aria-label={t} aria-pressed={isOn(k)} className={`toggle ${isOn(k)?"on":""}`} onClick={()=>toggle(k)}/></div>)}</>}
  {section==="appearance"&&<><div className="toggle-row"><span><strong>Тема оформления</strong><br/><small className="muted">Выберите внешний вид интерфейса</small></span></div><div className="filter-pills">{["light","dark","auto"].map(t=><button key={t} className={`filter-pill ${theme===t?"active":""}`} onClick={()=>{setTheme(t);localStorage.setItem("fluxora_theme",t);}}>{t==="light"?"Светлая":t==="dark"?"Тёмная":"Авто"}</button>)}</div><p className="muted" style={{fontSize:10,marginTop:12}}>Выбор темы сохраняется в этом браузере. Полная тёмная тема будет добавлена отдельно.</p></>}
  {section==="privacy"&&<>{[["profile","Публичный профиль","Разрешить другим видеть имя и достижения"],["achievements","Достижения","Показывать полученные награды"],["activity","Активность","Показывать события в ленте профиля"]].map(([k,t,d])=><div className="toggle-row" key={k}><span><strong>{t}</strong><br/><small className="muted">{d}</small></span><button type="button" aria-label={t} aria-pressed={isOn(k)} className={`toggle ${isOn(k)?"on":""}`} onClick={()=>toggle(k)}/></div>)}<div className="empty-note" style={{marginTop:14}}>Финансовые суммы и история операций не публикуются в профиле.</div></>}
