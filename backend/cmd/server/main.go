@@ -65,6 +65,11 @@ func main() {
 		avatarHandler(w, r, db)
 	})
 
+	// Смена пароля
+	http.HandleFunc("/api/account/password", func(w http.ResponseWriter, r *http.Request) {
+		passwordChangeHandler(w, r, db)
+	})
+
 	// Выход из аккаунта
 	http.HandleFunc("/api/logout", func(w http.ResponseWriter, r *http.Request) {
 		logoutHandler(w, r, db)
