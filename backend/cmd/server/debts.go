@@ -55,6 +55,7 @@ func debtsHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.Pool){
   rows,err:=database.Query(r.Context(),`SELECT d.id,d.name,d.direction,d.initial_amount::text,(d.initial_amount-COALESCE(SUM(p.amount),0))::text,d.due_date::text,d.comment,d.status,d.created_at FROM debts d LEFT JOIN debt_payments p ON p.debt_id=d.id AND p.user_id=d.user_id WHERE d.user_id=$1 GROUP BY d.id ORDER BY d.created_at DESC,d.id DESC`,userID)
   if err!=nil{http.Error(w,`{"error":"Не удалось загрузить долги"}`,500);return};defer rows.Close();items:=make([]debtResponse,0)
   for rows.Next(){var x debtResponse;var due *string;if err:=rows.Scan(&x.ID,&x.Name,&x.Direction,&x.InitialAmount,&x.RemainingAmount,&due,&x.Comment,&x.Status,&x.CreatedAt);err!=nil{http.Error(w,`{"error":"Ошибка чтения долгов"}`,500);return};x.DueDate=due;items=append(items,x)}
+  if rows.Err()!=nil{http.Error(w,`{"error":"Ошибка чтения долгов"}`,500);return}
   _=json.NewEncoder(w).Encode(items)
  case http.MethodPost:
   r.Body=http.MaxBytesReader(w,r.Body,16<<10);var in debtPayload
@@ -101,6 +102,7 @@ func debtPaymentsHandler(w http.ResponseWriter,r *http.Request,database *pgxpool
   rows,err:=database.Query(r.Context(),`SELECT id,amount::text,account_id,transaction_id,payment_date::text,comment,created_at FROM debt_payments WHERE debt_id=$1 AND user_id=$2 ORDER BY payment_date DESC,id DESC`,debtID,userID)
   if err!=nil{http.Error(w,`{"error":"Не удалось загрузить платежи"}`,500);return};defer rows.Close();items:=make([]debtPaymentResponse,0)
   for rows.Next(){var x debtPaymentResponse;var accountID,txID pgtype.Int8;if err:=rows.Scan(&x.ID,&x.Amount,&accountID,&txID,&x.Date,&x.Comment,&x.CreatedAt);err!=nil{http.Error(w,`{"error":"Ошибка чтения платежей"}`,500);return};if accountID.Valid{v:=accountID.Int64;x.AccountID=&v};if txID.Valid{v:=txID.Int64;x.TransactionID=&v};items=append(items,x)}
+  if rows.Err()!=nil{http.Error(w,`{"error":"Ошибка чтения платежей"}`,500);return}
   _=json.NewEncoder(w).Encode(items);return
  }
  if r.Method!=http.MethodPost{w.Header().Set("Allow","GET, POST");http.Error(w,`{"error":"Метод не поддерживается"}`,405);return}
