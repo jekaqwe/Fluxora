@@ -171,7 +171,7 @@ func goalEntriesHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
  r.Body=http.MaxBytesReader(w,r.Body,16<<10); var in goalEntryPayload
  if err:=json.NewDecoder(r.Body).Decode(&in); err!=nil { http.Error(w,`{"error":"Некорректные данные"}`,400); return }
  in.Type=strings.TrimSpace(in.Type); in.Amount=strings.TrimSpace(in.Amount); in.Comment=strings.TrimSpace(in.Comment); in.IdempotencyKey=strings.TrimSpace(in.IdempotencyKey)
- if (in.Type!="contribution"&&in.Type!="withdrawal")||!validGoalAmount(in.Amount,false)||len([]rune(in.Comment))>500||in.IdempotencyKey==""||len(in.IdempotencyKey)>60 {
+ if (in.Type!="contribution"&&in.Type!="withdrawal")||!validGoalAmount(in.Amount,false)||len([]rune(in.Comment))>500||in.IdempotencyKey==""||len(in.IdempotencyKey)>60||in.AccountID<0||in.TransactionID<0 {
   http.Error(w,`{"error":"Проверьте тип, сумму, комментарий и ключ операции"}`,400); return
  }
  tx,err:=database.Begin(r.Context()); if err!=nil { http.Error(w,`{"error":"Не удалось начать операцию"}`,500); return }; defer tx.Rollback(r.Context())
