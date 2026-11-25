@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { WalletCards, Plus } from "lucide-react";
-import { PageHeading, Panel } from "./ui";
+import { ConfirmPopover, PageHeading, Panel } from "./ui";
 import "./Pure.css";
 
 type Account = {
@@ -33,6 +33,7 @@ function Accounts() {
   const [editName, setEditName] = useState("");
   const [editType, setEditType] = useState<Account["type"]>("bank");
   const [editBalance, setEditBalance] = useState("0");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const load = async () => {
     try {
@@ -95,7 +96,6 @@ function Accounts() {
   };
 
   const removeAccount = async (id: number) => {
-    if (!window.confirm("Удалить счёт? Его история операций также будет удалена.")) return;
     setError("");
     try {
       const response = await fetch(`/api/accounts/${id}`, { method: "DELETE" });
@@ -132,6 +132,7 @@ function Accounts() {
         <button type="button" className="pure-button" style={{ marginTop: 14 }} disabled={saving || !name.trim() || !/^-?(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(balance)} onClick={() => void create()}><Plus size={16}/>{saving ? "Сохранение…" : "Добавить счёт"}</button>
       </Panel>
     </div>
+    <div style={{ marginTop: 16 }}>
     <Panel title="Мои счета" subtitle="Текущие остатки и начальные балансы в рублях">
       {loading ? <div className="empty-note">Загружаем счета…</div> : items.length === 0 ? <div className="empty-note">Счетов пока нет. Создайте первый, чтобы начать вести баланс.</div> :
         <div className="transaction-list">{items.map(item => <div className="transaction-row" key={item.id}>
@@ -143,12 +144,14 @@ function Accounts() {
             <div className="form-row"><button type="button" className="pure-button" onClick={() => void saveEdit()}>Сохранить</button><button type="button" className="pure-button ghost" onClick={() => setEditingId(null)}>Отмена</button></div>
           </div> : <>
             <span className="transaction-copy"><strong>{item.name}</strong><small>{accountTypes[item.type]}</small></span>
-            <strong className="transaction-amount">{item.currentBalance} ₽</strong>
+            <strong className="transaction-amount" style={{ fontSize: 18 }}>{item.currentBalance} ₽</strong>
             <span className="transaction-date">Начальный: {item.initialBalance} ₽</span>
-            <div className="form-row"><button type="button" className="pure-button secondary" onClick={() => beginEdit(item)}>Изменить</button><button type="button" className="pure-button ghost" onClick={() => void removeAccount(item.id)}>Удалить</button></div>
+            <div className="form-row"><button type="button" className="pure-button secondary" onClick={() => beginEdit(item)}>Изменить</button><button type="button" className="pure-button ghost" onClick={() => setConfirmDeleteId(item.id)}>Удалить</button></div>
           </>}
         </div>)}</div>}
     </Panel>
+    </div>
+    {confirmDeleteId !== null && <ConfirmPopover title="Удалить счёт?" message="Его история операций также будет удалена." onCancel={() => setConfirmDeleteId(null)} onConfirm={() => { const id = confirmDeleteId; setConfirmDeleteId(null); void removeAccount(id); }} />}
     {error && <p role="alert" style={{ color: "#f87171", fontSize: 12 }}>{error}</p>}
   </div>;
 }
