@@ -67,7 +67,7 @@ function Home() {
         <Panel title="Расходы по категориям" subtitle="Распределение за текущий месяц">
           {analytics?.categories.length?<div style={{display:"flex",alignItems:"center",justifyContent:"space-around",gap:16,flexWrap:"wrap"}}>
             <Donut segments={shares} center="100%" caption="расходов" labels={analytics.categories.map(item=>item.name)} values={analytics.categories.map(item=>money(item.amount))}/>
-            <div className="chart-legend">{analytics.categories.map((item,index)=><div className="legend-row" key={item.name}><i className="legend-dot" style={{background:colors[index%colors.length]}}/><span>{item.name}</span><strong>{shares[index].toFixed(1).replace(".",",")}% · {money(item.amount)}</strong></div>)}</div>
+            <div className="chart-legend">{analytics.categories.map((item,index)=><div className="legend-row" key={item.name}><i className="legend-dot" style={{background:colors[index%colors.length]}}/><span>{item.name}</span><strong>{money(item.amount)} · {shares[index].toFixed(1).replace(".",",")}%</strong></div>)}</div>
           </div>:<div className="empty-note">Нет расходов по категориям за этот месяц.</div>}
         </Panel>
       </div>
