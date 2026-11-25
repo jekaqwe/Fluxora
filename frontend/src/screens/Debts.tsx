@@ -42,7 +42,7 @@ function Debts(){
  return <div className="pure-page">
   <PageHeading title="Долги и кредиты" subtitle="Упрощённый учёт обязательств и возвратов" action={<button className="pure-button" onClick={()=>setShowForm(v=>!v)}><Plus size={15}/>Добавить долг</button>}/>
   <div className="pure-grid two"><Stat label="Я должен" value={moneyCents(iOwe)} tone="violet" icon={<ArrowUpRight size={17}/>}/><Stat label="Мне должны" value={moneyCents(owed)} tone="mint" icon={<ArrowDownLeft size={17}/>}/></div>
-  {showForm&&<Panel title="Новый долг"><div className="pure-grid two" style={{ marginTop: 16 }}>
+  {showForm&&<Panel title="Новый долг" style={{ marginTop: 16 }}><div className="pure-grid two">
    <label className="form-label">Название<input className="pure-input" value={name} onChange={e=>setName(e.target.value)} placeholder="Например, Кредит"/></label>
    <label className="form-label">Направление<select className="pure-select" value={direction} onChange={e=>setDirection(e.target.value as "i_owe"|"owed_to_me")}><option value="i_owe">Я должен</option><option value="owed_to_me">Мне должны</option></select></label>
    <label className="form-label">Сумма, ₽<input className="pure-input" value={initialAmount} onChange={e=>setInitialAmount(e.target.value)} placeholder="0.00"/></label>
