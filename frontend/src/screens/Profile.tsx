@@ -52,9 +52,11 @@ function Profile(){
     <div className="empty-note" style={{marginTop:16}}>Следующий уровень открывается каждые 100 XP.</div>
    </Panel>
   </div>
+  <div style={{ marginTop: 16 }}>
   <Panel title="Активность" subtitle="Последовательные дни финансовых действий">
    <div className="member-row"><div className="transaction-icon"><CalendarDays size={16}/></div><div className="member-copy"><strong>{game?.currentStreak??0} дней подряд</strong><small>Активность учитывает операции, семейные записи и движения по целям.</small></div></div>
   </Panel>
+   </div>
  </div>;
 }
 export default Profile;
