@@ -43,6 +43,8 @@ function Goals(){
  const resetForm=()=>{setShow(false);setLimitExceeded(false);setEditingId(null);setTitle("");setTarget("");setStarting("0");setDueDate("");setPriority("medium");setDescription("");};
  const beginEdit=(g:Goal)=>{setEditingId(g.id);setTitle(g.title);setTarget(g.targetAmount);setStarting(g.startingAmount);setDueDate(g.dueDate||"");setPriority(g.priority);setDescription(g.description);setShow(true);};
  const save=async()=>{
+  if(editingId===null&&goals.length>=3){setLimitExceeded(true);return;}
+  if(!validGoalTarget(target)){setError("Целевая сумма не должна превышать 999 999 999 ₽");return;}
   setError("");setSaving(true);
   try{
    const response=await fetch(editingId===null?"/api/goals":`/api/goals/${editingId}`,{method:editingId===null?"POST":"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,description,targetAmount:target.replace(",", "."),startingAmount:starting.replace(",", "."),dueDate,priority,status:editingId===null?"active":(goals.find(g=>g.id===editingId)?.status||"active")})});
