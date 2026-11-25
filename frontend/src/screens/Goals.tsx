@@ -66,7 +66,7 @@ function Goals(){
   try{const r=await fetch(`/api/goals/${id}/image`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить изображение");setGoals(old=>old.map(g=>g.id===id?{...g,imageUrl:undefined}:g));}
   catch(e){setError(e instanceof Error?e.message:"Ошибка удаления изображения");}
  };
- const remove=async(id:number)=>{try{const r=await fetch(`/api/goals/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить цель");setGoals(old=>old.filter(g=>g.id!==id));}catch(e){setError(e instanceof Error?e.message:"Ошибка удаления");}};
+ const remove=async(id:number)=>{try{const goal=goals.find(g=>g.id===id);if(goal?.status==="paused"){const resume=await fetch(`/api/goals/${id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({...goal,status:"active"})});const resumed=await resume.json();if(!resume.ok)throw new Error(resumed.error||"Не удалось возобновить цель перед удалением");}const r=await fetch(`/api/goals/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить цель");setGoals(old=>old.filter(g=>g.id!==id));}catch(e){setError(e instanceof Error?e.message:"Ошибка удаления");}};
  const togglePause=async(g:Goal)=>{try{const r=await fetch(`/api/goals/${g.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({...g,status:g.status==="paused"?"active":"paused"})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось изменить статус");setGoals(old=>old.map(x=>x.id===g.id?d:x));}catch(e){setError(e instanceof Error?e.message:"Ошибка статуса");}};
  const showHistory=async(id:number)=>{if(historyGoalId===id){setHistoryGoalId(null);return;}try{const r=await fetch(`/api/goals/${id}/entries`);const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось загрузить историю");setHistory(old=>({...old,[id]:d}));setHistoryGoalId(id);}catch(e){setError(e instanceof Error?e.message:"Ошибка истории");}};
  const total=goals.reduce((sum,g)=>sum+toCents(g.currentAmount),0n);
@@ -75,17 +75,20 @@ function Goals(){
  return <div className="pure-page" style={{padding:16}}>
   <PageHeading title="Цели" subtitle="Планируйте накопления и приближайте мечты" action={<button className="pure-button" onClick={()=>{resetForm();setShow(true);}}><Plus size={16}/>Создать цель</button>}/>
   <div className="pure-grid two"><Stat label="Всего накоплено" value={moneyCents(total)} change="По всем целям" icon={<Target size={17}/>}/><Stat label="Активные цели" value={String(active)} change="Ваш план накоплений" tone="mint"/></div>
-  {show&&<Panel title={editingId===null?"Новая цель":"Изменить цель"}>
-   <div className="pure-grid two">
-    <label className="form-label">Название<input className="pure-input" value={title} onChange={e=>setTitle(e.target.value)} maxLength={120} placeholder="Например, Путешествие"/></label>
-    <label className="form-label">Целевая сумма, ₽<input className="pure-input" value={target} onChange={e=>setTarget(e.target.value)} placeholder="100000"/></label>
-    <label className="form-label">Уже накоплено, ₽<input className="pure-input" value={starting} onChange={e=>setStarting(e.target.value)} placeholder="0"/></label>
-    <label className="form-label">Срок<input className="pure-input" type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}/></label>
-    <label className="form-label">Приоритет<select className="pure-select" value={priority} onChange={e=>setPriority(e.target.value as Priority)}><option value="low">Низкий</option><option value="medium">Средний</option><option value="high">Высокий</option></select></label>
-    <label className="form-label">Описание<input className="pure-input" value={description} onChange={e=>setDescription(e.target.value)} maxLength={1000}/></label>
-   </div>
-   <div className="form-row" style={{marginTop:13}}><button className="pure-button" disabled={saving||!title.trim()||!validAmount(target)||!(/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(starting))} onClick={()=>void save()}>{saving?"Сохранение…":editingId===null?"Добавить цель":"Сохранить изменения"}</button><button className="pure-button ghost" onClick={resetForm}><X size={14}/>Отмена</button></div>
-  </Panel>}
+    {show&&<div className="debt-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)resetForm();}}>
+   <section className="debt-modal goal-modal" role="dialog" aria-modal="true" aria-labelledby="goal-modal-title">
+    <div className="debt-modal-heading"><div><strong id="goal-modal-title">{editingId===null?"Создать цель":"Редактировать цель"}</strong><small>Настройте параметры накоплений</small></div><button type="button" className="pure-button ghost debt-modal-close" aria-label="Закрыть" onClick={resetForm}><X size={16}/></button></div>
+    <div className="pure-grid two">
+     <label className="form-label">Название<input className="pure-input" value={title} onChange={e=>setTitle(e.target.value)} maxLength={120} placeholder="Например, Путешествие"/></label>
+     <label className="form-label">Целевая сумма, ₽<input className="pure-input" value={target} onChange={e=>setTarget(e.target.value)} placeholder="100000"/></label>
+     <label className="form-label">Уже накоплено, ₽<input className="pure-input" value={starting} onChange={e=>setStarting(e.target.value)} placeholder="0"/></label>
+     <label className="form-label">Срок<input className="pure-input" type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}/></label>
+     <label className="form-label">Приоритет<select className="pure-select" value={priority} onChange={e=>setPriority(e.target.value as Priority)}><option value="low">Низкий</option><option value="medium">Средний</option><option value="high">Высокий</option></select></label>
+     <label className="form-label">Описание<input className="pure-input" value={description} onChange={e=>setDescription(e.target.value)} maxLength={1000}/></label>
+    </div>
+    <div className="debt-modal-actions"><button className="pure-button" disabled={saving||!title.trim()||!validAmount(target)||!(/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(starting))} onClick={()=>void save()}>{saving?"Сохранение…":editingId===null?"Создать цель":"Сохранить изменения"}</button><button className="pure-button ghost" onClick={resetForm}>Отмена</button></div>
+   </section>
+  </div>}
   {loading?<div className="empty-note">Загружаем цели…</div>:goals.length===0?<div className="empty-note">Целей пока нет. Создайте первую и начните копить на важное.</div>:
    <div className="pure-grid three" style={{marginTop:16}}>{goals.map(g=>{
     const current=toCents(g.currentAmount);const targetCents=toCents(g.targetAmount);
@@ -107,10 +110,17 @@ function Goals(){
        <button className="pure-button ghost" onClick={()=>setConfirmDeleteId(g.id)}><Trash2 size={14}/></button>
       </div>
       {entryGoalId===g.id&&<div style={{marginTop:12}}><label className="form-label">{entryType==="contribution"?"Пополнение, ₽":"Снятие, ₽"}<input className="pure-input" value={entryAmount} onChange={e=>setEntryAmount(e.target.value)} placeholder="0.00"/></label><label className="form-label" style={{marginTop:8}}>Счёт<select className="pure-select" value={entryAccountId} onChange={e=>setEntryAccountId(e.target.value)}>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label><div className="form-row" style={{marginTop:8}}><button className="pure-button" disabled={!validAmount(entryAmount)||!entryAccountId} onClick={()=>void recordEntry()}>Подтвердить</button><button className="pure-button ghost" onClick={()=>setEntryGoalId(null)}>Отмена</button></div></div>}
-      {historyGoalId===g.id&&<div className="empty-note" style={{marginTop:12}}>{(history[g.id]||[]).length?(history[g.id]||[]).map(e=><div key={e.id} className="legend-row"><span>{e.type==="contribution"?"Пополнение":"Снятие"} · {new Date(e.createdAt).toLocaleDateString("ru-RU")}</span><strong>{money(e.amount)}</strong></div>):"История пока пуста."}</div>}
+
      </div>
     </Panel>;
    })}</div>}
+  {historyGoalId!==null&&<div className="debt-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setHistoryGoalId(null);}}>
+   <section className="debt-modal goal-history-modal" role="dialog" aria-modal="true" aria-labelledby="goal-history-title">
+    <div className="debt-modal-heading"><div><strong id="goal-history-title">История цели «{goals.find(g=>g.id===historyGoalId)?.title||""}»</strong><small>Все пополнения и снятия</small></div><button type="button" className="pure-button ghost debt-modal-close" aria-label="Закрыть" onClick={()=>setHistoryGoalId(null)}><X size={16}/></button></div>
+    <div className="goal-history-list">{(history[historyGoalId]||[]).length?(history[historyGoalId]||[]).map(e=><div key={e.id} className="legend-row"><span>{e.type==="contribution"?"Пополнение":"Снятие"} · {new Date(e.createdAt).toLocaleDateString("ru-RU")}</span><strong>{money(e.amount)}</strong></div>):<div className="empty-note">История пока пуста.</div>}</div>
+    <div className="debt-modal-actions"><button className="pure-button ghost" onClick={()=>setHistoryGoalId(null)}>Закрыть</button></div>
+   </section>
+  </div>}
   {confirmDeleteId!==null&&<ConfirmPopover title="Удалить цель?" message="Цель и вся её история будут удалены." onCancel={()=>setConfirmDeleteId(null)} onConfirm={()=>{const id=confirmDeleteId;setConfirmDeleteId(null);void remove(id);}}/>}
   {error&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{error}</p>}
  </div>;
