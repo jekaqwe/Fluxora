@@ -117,8 +117,8 @@ function Settings(){
  };
  const isOn=(key:string)=>prefs[key]??true;
  return <div className="pure-page"><PageHeading title="Настройки" subtitle="Управляйте аккаунтом и параметрами Fluxora"/>
- <div className="pure-grid two" style={{gridTemplateColumns:"minmax(170px,.65fr) minmax(0,2fr)"}}>
- <Panel title="Разделы настроек"><nav className="setting-nav">{sections.map(({id,label,Icon})=><button key={id} className={section===id?"active":""} onClick={()=>setSection(id)}><Icon size={15}/>{label}</button>)}</nav></Panel>
+ <div className="pure-grid two" style={{gridTemplateColumns:"292.16px minmax(0,1fr)"}}>
+ <Panel title="Разделы настроек" className="settings-sections-panel"><nav className="setting-nav">{sections.map(({id,label,Icon})=><button key={id} className={section===id?"active":""} onClick={()=>setSection(id)}><Icon size={15}/>{label}</button>)}</nav></Panel>
  <Panel title={sections.find(s=>s.id===section)?.label||"Настройки"} subtitle="Параметры вашего аккаунта и приложения">
  {section==="account"&&<><div className="pure-grid two">
    {(["firstName","lastName","username"] as ProfileField[]).map((field)=>{
