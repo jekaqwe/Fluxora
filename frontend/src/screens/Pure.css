@@ -165,3 +165,17 @@
 .donut-value { max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 :root[data-theme="dark"] { --chart-grid:#2b3d58;--chart-border:#344866;--chart-tooltip:#17263d;--chart-ink:#e7eefc; }
 :root[data-theme="dark"] .chart-axis-label { fill:#8fa2bf; }
+
+/* Точные размеры и компактная сводка графиков главной */
+.line-chart-layout { display:grid;grid-template-columns:minmax(0,1fr) 128px;gap:13px;align-items:center; }
+.line-chart-legend { display:grid;gap:11px;min-width:0;padding-left:11px;border-left:1px solid var(--chart-border,#e3eaf5); }
+.line-chart-legend-title { display:flex;align-items:center;gap:6px;color:var(--chart-ink,#263f67);font-size:10px;font-weight:700; }
+.line-chart-legend-title i { width:15px;height:3px;border-radius:4px;background:#438bfa; }
+.line-chart-legend div { display:grid;gap:3px;min-width:0; }
+.line-chart-legend small { color:#91a0b7;font-size:9px; }
+.line-chart-legend strong { overflow-wrap:anywhere;color:var(--chart-ink,#263f67);font-size:11px; }
+.donut-wrap { width:200px;height:200px;flex:0 0 200px; }
+@media(max-width:1100px) { .line-chart-layout { grid-template-columns:minmax(0,1fr) 112px;gap:9px; }.line-chart-legend { padding-left:8px; } }
+@media(max-width:650px) { .line-chart-layout { grid-template-columns:minmax(0,1fr) 105px;gap:8px; }.line-chart-legend { gap:8px; }.line-chart-legend strong { font-size:10px; } }
+:root[data-theme="dark"] .line-chart-legend-title,
+:root[data-theme="dark"] .line-chart-legend strong { color:#e7eefc; }
