@@ -43,7 +43,7 @@ function Home() {
   })??[],[analytics,categoryTotal]);
   const trend=analytics?.trend??[];
   const trendValues=trend.map(item=>Number(item.expense));
-  const max=Math.max(1,...trendValues);
+  
   const labels=trend.map(item=>new Date(item.date+"T00:00:00").toLocaleDateString("ru-RU",{day:"2-digit",month:"2-digit"}));
   return <div className="pure-page" style={{padding:16}}>
     <PageHeading title="Главная" subtitle="Ваши финансы. Ваши цели. Вместе с Fluxora."/>
@@ -62,12 +62,12 @@ function Home() {
       </Panel>}
       <div className="pure-grid two" style={{marginTop:16}}>
         <Panel title="Динамика расходов" subtitle="По дням текущего месяца">
-          {trend.length?<LineChart values={trendValues.map(v=>Math.max(4,Math.round(v/max*100)))} labels={labels}/>:<div className="empty-note">За этот месяц операций пока нет.</div>}
+          {trend.length?<LineChart values={trendValues} labels={labels} valueLabels={trend.map(item=>money(item.expense))}/>:<div className="empty-note">За этот месяц операций пока нет.</div>}
         </Panel>
         <Panel title="Расходы по категориям" subtitle="Распределение за текущий месяц">
           {analytics?.categories.length?<div style={{display:"flex",alignItems:"center",justifyContent:"space-around",gap:16,flexWrap:"wrap"}}>
-            <Donut segments={shares} center="100%" caption="расходов"/>
-            <div className="chart-legend">{analytics.categories.map((item,index)=><div className="legend-row" key={item.name}><i className="legend-dot" style={{background:colors[index%colors.length]}}/><span>{item.name}</span><strong>{shares[index].toFixed(1).replace(".",",")}%</strong></div>)}</div>
+            <Donut segments={shares} center="100%" caption="расходов" labels={analytics.categories.map(item=>item.name)} values={analytics.categories.map(item=>money(item.amount))}/>
+            <div className="chart-legend">{analytics.categories.map((item,index)=><div className="legend-row" key={item.name}><i className="legend-dot" style={{background:colors[index%colors.length]}}/><span>{item.name}</span><strong>{shares[index].toFixed(1).replace(".",",")}% · {money(item.amount)}</strong></div>)}</div>
           </div>:<div className="empty-note">Нет расходов по категориям за этот месяц.</div>}
         </Panel>
       </div>
