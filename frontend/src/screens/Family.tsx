@@ -133,8 +133,8 @@ function Family(){
  const filteredIncome=filteredTransactions.filter(item=>item.type==="income").reduce((sum,item)=>sum+cents(item.amount),0n);
  const filteredExpense=filteredTransactions.filter(item=>item.type==="expense").reduce((sum,item)=>sum+cents(item.amount),0n);
 
- if(loading)return <div className="pure-page"><div className="empty-note">Загружаем семейный бюджет…</div></div>;
- return <div className="pure-page">
+ if(loading)return <div className="pure-page" style={{padding:16}}><div className="empty-note">Загружаем семейный бюджет…</div></div>;
+ return <div className="pure-page" style={{padding:16}}>
   <PageHeading title="Семья" subtitle="Общий бюджет и финансовые планы семьи"/>
   {!family?<div className="pure-grid two">
    <Panel title="Создать семейный бюджет" subtitle="Начальный баланс задаётся владельцем">
