@@ -121,8 +121,8 @@ export default function CSVTools({ accounts, onImported }: { accounts: Account[]
 
   return (
     <Panel title="CSV: импорт и экспорт" subtitle="Переносите операции между Fluxora и таблицами" className="compact-tools-panel csv-compact-panel">
-      <div className="pure-grid two">
-        <div>
+      <div className="pure-grid two csv-columns">
+        <div className="csv-column csv-export-column">
           <strong>Экспорт операций</strong>
           <div className="pure-grid two" style={{ marginTop: 10 }}>
             <label className="form-label">С даты<input className="pure-input" type="date" value={from} max={to || undefined} onChange={e => setFrom(e.target.value)} /></label>
@@ -132,13 +132,13 @@ export default function CSVTools({ accounts, onImported }: { accounts: Account[]
           </div>
           <a className="pure-button" href={exportURL} style={{ marginTop: 12, display: "inline-flex" }}><Download size={15} />Скачать CSV</a>
         </div>
-        <div>
+        <div className="csv-column csv-import-column">
           <strong>Импорт операций</strong>
-          <label className="pure-button secondary" style={{ marginTop: 10, cursor: "pointer", display: "inline-flex" }}>
+          <label className="pure-button secondary csv-choose-button" style={{ marginTop: 10, cursor: "pointer", display: "inline-flex" }}>
             <FileUp size={15} />{busy ? "Читаем…" : "Выбрать CSV"}
             <input type="file" accept=".csv,text/csv" hidden disabled={busy} onChange={chooseFile} />
           </label>
-          <p className="muted" style={{ fontSize: 11, marginTop: 8 }}>До 5 МБ. Поддерживается автоматическое распознавание CSV Tinkoff и ручное сопоставление остальных файлов.</p>
+          <p className="muted csv-import-help" style={{ fontSize: 11, marginTop: 8 }}>До 5 МБ. Поддерживается автоматическое распознавание CSV Tinkoff и ручное сопоставление остальных файлов.</p>
         </div>
       </div>
 
