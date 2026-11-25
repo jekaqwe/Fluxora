@@ -69,42 +69,50 @@ export default function QuickEntry({ onSaved }: { onSaved: () => void }) {
   };
 
   return <Panel title="Быстрая операция" subtitle="Добавьте доход или расход, не переходя в историю"
-    action={<button type="button" className="pure-button" onClick={() => setOpen(value => !value)}>{open ? <X size={15}/> : <Plus size={15}/>} {open ? "Свернуть" : "Добавить"}</button>}>
-    {open && (accounts.length === 0 ? <div className="empty-note">Сначала создайте счёт в разделе «Счета».</div> : <>
-      <div className="pure-grid three">
-        <label className="form-label">Тип
-          <select className="pure-select" value={kind} onChange={event => setKind(event.target.value as OperationType)}>
-            <option value="expense">Расход</option><option value="income">Доход</option>
-          </select>
-        </label>
-        <label className="form-label">Название
-          <input className="pure-input" value={title} onChange={event => setTitle(event.target.value)} maxLength={160} placeholder="Например, Продукты"/>
-        </label>
-        <label className="form-label">Сумма, ₽
-          <input className="pure-input" inputMode="decimal" value={amount} onChange={event => setAmount(event.target.value)} placeholder="0,00"/>
-        </label>
-        <label className="form-label">Категория
-          <input className="pure-input" value={category} onChange={event => setCategory(event.target.value)} maxLength={80}/>
-        </label>
-        <label className="form-label">Дата
-          <input className="pure-input" type="date" value={date} onChange={event => setDate(event.target.value)}/>
-        </label>
-        <label className="form-label">Счёт
-          <select className="pure-select" value={accountId} onChange={event => setAccountId(event.target.value)}>
-            {accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}
-          </select>
-        </label>
-        <label className="form-label">Комментарий
-          <input className="pure-input" value={comment} onChange={event => setComment(event.target.value)} maxLength={1000}/>
-        </label>
-      </div>
-      {error && <p role="alert" style={{color:"#dc5555",fontSize:12}}>{error}</p>}
-      <div className="form-row" style={{marginTop:14}}>
-        <button type="button" className="pure-button" disabled={saving || !title.trim() || !category.trim() || !accountId || !validAmount(amount)} onClick={() => void save()}>
-          {saving ? "Сохранение…" : "Сохранить операцию"}
-        </button>
-        <button type="button" className="pure-button ghost" onClick={() => setOpen(false)}>Отмена</button>
-      </div>
-    </>)}
+    action={<button type="button" className="pure-button" onClick={() => { setError(""); setOpen(true); }}><Plus size={15}/> Добавить</button>}>
+    {open && <div className="debt-modal-backdrop quick-entry-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !saving) setOpen(false); }}>
+      <section className="debt-modal quick-entry-modal" role="dialog" aria-modal="true" aria-labelledby="quick-entry-title">
+        <div className="debt-modal-heading">
+          <div><strong id="quick-entry-title">Быстрая операция</strong><small>Добавьте доход или расход</small></div>
+          <button type="button" className="pure-button ghost debt-modal-close" aria-label="Закрыть" onClick={() => setOpen(false)} disabled={saving}><X size={17}/></button>
+        </div>
+        {accounts.length === 0 ? <div className="empty-note">Сначала создайте счёт в разделе «Счета».</div> : <>
+          <div className="quick-entry-grid">
+            <label className="form-label">Тип
+              <select className="pure-select" value={kind} onChange={event => setKind(event.target.value as OperationType)}>
+                <option value="expense">Расход</option><option value="income">Доход</option>
+              </select>
+            </label>
+            <label className="form-label">Название
+              <input className="pure-input" value={title} onChange={event => setTitle(event.target.value)} maxLength={160} placeholder="Например, Продукты"/>
+            </label>
+            <label className="form-label">Сумма, ₽
+              <input className="pure-input" inputMode="decimal" value={amount} onChange={event => setAmount(event.target.value)} placeholder="0,00"/>
+            </label>
+            <label className="form-label">Категория
+              <input className="pure-input" value={category} onChange={event => setCategory(event.target.value)} maxLength={80}/>
+            </label>
+            <label className="form-label">Дата
+              <input className="pure-input" type="date" value={date} onChange={event => setDate(event.target.value)}/>
+            </label>
+            <label className="form-label">Счёт
+              <select className="pure-select" value={accountId} onChange={event => setAccountId(event.target.value)}>
+                {accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}
+              </select>
+            </label>
+            <label className="form-label debt-modal-comment">Комментарий
+              <input className="pure-input" value={comment} onChange={event => setComment(event.target.value)} maxLength={1000}/>
+            </label>
+          </div>
+          {error && <p role="alert" className="debt-modal-error">{error}</p>}
+          <div className="debt-modal-actions">
+            <button type="button" className="pure-button ghost" onClick={() => setOpen(false)} disabled={saving}>Отмена</button>
+            <button type="button" className="pure-button" disabled={saving || !title.trim() || !category.trim() || !accountId || !validAmount(amount)} onClick={() => void save()}>
+              {saving ? "Сохранение…" : "Сохранить операцию"}
+            </button>
+          </div>
+        </>}
+      </section>
+    </div>}
   </Panel>;
 }
