@@ -116,7 +116,6 @@ function App() {
         </nav>
         <div className="sidebar-bottom">
           <button type="button" className="sidebar-link sidebar-logout" title="Выйти" aria-label="Выйти" onClick={handleLogout}><LogOut size={19} /><span>Выйти</span></button>
-          <div className="sidebar-version">FLUXORA <span>•</span> PURE</div>
         </div>
       </aside>
       <main className="app-main"><div className="mobile-top-spacer" />{page}</main>
