@@ -85,5 +85,5 @@ export default function RecurringPanel({accounts}:{accounts:Account[]}){
    </div>)}</div>
   </Panel>}
   {error&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{error}</p>}
- </>;
+ </div>;
 }
