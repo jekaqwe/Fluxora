@@ -64,7 +64,7 @@
 .compact-tools-panel .panel-heading { margin-bottom:11px; }
 .csv-compact-panel .csv-columns { gap:16px;align-items:stretch; }
 .csv-compact-panel .csv-column { min-width:0;display:flex;flex-direction:column;align-items:stretch; }
-.csv-compact-panel .csv-import-column { border-left:1px solid #cbd5e1;padding-left:16px; }
+.csv-compact-panel .csv-import-column { border-left:1px solid #6f83a3;padding-left:16px; }
 .csv-compact-panel .csv-choose-button { align-self:center; }
 .csv-compact-panel .csv-import-help { margin-top:8px;text-align:center; }
 .csv-compact-panel .pure-grid.two { gap:9px; }
