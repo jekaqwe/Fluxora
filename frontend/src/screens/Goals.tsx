@@ -10,7 +10,8 @@ type Entry={id:number;type:"contribution"|"withdrawal";amount:string;comment:str
 const toCents=(value:string)=>{const negative=value.startsWith("-");const [whole,fraction=""]=value.replace("-","").replace(",",".").split(".");const cents=BigInt(whole||"0")*100n+BigInt((fraction+"00").slice(0,2));return negative?-cents:cents;};
 const moneyCents=(value:bigint)=>{const negative=value<0n;const abs=negative?-value:value;return (negative?"−":"")+new Intl.NumberFormat("ru-RU").format(abs/100n)+","+(abs%100n).toString().padStart(2,"0")+" ₽";};
 const money=(value:string)=>moneyCents(toCents(value));
-const validAmount=(value:string)=>/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(value)&&toCents(value)>0n;\nconst validGoalTarget=(value:string)=>/^(?:0|[1-9][0-9]{0,8})(?:[.,][0-9]{1,2})?$/.test(value)&&toCents(value)>0n&&toCents(value)<=99999999900n;
+const validAmount=(value:string)=>/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(value)&&toCents(value)>0n;
+const validGoalTarget=(value:string)=>/^(?:0|[1-9][0-9]{0,8})(?:[.,][0-9]{1,2})?$/.test(value)&&toCents(value)>0n&&toCents(value)<=99999999900n;
 
 function Goals(){
  const [goals,setGoals]=useState<Goal[]>([]);
@@ -18,7 +19,8 @@ function Goals(){
  const [entryAccountId,setEntryAccountId]=useState("");
  const [loading,setLoading]=useState(true);
  const [error,setError]=useState("");
- const [show,setShow]=useState(false);\n const [limitExceeded,setLimitExceeded]=useState(false);
+ const [show,setShow]=useState(false);
+ const [limitExceeded,setLimitExceeded]=useState(false);
  const [editingId,setEditingId]=useState<number|null>(null);
  const [title,setTitle]=useState("");
  const [target,setTarget]=useState("");
