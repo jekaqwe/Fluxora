@@ -132,7 +132,7 @@ function Operations() {
     }
   };
 
-  return <div className="pure-page" style={{padding:16}}>
+  return <div className="pure-page" style={{padding:16, display:"flex", flexDirection:"column", gap:16}}>
     <PageHeading title="Операции" subtitle="Доходы, расходы и переводы между счетами" action={<button className="pure-button" onClick={() => setShowForm(v => !v)}><Plus size={16}/>Добавить операцию</button>}/>
     <div className="pure-grid three">
       <Stat label="Доходы" value={formatCents(income)} tone="mint" icon={<ArrowDownLeft size={17}/>}/>
