@@ -145,7 +145,7 @@ function Operations() {
       <Stat label="Расходы" value={formatCents(expense)} tone="violet" icon={<ArrowUpRight size={17}/>}/>
       <Stat label="Разница" value={formatCents(income - expense)} change="Без учёта переводов"/>
     </div>
-    {showForm && <Panel title="Новая операция" className="form-panel">
+    {showForm && <div className="operation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) { setShowForm(false); setEditingId(null); } }}><Panel title={editingId === null ? "Новая операция" : "Редактирование операции"} className="form-panel operation-modal">
       {accounts.length === 0 ? <div className="empty-note">Сначала создайте хотя бы один счёт в разделе «Счета».</div> : <>
         <div className="pure-grid three">
           <label className="form-label">Тип<select className="pure-select" value={kind} onChange={e => setKind(e.target.value as OperationType)}>{Object.entries(typeLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
@@ -159,9 +159,8 @@ function Operations() {
         </div>
         <div className="form-row" style={{marginTop:14}}><button className="pure-button" disabled={saving || !title.trim() || !isPositiveAmount(amount) || (kind === "transfer" && (!transferAccountId || transferAccountId === accountId))} onClick={() => void add()}>{saving ? "Сохранение…" : editingId === null ? "Сохранить операцию" : "Сохранить изменения"}</button><button className="pure-button ghost" onClick={() => {setShowForm(false);setEditingId(null);}}><X size={15}/>Отмена</button></div>
       </>}
-    </Panel>}
-    <RecurringPanel accounts={accounts}/>
-    <CSVTools accounts={accounts} onImported={()=>void load()}/>
+    </Panel></div>}
+    <div className="operations-tools-grid"><RecurringPanel accounts={accounts}/><CSVTools accounts={accounts} onImported={()=>void load()}/></div>
     <Panel title="История операций" subtitle={`${visible.length} записей`}>
       <div className="form-row" style={{justifyContent:"space-between",marginBottom:16,flexWrap:"wrap"}}>
         <div className="filter-pills">{[["all","Все"],["income","Доходы"],["expense","Расходы"],["transfer","Переводы"]].map(([key,label])=><button key={key} className={`filter-pill ${filter===key?"active":""}`} onClick={()=>{setFilter(key);setHistoryPage(1);}}>{label}</button>)}</div>
