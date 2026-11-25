@@ -12,6 +12,7 @@ const moneyCents=(value:bigint)=>{const negative=value<0n;const abs=negative?-va
 const money=(value:string)=>moneyCents(toCents(value));
 const validAmount=(value:string)=>/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(value)&&toCents(value)>0n;
 const validGoalTarget=(value:string)=>/^(?:0|[1-9][0-9]{0,8})(?:[.,][0-9]{1,2})?$/.test(value)&&toCents(value)>0n&&toCents(value)<=99999999900n;
+const validGoalStarting=(value:string)=>/^(?:0|[1-9][0-9]{0,8})(?:[.,][0-9]{1,2})?$/.test(value)&&toCents(value)>=0n&&toCents(value)<=99999999900n;
 
 function Goals(){
  const [goals,setGoals]=useState<Goal[]>([]);
@@ -29,6 +30,7 @@ function Goals(){
  const [priority,setPriority]=useState<Priority>("medium");
  const [description,setDescription]=useState("");
  const [saving,setSaving]=useState(false);
+ const [invalidFields,setInvalidFields]=useState<Record<string,boolean>>({});
  const [entryGoalId,setEntryGoalId]=useState<number|null>(null);
  const [entryAmount,setEntryAmount]=useState("");
  const [entryType,setEntryType]=useState<"contribution"|"withdrawal">("contribution");
@@ -40,11 +42,13 @@ function Goals(){
  const load=async()=>{try{const [r,a]=await Promise.all([fetch("/api/goals"),fetch("/api/accounts")]);const [d,accountData]=await Promise.all([r.json(),a.json()]);if(!r.ok||!a.ok)throw new Error("Не удалось загрузить цели и счета");setGoals(d);setAccounts(accountData);if(accountData.length&&!accountData.some((a:Account)=>String(a.id)===entryAccountId))setEntryAccountId(String(accountData[0].id));}catch(e){setError(e instanceof Error?e.message:"Ошибка загрузки");}finally{setLoading(false);}};
  useEffect(()=>{void load();},[]);
 
- const resetForm=()=>{setShow(false);setLimitExceeded(false);setEditingId(null);setTitle("");setTarget("");setStarting("0");setDueDate("");setPriority("medium");setDescription("");};
- const beginEdit=(g:Goal)=>{setEditingId(g.id);setTitle(g.title);setTarget(g.targetAmount);setStarting(g.startingAmount);setDueDate(g.dueDate||"");setPriority(g.priority);setDescription(g.description);setShow(true);};
+ const resetForm=()=>{setShow(false);setLimitExceeded(false);setEditingId(null);setTitle("");setTarget("");setStarting("0");setDueDate("");setPriority("medium");setDescription("");setInvalidFields({});};
+ const beginEdit=(g:Goal)=>{setInvalidFields({});setEditingId(g.id);setTitle(g.title);setTarget(g.targetAmount);setStarting(g.startingAmount);setDueDate(g.dueDate||"");setPriority(g.priority);setDescription(g.description);setShow(true);};
  const save=async()=>{
   if(editingId===null&&goals.length>=3){setLimitExceeded(true);return;}
-  if(!validGoalTarget(target)){setError("Целевая сумма не должна превышать 999 999 999 ₽");return;}
+  const nextInvalid={title:!title.trim()||title.length>24,description:description.length>30,target:!validGoalTarget(target),starting:!validGoalStarting(starting)};
+  setInvalidFields(nextInvalid);
+  if(Object.values(nextInvalid).some(Boolean)){setError("Проверьте выделенные поля: допустимый лимит суммы 999 999 999 ₽.");return;}
   setError("");setSaving(true);
   try{
    const response=await fetch(editingId===null?"/api/goals":`/api/goals/${editingId}`,{method:editingId===null?"POST":"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,description,targetAmount:target.replace(",", "."),startingAmount:starting.replace(",", "."),dueDate,priority,status:editingId===null?"active":(goals.find(g=>g.id===editingId)?.status||"active")})});
@@ -84,14 +88,14 @@ function Goals(){
     <div className="debt-modal-heading"><div><strong id="goal-modal-title">{editingId===null?"Создать цель":"Редактировать цель"}</strong><small>Настройте параметры накоплений</small></div><button type="button" className="pure-button ghost debt-modal-close" aria-label="Закрыть" onClick={resetForm}><X size={16}/></button></div>
     {limitExceeded?<><p role="alert" style={{color:"#f87171",fontSize:14}}>Достигнут лимит: можно создать не более трёх целей.</p><div className="debt-modal-actions"><button className="pure-button" onClick={resetForm}>Понятно</button></div></>:<>
     <div className="pure-grid two">
-     <label className="form-label">Название<input className="pure-input" value={title} onChange={e=>setTitle(e.target.value)} maxLength={24} placeholder="Например, Путешествие"/></label>
-     <label className="form-label">Целевая сумма, ₽<input className="pure-input" value={target} onChange={e=>setTarget(e.target.value)} maxLength={12} placeholder="100000"/><small className="muted">Максимум: 999 999 999 ₽</small></label>
-     <label className="form-label">Уже накоплено, ₽<input className="pure-input" value={starting} onChange={e=>setStarting(e.target.value)} placeholder="0"/></label>
+     <label className="form-label">Название<input className="pure-input" style={invalidFields.title?{borderColor:"#ef4444"}:undefined} aria-invalid={!!invalidFields.title} value={title} onChange={e=>{setTitle(e.target.value);setInvalidFields(old=>({...old,title:false}));}} maxLength={24} placeholder="Например, Путешествие"/></label>
+     <label className="form-label">Целевая сумма, ₽<input className="pure-input" style={invalidFields.target?{borderColor:"#ef4444"}:undefined} aria-invalid={!!invalidFields.target} value={target} onChange={e=>{setTarget(e.target.value);setInvalidFields(old=>({...old,target:false}));}} maxLength={12} placeholder="100000"/><small className="muted">Максимум: 999 999 999 ₽</small></label>
+     <label className="form-label">Уже накоплено, ₽<input className="pure-input" style={invalidFields.starting?{borderColor:"#ef4444"}:undefined} aria-invalid={!!invalidFields.starting} value={starting} onChange={e=>{setStarting(e.target.value);setInvalidFields(old=>({...old,starting:false}));}} maxLength={12} placeholder="0"/><small className="muted">Максимум: 999 999 999 ₽</small></label>
      <label className="form-label">Срок<input className="pure-input" type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}/></label>
      <label className="form-label">Приоритет<select className="pure-select" value={priority} onChange={e=>setPriority(e.target.value as Priority)}><option value="low">Низкий</option><option value="medium">Средний</option><option value="high">Высокий</option></select></label>
-     <label className="form-label">Описание<input className="pure-input" value={description} onChange={e=>setDescription(e.target.value)} maxLength={30}/></label>
+     <label className="form-label">Описание<input className="pure-input" style={invalidFields.description?{borderColor:"#ef4444"}:undefined} aria-invalid={!!invalidFields.description} value={description} onChange={e=>{setDescription(e.target.value);setInvalidFields(old=>({...old,description:false}));}} maxLength={30}/></label>
     </div>
-    <div className="debt-modal-actions"><button className="pure-button" disabled={saving||!title.trim()||title.length>24||!validGoalTarget(target)||description.length>30||!(/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(starting))} onClick={()=>void save()}>{saving?"Сохранение…":editingId===null?"Создать цель":"Сохранить изменения"}</button><button className="pure-button ghost" onClick={resetForm}>Отмена</button></div></>}
+    <div className="debt-modal-actions"><button className="pure-button" disabled={saving} onClick={()=>void save()}>{saving?"Сохранение…":editingId===null?"Создать цель":"Сохранить изменения"}</button><button className="pure-button ghost" onClick={resetForm}>Отмена</button></div></>}
    </section>
   </div>}
   {loading?<div className="empty-note">Загружаем цели…</div>:goals.length===0?<div className="empty-note">Целей пока нет. Создайте первую и начните копить на важное.</div>:
