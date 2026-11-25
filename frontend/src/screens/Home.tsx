@@ -56,7 +56,7 @@ function Home() {
         <Stat label="Расходы за месяц" value={money(dashboard.monthExpense)} tone="violet" icon={<ArrowUpRight size={17}/>}/>
         <Stat label="Разница за месяц" value={money(dashboard.monthNet)} tone="blue" icon={<Wallet size={17}/>}/>
       </div>
-      {activeGoals.length>0&&<Panel title="Активная цель" subtitle="Ваши текущие планы накоплений" style={{marginTop:16}}>
+      {activeGoals.length>0&&<div style={{marginTop:16}}><Panel title="Активная цель" subtitle="Ваши текущие планы накоплений">
         <div className="pure-grid three">
           {activeGoals.map(goal=>{
             const current=toCents(goal.currentAmount);
@@ -70,7 +70,7 @@ function Home() {
             </div>;
           })}
         </div>
-      </Panel>}
+      </Panel></div>}
       <div className="pure-grid two" style={{marginTop:16}}>
         <Panel title="Динамика расходов" subtitle="По дням текущего месяца">
           {trend.length?<LineChart values={trendValues} labels={labels} valueLabels={trend.map(item=>money(item.expense))}/>:<div className="empty-note">За этот месяц операций пока нет.</div>}
