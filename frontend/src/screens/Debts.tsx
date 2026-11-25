@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PageHeading, Panel, Stat } from "./ui";
+import { ConfirmPopover, PageHeading, Panel, Stat } from "./ui";
 import { Plus, ArrowDownLeft, ArrowUpRight, Trash2, History, X } from "lucide-react";
 import "./Pure.css";
 
@@ -28,12 +28,13 @@ function Debts(){
  const [paymentKey,setPaymentKey]=useState("");
  const [history,setHistory]=useState<Record<number,Payment[]>>({});
  const [historyDebtId,setHistoryDebtId]=useState<number|null>(null);
+ const [confirmDeleteId,setConfirmDeleteId]=useState<number|null>(null);
 
  const load=async()=>{try{const [d,a]=await Promise.all([fetch("/api/debts"),fetch("/api/accounts")]);const [debtData,accountData]=await Promise.all([d.json(),a.json()]);if(!d.ok||!a.ok)throw new Error("Не удалось загрузить долги и счета");setDebts(debtData);setAccounts(accountData);if(accountData.length&&!paymentAccountId)setPaymentAccountId(String(accountData[0].id));}catch(e){setError(e instanceof Error?e.message:"Ошибка загрузки");}finally{setLoading(false);}};
  useEffect(()=>{void load();},[]);
  const create=async()=>{setError("");try{const r=await fetch("/api/debts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,direction,initialAmount:initialAmount.replace(",", "."),dueDate,comment})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось создать долг");setDebts(old=>[d,...old]);setShowForm(false);setName("");setInitialAmount("");setComment("");}catch(e){setError(e instanceof Error?e.message:"Ошибка создания");}};
  const pay=async()=>{if(paymentDebtId===null)return;setError("");try{const r=await fetch(`/api/debts/${paymentDebtId}/payments`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({amount:paymentAmount.replace(",", "."),accountId:Number(paymentAccountId),date:paymentDate,comment:"",idempotencyKey:paymentKey})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось записать платёж");setPaymentDebtId(null);setPaymentAmount("");setPaymentKey("");await load();}catch(e){setError(e instanceof Error?e.message:"Ошибка платежа");}};
- const remove=async(id:number)=>{if(!window.confirm("Удалить долг? Если по нему уже есть платежи, удаление будет запрещено, чтобы сохранить финансовую историю."))return;try{const r=await fetch(`/api/debts/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить долг");setDebts(old=>old.filter(x=>x.id!==id));}catch(e){setError(e instanceof Error?e.message:"Ошибка удаления");}};
+ const remove=async(id:number)=>{try{const r=await fetch(`/api/debts/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить долг");setDebts(old=>old.filter(x=>x.id!==id));}catch(e){setError(e instanceof Error?e.message:"Ошибка удаления");}};
  const toggleStatus=async(debt:Debt)=>{try{const r=await fetch(`/api/debts/${debt.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:debt.name,dueDate:debt.dueDate||"",comment:debt.comment,status:debt.status==="open"?"closed":"open"})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось изменить статус");await load();}catch(e){setError(e instanceof Error?e.message:"Ошибка статуса");}};
  const showHistory=async(id:number)=>{if(historyDebtId===id){setHistoryDebtId(null);return;}try{const r=await fetch(`/api/debts/${id}/payments`);const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось загрузить историю");setHistory(old=>({...old,[id]:d}));setHistoryDebtId(id);}catch(e){setError(e instanceof Error?e.message:"Ошибка истории");}};
  const iOwe=debts.filter(d=>d.direction==="i_owe"&&d.status==="open").reduce((s,d)=>s+toCents(d.remainingAmount),0n);
@@ -65,11 +66,12 @@ function Debts(){
     <button className="pure-button" disabled={debt.status!=="open"||toCents(debt.remainingAmount)<=0n||accounts.length===0} onClick={()=>{setPaymentDebtId(debt.id);setPaymentKey(crypto.randomUUID());}}>Платёж</button>
     <button className="pure-button ghost" onClick={()=>void showHistory(debt.id)}><History size={14}/>История</button>
     <button className="pure-button ghost" onClick={()=>void toggleStatus(debt)}>{debt.status==="open"?"В архив":"Вернуть в активные"}</button>
-    <button className="pure-button ghost" onClick={()=>void remove(debt.id)}><Trash2 size={14}/></button>
+    <button className="pure-button ghost" onClick={()=>setConfirmDeleteId(debt.id)}><Trash2 size={14}/></button>
    </div>
    {paymentDebtId===debt.id&&<div style={{marginTop:12}}><label className="form-label">Сумма платежа<input className="pure-input" value={paymentAmount} onChange={e=>setPaymentAmount(e.target.value)}/></label><label className="form-label" style={{marginTop:8}}>Счёт<select className="pure-select" value={paymentAccountId} onChange={e=>setPaymentAccountId(e.target.value)}>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label><label className="form-label" style={{marginTop:8}}>Дата<input className="pure-input" type="date" value={paymentDate} onChange={e=>setPaymentDate(e.target.value)}/></label><div className="form-row" style={{marginTop:8}}><button className="pure-button" disabled={!paymentAccountId||!/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(paymentAmount)||toCents(paymentAmount)<=0n||toCents(paymentAmount)>toCents(debt.remainingAmount)} onClick={()=>void pay()}>Подтвердить платёж</button><button className="pure-button ghost" onClick={()=>setPaymentDebtId(null)}>Отмена</button></div></div>}
    {historyDebtId===debt.id&&<div className="empty-note" style={{marginTop:12}}>{(history[debt.id]||[]).length?(history[debt.id]||[]).map(p=><div className="legend-row" key={p.id}><span>{p.date}</span><strong>{money(p.amount)}</strong></div>):"Платежей пока нет."}</div>}
   </Panel>)}</div>}
+  {confirmDeleteId!==null&&<ConfirmPopover title="Удалить долг?" message="Если по нему уже есть платежи, удаление будет запрещено, чтобы сохранить финансовую историю." onCancel={()=>setConfirmDeleteId(null)} onConfirm={()=>{const id=confirmDeleteId;setConfirmDeleteId(null);void remove(id);}}/>}
   {error&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{error}</p>}
  </div>;
 }
