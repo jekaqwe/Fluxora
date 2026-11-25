@@ -99,7 +99,7 @@ export default function RecurringPanel({accounts}:{accounts:Account[]}){
        <label className="form-label">Периодичность<select className="pure-select" value={frequency} onChange={e=>setFrequency(e.target.value)}>{Object.entries(frequencies).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
        <label className="form-label">Следующая дата<input className="pure-input" type="date" value={nextDate} onChange={e=>setNextDate(e.target.value)}/></label>
        <label className="form-label">Последняя дата<input className="pure-input" type="date" value={endDate} onChange={e=>setEndDate(e.target.value)}/></label>
-       <div className="form-row recurring-form-actions"><button className="pure-button" disabled={saving||!title.trim()||!accountId||!/^(?=.*[1-9])\\d+(?:[.,]\\d{1,2})?$/.test(amount)} onClick={()=>void create()}>{saving?"Сохранение…":editingId===null?"Создать":"Сохранить изменения"}</button><button className="pure-button ghost" onClick={resetForm}>Отмена</button></div>
+       <div className="form-row recurring-form-actions"><button className="pure-button" disabled={saving||!title.trim()||!accountId||!Number.isFinite(Number(amount.replace(",", ".")))||Number(amount.replace(",", "."))<=0} onClick={()=>void create()}>{saving?"Сохранение…":editingId===null?"Создать":"Сохранить изменения"}</button><button className="pure-button ghost" onClick={resetForm}>Отмена</button></div>
       </div>
      </>}
     </div>
