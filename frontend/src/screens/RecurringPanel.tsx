@@ -38,9 +38,8 @@ export default function RecurringPanel({accounts}:{accounts:Account[]}){
  const remove=async(id:number)=>{if(!window.confirm("Удалить расписание? История выполненных и пропущенных дат сохранится."))return;try{const r=await fetch(`/api/recurring/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить расписание");await load();}catch(e){setError(e instanceof Error?e.message:"Ошибка удаления");}};
  const resolve=async(id:number,action:"confirm"|"skip")=>{try{const r=await fetch(`/api/recurring/occurrences/${id}/${action}`,{method:"POST"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось обработать дату");await load();}catch(e){setError(e instanceof Error?e.message:"Ошибка обработки даты");}};
  const confirmAll=async()=>{for(const item of missed){try{const r=await fetch(`/api/recurring/occurrences/${item.id}/confirm`,{method:"POST"});if(!r.ok){const d=await r.json();throw new Error(d.error||"Не удалось подтвердить операцию");}}catch(e){setError(e instanceof Error?e.message:"Ошибка подтверждения");break;}}await load();};
- return <>
-  <Panel title="Регулярные операции" subtitle="Операции по расписанию">
-   <div className="form-row" style={{justifyContent:"flex-end"}}><button className="pure-button" onClick={()=>{if(show){resetForm();}else{setEditingId(null);setShow(true);}}}><Plus size={15}/>Добавить расписание</button></div>
+ return <div className="recurring-tools"><div className="recurring-add-row"><button className="pure-button compact-tool-button" onClick={()=>{if(show){resetForm();}else{setEditingId(null);setShow(true);}}}><Plus size={13}/>Добавить расписание</button></div>
+  <Panel title="Регулярные операции" subtitle="Операции по расписанию" className="compact-tools-panel">
    {show&&<div className="pure-grid three" style={{marginTop:12}}>
     <label className="form-label">Название<input className="pure-input" value={title} onChange={e=>setTitle(e.target.value)}/></label>
     <label className="form-label">Тип<select className="pure-select" value={type} onChange={e=>setType(e.target.value as "income"|"expense")}><option value="expense">Расход</option><option value="income">Доход</option></select></label>
