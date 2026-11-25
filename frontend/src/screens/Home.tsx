@@ -56,13 +56,19 @@ function Home() {
         <Stat label="Расходы за месяц" value={money(dashboard.monthExpense)} tone="violet" icon={<ArrowUpRight size={17}/>}/>
         <Stat label="Разница за месяц" value={money(dashboard.monthNet)} tone="blue" icon={<Wallet size={17}/>}/>
       </div>
-      {activeGoals.length>0&&<Panel title="Активная цель" subtitle="Ваши текущие планы накоплений">
+      {activeGoals.length>0&&<Panel title="Активная цель" subtitle="Ваши текущие планы накоплений" style={{marginTop:16}}>
         <div className="pure-grid three">
-          {activeGoals.map(goal=><div key={goal.id} style={{minWidth:0,padding:12,borderRadius:12,background:"var(--surface-soft, rgba(148,163,184,.08))"}}>
-            <strong style={{display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{goal.title}</strong>
-            <div className="legend-row" style={{marginTop:10,gap:6,flexWrap:"wrap"}}><span>{money(goal.currentAmount)}</span><strong>{money(goal.targetAmount)}</strong></div>
-            <div className="progress-track" style={{marginTop:10}}><div className="progress-fill" style={{width:Math.min(100,Number(toCents(goal.currentAmount)*10000n/toCents(goal.targetAmount))/100)+"%"}}/></div>
-          </div>)}
+          {activeGoals.map(goal=>{
+            const current=toCents(goal.currentAmount);
+            const target=toCents(goal.targetAmount);
+            const progress=target>0n?Math.max(0,Math.min(100,Number(current*10000n/target)/100)):0;
+            return <div key={goal.id} style={{minWidth:0,padding:12,borderRadius:12,background:"var(--surface-soft, rgba(148,163,184,.08))"}}>
+              <strong style={{display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{goal.title}</strong>
+              <div className="legend-row" style={{marginTop:10,gap:6,flexWrap:"wrap"}}><span>{money(goal.currentAmount)}</span><strong>{money(goal.targetAmount)}</strong></div>
+              <div className="progress-track" style={{marginTop:10,height:8,overflow:"hidden"}}><div className="progress-fill" role="progressbar" aria-label={`Прогресс цели ${goal.title}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)} style={{width:progress+"%",height:"100%",transition:"width .25s ease"}}/></div>
+              <small className="muted" style={{display:"block",marginTop:6,textAlign:"right"}}>{progress.toFixed(1).replace(".",",")}%</small>
+            </div>;
+          })}
         </div>
       </Panel>}
       <div className="pure-grid two" style={{marginTop:16}}>
