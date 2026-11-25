@@ -22,7 +22,7 @@ const toCents=(value:string)=>{const [whole,fraction=""]=value.split(".");return
 function Home() {
   const [dashboard,setDashboard]=useState<Dashboard|null>(null);
   const [analytics,setAnalytics]=useState<Analytics|null>(null);
-  const [activeGoal,setActiveGoal]=useState<Goal|null>(null);
+  const [activeGoals,setActiveGoals]=useState<Goal[]>([]);
   const [error,setError]=useState("");
   const [refreshKey,setRefreshKey]=useState(0);
   useEffect(()=>{
@@ -31,7 +31,7 @@ function Home() {
       .then(async([a,b,c])=>{
         const [summary,stats,goals]=await Promise.all([a.json(),b.json(),c.json()]);
         if(!a.ok||!b.ok||!c.ok)throw new Error(summary.error||stats.error||goals.error||"Не удалось загрузить главную страницу");
-        if(!cancelled){setDashboard(summary);setAnalytics(stats);setActiveGoal((goals as Goal[]).find(goal=>goal.status==="active")||null);}
+        if(!cancelled){setDashboard(summary);setAnalytics(stats);setActiveGoals((goals as Goal[]).filter(goal=>goal.status==="active").slice(0,3));}
       })
       .catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:"Ошибка загрузки");});
     return()=>{cancelled=true;};
@@ -56,9 +56,14 @@ function Home() {
         <Stat label="Расходы за месяц" value={money(dashboard.monthExpense)} tone="violet" icon={<ArrowUpRight size={17}/>}/>
         <Stat label="Разница за месяц" value={money(dashboard.monthNet)} tone="blue" icon={<Wallet size={17}/>}/>
       </div>
-      {activeGoal&&<Panel title="Активная цель" subtitle="Ваш текущий план накоплений">
-        <div className="legend-row"><strong>{activeGoal.title}</strong><strong>{money(activeGoal.currentAmount)} / {money(activeGoal.targetAmount)}</strong></div>
-        <div className="progress-track" style={{marginTop:12}}><div className="progress-fill" style={{width:Math.min(100,Number(toCents(activeGoal.currentAmount)*10000n/toCents(activeGoal.targetAmount))/100)+"%"}}/></div>
+      {activeGoals.length>0&&<Panel title="Активная цель" subtitle="Ваши текущие планы накоплений">
+        <div className="pure-grid three">
+          {activeGoals.map(goal=><div key={goal.id} style={{minWidth:0,padding:12,borderRadius:12,background:"var(--surface-soft, rgba(148,163,184,.08))"}}>
+            <strong style={{display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{goal.title}</strong>
+            <div className="legend-row" style={{marginTop:10,gap:6,flexWrap:"wrap"}}><span>{money(goal.currentAmount)}</span><strong>{money(goal.targetAmount)}</strong></div>
+            <div className="progress-track" style={{marginTop:10}}><div className="progress-fill" style={{width:Math.min(100,Number(toCents(goal.currentAmount)*10000n/toCents(goal.targetAmount))/100)+"%"}}/></div>
+          </div>)}
+        </div>
       </Panel>}
       <div className="pure-grid two" style={{marginTop:16}}>
         <Panel title="Динамика расходов" subtitle="По дням текущего месяца">
