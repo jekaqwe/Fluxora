@@ -134,3 +134,19 @@
 :root[data-theme="dark"] .confirm-popover > strong { color:#e7eefc; }
 :root[data-theme="dark"] .confirm-popover p { color:#a4b5d0; }
 :root[data-theme="dark"] .recurring-archive-menu .transaction-row { border-bottom-color:#293953; }
+
+
+/* Всплывающее меню создания долга */
+.debt-modal-backdrop { position:fixed;inset:0;z-index:1100;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(15,28,52,.42);backdrop-filter:blur(4px); }
+.debt-modal { width:min(620px,100%);max-height:90vh;overflow:auto;padding:22px;border:1px solid var(--pure-border,#e5ebf5);border-radius:18px;background:var(--pure-surface,#fff);box-shadow:0 24px 80px rgba(20,43,85,.25); }
+.debt-modal-heading { display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:20px; }
+.debt-modal-heading strong { display:block;color:var(--pure-ink,#20385f);font-size:16px; }
+.debt-modal-heading small { display:block;margin-top:5px;color:#8797b1;font-size:11px; }
+.debt-modal-close { min-width:32px;min-height:32px;padding:0; }
+.debt-modal-comment { grid-column:1/-1; }
+.debt-modal-error { margin:12px 0 0;color:#f87171;font-size:12px; }
+.debt-modal-actions { display:flex;justify-content:flex-end;gap:9px;margin-top:18px; }
+@media(max-width:560px) { .debt-modal { padding:17px; }.debt-modal .pure-grid.two { grid-template-columns:1fr; }.debt-modal-comment { grid-column:auto; }.debt-modal-actions { flex-wrap:wrap; }.debt-modal-actions .pure-button { flex:1; } }
+:root[data-theme="dark"] .debt-modal { border-color:#344866;background:#17263d; }
+:root[data-theme="dark"] .debt-modal-heading strong { color:#e7eefc; }
+:root[data-theme="dark"] .debt-modal-heading small { color:#a4b5d0; }
