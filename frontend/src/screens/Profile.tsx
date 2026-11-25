@@ -23,7 +23,7 @@ function Profile(){
  const deleteAvatar=async()=>{setAvatarBusy(true);setAvatarError("");try{const r=await fetch("/api/profile/avatar",{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить аватар");setUser(x=>x?{...x,avatarUrl:null}:x);}catch(e){setAvatarError(e instanceof Error?e.message:"Ошибка удаления");}finally{setAvatarBusy(false);}};
  const name=user?user.firstName+" "+user.lastName:"Загрузка профиля";
  const progress=game?game.xp%100:0;
- return <div className="pure-page">
+ return <div className="pure-page" style={{padding:16}}>
   <PageHeading title="Профиль" subtitle="Ваш путь, достижения и активность"/>
   <Panel className="profile-hero">
    <div className="profile-avatar">{user?.avatarUrl?<img src={user.avatarUrl} alt="Аватар" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/>:<UserRound/>}</div>
