@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Plus, X, Trash2, Pencil } from "lucide-react";
-import { PageHeading, Panel, Stat } from "./ui";
+import { ConfirmPopover, PageHeading, Panel, Stat } from "./ui";
 import "./Pure.css";
 import RecurringPanel from "./RecurringPanel";
 import CSVTools from "./CSVTools";
@@ -58,6 +58,7 @@ function Operations() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [historyPage, setHistoryPage] = useState(1);
   const pageSize = 20;
 
@@ -127,12 +128,12 @@ function Operations() {
   };
 
   const remove = async (id: number) => {
-    if (!window.confirm("Удалить эту операцию?")) return;
     try {
       const response = await fetch(`/api/transactions/${id}`, { method: "DELETE" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Не удалось удалить операцию");
       setItems(old => old.filter(item => item.id !== id));
+      setConfirmDeleteId(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка удаления");
     }
@@ -176,7 +177,7 @@ function Operations() {
           <span className={`transaction-icon ${isIncome ? "mint" : isTransfer ? "violet" : ""}`}><Icon size={16}/></span>
           <span className="transaction-copy"><strong>{item.title}</strong><small>{item.date} · {item.category} · {typeLabels[item.type]} · {isTransfer ? account + " → " + (destination || "счёт") : account}</small></span>
           <strong className={`transaction-amount ${isIncome ? "positive" : isTransfer ? "" : "negative"}`}>{isIncome ? "+" : isTransfer ? "↔ " : "−"}{item.amount} ₽</strong>
-          <button type="button" className="pure-button ghost operation-edit-button" aria-label="Изменить операцию" onClick={() => beginEdit(item)}><Pencil size={14}/></button><button type="button" className="pure-button ghost operation-delete-button" aria-label="Удалить операцию" onClick={() => void remove(item.id)}><Trash2 size={12}/></button>
+          <button type="button" className="pure-button ghost operation-edit-button" aria-label="Изменить операцию" onClick={() => beginEdit(item)}><Pencil size={14}/></button><button type="button" className="pure-button ghost operation-delete-button" aria-label="Удалить операцию" onClick={() => setConfirmDeleteId(item.id)}><Trash2 size={12}/></button>
         </div>;
       })}{visible.length===0&&<div className="empty-note">Операций по выбранным условиям не найдено.</div>}</div>
       {visible.length > 0 && <div className="operations-pagination">
@@ -185,6 +186,7 @@ function Operations() {
         <button type="button" className="pure-button ghost" disabled={currentPage === pageCount} onClick={() => setHistoryPage(currentPage + 1)}>Вперёд</button>
       </div>}
     </Panel>
+    {confirmDeleteId !== null && <ConfirmPopover title="Удалить операцию?" message="Операция будет удалена из истории." onCancel={() => setConfirmDeleteId(null)} onConfirm={() => void remove(confirmDeleteId)}/>}
     {error && <p role="alert" style={{color:"#f87171",fontSize:12}}>{error}</p>}
   </div>;
 }
