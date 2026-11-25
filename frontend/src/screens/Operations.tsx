@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Coffee, ShoppingBag, Car, Plus, X, Trash2, Pencil } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Plus, X, Trash2, Pencil } from "lucide-react";
 import { PageHeading, Panel, Stat } from "./ui";
 import "./Pure.css";
 import RecurringPanel from "./RecurringPanel";
