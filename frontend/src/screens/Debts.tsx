@@ -42,14 +42,14 @@ function Debts(){
  return <div className="pure-page">
   <PageHeading title="Долги и кредиты" subtitle="Упрощённый учёт обязательств и возвратов" action={<button className="pure-button" onClick={()=>setShowForm(v=>!v)}><Plus size={15}/>Добавить долг</button>}/>
   <div className="pure-grid two"><Stat label="Я должен" value={moneyCents(iOwe)} tone="violet" icon={<ArrowUpRight size={17}/>}/><Stat label="Мне должны" value={moneyCents(owed)} tone="mint" icon={<ArrowDownLeft size={17}/>}/></div>
-  {showForm&&<Panel title="Новый долг"><div className="pure-grid two">
+  {showForm&&<Panel title="Новый долг"><div className="pure-grid two", style={{ marginTop: 16 }}>
    <label className="form-label">Название<input className="pure-input" value={name} onChange={e=>setName(e.target.value)} placeholder="Например, Кредит"/></label>
    <label className="form-label">Направление<select className="pure-select" value={direction} onChange={e=>setDirection(e.target.value as "i_owe"|"owed_to_me")}><option value="i_owe">Я должен</option><option value="owed_to_me">Мне должны</option></select></label>
    <label className="form-label">Сумма, ₽<input className="pure-input" value={initialAmount} onChange={e=>setInitialAmount(e.target.value)} placeholder="0.00"/></label>
    <label className="form-label">Срок возврата<input className="pure-input" type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}/></label>
    <label className="form-label">Комментарий<input className="pure-input" value={comment} onChange={e=>setComment(e.target.value)} maxLength={1000}/></label>
   </div><button className="pure-button" style={{marginTop:12}} disabled={!name.trim()||!/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(initialAmount)||toCents(initialAmount)<=0n} onClick={()=>void create()}>Сохранить долг</button></Panel>}
-  {loading?<div className="empty-note">Загружаем долги…</div>:debts.length===0?<div className="empty-note">Долгов пока нет.</div>:<div className="pure-grid two">{debts.map(debt=><Panel key={debt.id} title={debt.name} subtitle={debt.direction==="i_owe"?"Моё обязательство":"Мне должны"}>
+  {loading?<div className="empty-note">Загружаем долги…</div>:debts.length===0?<div className="empty-note">Долгов пока нет.</div>:<div className="pure-grid two, style={{ marginTop: 16 }}">{debts.map(debt=><Panel key={debt.id} title={debt.name} subtitle={debt.direction==="i_owe"?"Моё обязательство":"Мне должны"}>
    <div className="legend-row"><span>Остаток</span><strong>{money(debt.remainingAmount)}</strong></div>
    <div className="legend-row" style={{marginTop:8}}><span>Изначальная сумма</span><strong>{money(debt.initialAmount)}</strong></div>
    <div className="legend-row" style={{marginTop:8}}><span>Срок</span><strong>{debt.dueDate||"Не задан"}</strong></div>
