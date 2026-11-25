@@ -19,6 +19,7 @@ function Settings(){
  const [section,setSection]=useState("account");const [user,setUser]=useState<UserProfile|null>(null);
  const [draft,setDraft]=useState<ProfileDraft>({firstName:"",lastName:"",username:""});
  const [savingField,setSavingField]=useState<ProfileField|null>(null);
+ const [confirmField,setConfirmField]=useState<ProfileField|null>(null);
  const [profileMessage,setProfileMessage]=useState("");
  const [prefsError,setPrefsError]=useState("");
  const [integrationStatus,setIntegrationStatus]=useState<{s3:{configured:boolean;note:string};email:{configured:boolean;note:string}}|null>(null);
@@ -97,9 +98,9 @@ function Settings(){
    finally{setSavingField(null);}
  };
  const cooldownText=(date:string|null)=>{
-   if(!date)return "Изменение доступно";
+   if(!date)return "Можно изменить";
    const remaining=new Date(date).getTime()-Date.now();
-   if(remaining<=0)return "Изменение доступно";
+   if(remaining<=0)return "Можно изменить";
    return "Можно изменить: "+new Date(date).toLocaleString("ru-RU",{dateStyle:"short",timeStyle:"short"});
  };
  const isCooling=(date:string|null)=>!!date&&new Date(date).getTime()>Date.now();
@@ -127,12 +128,13 @@ function Settings(){
        {labels[field]}
        <input value={draft[field]} placeholder="Загрузка…" onChange={e=>setDraft(old=>({...old,[field]:e.target.value}))} disabled={!user||savingField!==null}/>
        <small className="muted">{cooldownText(availableAt||null)}</small>
-       <button type="button" className="pure-button secondary" style={{marginTop:8,alignSelf:"flex-start"}} disabled={!user||savingField!==null||isCooling(availableAt||null)||draft[field].trim()===""||draft[field]===user[field]} onClick={()=>saveProfileField(field)}>{savingField===field?"Сохранение…":"Сохранить "+labels[field].toLowerCase()}</button>
+       <button type="button" className="pure-button secondary" style={{marginTop:8,alignSelf:"flex-start"}} disabled={!user||savingField!==null||isCooling(availableAt||null)||draft[field].trim()===""||draft[field]===user[field]} onClick={()=>setConfirmField(field)}>{savingField===field?"Сохранение…":"Сохранить "+labels[field].toLowerCase()}</button>
      </div>;
    })}
-   <div className="setting-field" style={{gridColumn:"2",gap:5}}><span className="muted" style={{fontSize:11}}>Текущий email</span><input type="email" value={user?.email||""} placeholder="Загрузка…" readOnly aria-label="Текущий email" style={{height:36,boxSizing:"border-box",fontSize:13}}/><button type="button" className="pure-button secondary" style={{marginTop:8,alignSelf:"flex-start"}} onClick={()=>setShowEmailDevModal(true)}>Изменить Email</button></div>
+   <div className="setting-field" style={{gridColumn:"2",gap:5}}><span className="muted" style={{fontSize:11}}>Текущий email</span><input type="email" value={user?.email||""} placeholder="Загрузка…" readOnly aria-label="Текущий email" style={{height:36,boxSizing:"border-box",fontSize:13}}/><button type="button" className="pure-button secondary" style={{marginTop:8,alignSelf:"flex-start",position:"relative",top:8}} onClick={()=>setShowEmailDevModal(true)}>Изменить Email</button></div>
  {showEmailDevModal&&<div role="presentation" onClick={()=>setShowEmailDevModal(false)} style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,.65)",display:"grid",placeItems:"center",padding:20}}><div role="dialog" aria-modal="true" aria-labelledby="email-dev-title" onClick={e=>e.stopPropagation()} style={{width:"min(360px,100%)",padding:24,borderRadius:16,background:"var(--panel, #171923)",border:"1px solid var(--border, #343746)",boxShadow:"0 20px 60px rgba(0,0,0,.4)",textAlign:"center"}}><strong id="email-dev-title">Пока в разработке</strong><p className="muted" style={{margin:"12px 0 18px",fontSize:13}}>Изменение email станет доступно позже.</p><button type="button" className="pure-button" onClick={()=>setShowEmailDevModal(false)}>Понятно</button></div></div>}
  </div>
+ {confirmField&&<div role="presentation" onClick={()=>setConfirmField(null)} style={{position:"fixed",inset:0,zIndex:1100,background:"rgba(0,0,0,.65)",display:"grid",placeItems:"center",padding:20}}><div role="dialog" aria-modal="true" aria-labelledby="profile-confirm-title" onClick={e=>e.stopPropagation()} style={{width:"min(360px,100%)",padding:24,borderRadius:16,background:"var(--panel, #171923)",border:"1px solid var(--border, #343746)",boxShadow:"0 20px 60px rgba(0,0,0,.4)",textAlign:"center"}}><strong id="profile-confirm-title">Подтвердить изменение?</strong><p className="muted" style={{margin:"12px 0 18px",fontSize:13}}>Изменить поле «{{firstName:"Имя",lastName:"Фамилия",username:"Логин"}[confirmField]}»?</p><div style={{display:"flex",justifyContent:"center",gap:10}}><button type="button" className="pure-button secondary" onClick={()=>setConfirmField(null)}>Отмена</button><button type="button" className="pure-button" disabled={savingField!==null} onClick={()=>{const field=confirmField;setConfirmField(null);void saveProfileField(field);}}>Подтвердить</button></div></div></div>}
  {profileError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{profileError}</p>}
  {profileMessage&&<p role="status" style={{color:"#86efac",fontSize:12}}>{profileMessage}</p>}
  <div className="empty-note">Имя, фамилия и логин изменяются независимо друг от друга. Для каждого поля действует отдельное ограничение: один раз в 14 дней.</div></>}
