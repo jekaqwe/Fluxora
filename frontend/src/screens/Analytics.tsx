@@ -96,7 +96,7 @@ function Analytics() {
     return period==="year"?date.toLocaleDateString("ru-RU",{month:"short"}):date.toLocaleDateString("ru-RU",{day:"2-digit",month:"2-digit"});
   })??[],[data,period]);
 
-  return <div className="pure-page">
+  return <div className="pure-page" style={{padding:16}}>
     <PageHeading title="Аналитика" subtitle="Финансовые показатели из ваших операций"/>
     <div className="filter-pills" style={{marginBottom:16}}>
       {([["week","Неделя"],["month","Месяц"],["year","Год"],["custom","Период"]] as [Period,string][]).map(([key,label]) =>
