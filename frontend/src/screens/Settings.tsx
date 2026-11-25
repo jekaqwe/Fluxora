@@ -28,6 +28,7 @@ function Settings(){
  const [theme,setTheme]=useState(localStorage.getItem("fluxora_theme")||"light");
  const [currentPassword,setCurrentPassword]=useState("");
  const [newPassword,setNewPassword]=useState("");
+ const [repeatNewPassword,setRepeatNewPassword]=useState("");
  const [passwordMessage,setPasswordMessage]=useState("");
  const [passwordError,setPasswordError]=useState("");
  const [savingPassword,setSavingPassword]=useState(false);
@@ -39,23 +40,7 @@ function Settings(){
  const [sessions,setSessions]=useState<Session[]>([]);
  const [sessionError,setSessionError]=useState("");
  const [revokingSessions,setRevokingSessions]=useState(false);
- const [newEmail,setNewEmail]=useState("");
- const [emailToken,setEmailToken]=useState("");
- const [emailBusy,setEmailBusy]=useState(false);
- const [emailError,setEmailError]=useState("");
- const [emailMessage,setEmailMessage]=useState("");
- const requestEmailChange=async()=>{
-  setEmailBusy(true);setEmailError("");setEmailMessage("");
-  try{const r=await fetch("/api/account/email/change",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:newEmail})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось отправить подтверждение");setEmailMessage(d.message||"Письмо отправлено");}
-  catch(e){setEmailError(e instanceof Error?e.message:"Ошибка отправки");}
-  finally{setEmailBusy(false);}
- };
- const confirmEmailChange=async()=>{
-  setEmailBusy(true);setEmailError("");setEmailMessage("");
-  try{const r=await fetch("/api/account/email/confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:emailToken})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось подтвердить email");setEmailMessage(d.message||"Email изменён");setEmailToken("");setNewEmail("");setUser(old=>old?{...old,email:d.email}:old);}
-  catch(e){setEmailError(e instanceof Error?e.message:"Ошибка подтверждения");}
-  finally{setEmailBusy(false);}
- };
+ const [showEmailDevModal,setShowEmailDevModal]=useState(false);
  const deleteAccount=async()=>{
    setDeleteError("");setDeleteMessage("");setDeleteBusy(true);
    try{
@@ -70,12 +55,15 @@ function Settings(){
    finally{setDeleteBusy(false);}
  };
  const changePassword=async()=>{
-   setPasswordMessage("");setPasswordError("");setSavingPassword(true);
+   setPasswordMessage("");setPasswordError("");
+   if(newPassword!==repeatNewPassword){setPasswordError("Новые пароли не совпадают");return;}
+   if(newPassword===currentPassword){setPasswordError("Новый пароль не должен совпадать с текущим");return;}
+   setSavingPassword(true);
    try{
      const response=await fetch("/api/account/password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({currentPassword,newPassword})});
      const data=await response.json();
      if(!response.ok)throw new Error(data.error||"Не удалось изменить пароль");
-     setPasswordMessage(data.message||"Пароль изменён");setCurrentPassword("");setNewPassword("");
+     setPasswordMessage(data.message||"Пароль изменён");setCurrentPassword("");setNewPassword("");setRepeatNewPassword("");
    }catch(error){setPasswordError(error instanceof Error?error.message:"Ошибка смены пароля");}
    finally{setSavingPassword(false);}
  };
@@ -142,16 +130,13 @@ function Settings(){
        <button type="button" className="pure-button secondary" style={{marginTop:8,alignSelf:"flex-start"}} disabled={!user||savingField!==null||isCooling(availableAt||null)||draft[field].trim()===""||draft[field]===user[field]} onClick={()=>saveProfileField(field)}>{savingField===field?"Сохранение…":"Сохранить "+labels[field].toLowerCase()}</button>
      </div>;
    })}
-   <label className="setting-field">Текущий email<input value={user?.email||""} readOnly placeholder="Загрузка…"/></label>
- <div className="setting-field"><label>Новый email<input type="email" value={newEmail} onChange={e=>setNewEmail(e.target.value)} placeholder="new@example.com"/></label><button type="button" className="pure-button secondary" disabled={emailBusy||!newEmail.includes("@")} onClick={()=>void requestEmailChange()}>{emailBusy?"Отправка…":"Отправить код подтверждения"}</button></div>
- <div className="setting-field"><label>Код из письма<input value={emailToken} onChange={e=>setEmailToken(e.target.value)} placeholder="Вставьте код"/></label><button type="button" className="pure-button" disabled={emailBusy||!emailToken.trim()} onClick={()=>void confirmEmailChange()}>Подтвердить новый email</button></div>
- {emailError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{emailError}</p>}
- {emailMessage&&<p role="status" style={{color:"#86efac",fontSize:12}}>{emailMessage}</p>}
+   <div className="setting-field" style={{gap:5}}><span className="muted" style={{fontSize:11}}>Текущий email</span><strong style={{fontSize:13,fontWeight:500,overflowWrap:"anywhere"}}>{user?.email||"Загрузка…"}</strong><button type="button" className="pure-button secondary" style={{marginTop:5,alignSelf:"flex-start"}} onClick={()=>setShowEmailDevModal(true)}>Изменить Email</button></div>
+ {showEmailDevModal&&<div role="presentation" onClick={()=>setShowEmailDevModal(false)} style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,.65)",display:"grid",placeItems:"center",padding:20}}><div role="dialog" aria-modal="true" aria-labelledby="email-dev-title" onClick={e=>e.stopPropagation()} style={{width:"min(360px,100%)",padding:24,borderRadius:16,background:"var(--panel, #171923)",border:"1px solid var(--border, #343746)",boxShadow:"0 20px 60px rgba(0,0,0,.4)",textAlign:"center"}}><strong id="email-dev-title">Пока в разработке</strong><p className="muted" style={{margin:"12px 0 18px",fontSize:13}}>Изменение email станет доступно позже.</p><button type="button" className="pure-button" onClick={()=>setShowEmailDevModal(false)}>Понятно</button></div></div>}
  </div>
  {profileError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{profileError}</p>}
  {profileMessage&&<p role="status" style={{color:"#86efac",fontSize:12}}>{profileMessage}</p>}
  <div className="empty-note">Имя, фамилия и логин изменяются независимо друг от друга. Для каждого поля действует отдельное ограничение: один раз в 14 дней.</div></>}
- {section==="security"&&<><div className="toggle-row"><span><strong>Пароль</strong><br/><small className="muted">Для смены подтвердите текущий пароль</small></span><LockKeyhole size={18}/></div><label className="setting-field">Текущий пароль<input type="password" autoComplete="current-password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} /></label><label className="setting-field">Новый пароль<input type="password" autoComplete="new-password" minLength={8} maxLength={72} value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="От 8 до 72 символов"/></label><button type="button" className="pure-button" disabled={savingPassword||!currentPassword||newPassword.length<8||newPassword.length>72} onClick={changePassword}>{savingPassword?"Сохранение…":"Изменить пароль"}</button>{passwordError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{passwordError}</p>}{passwordMessage&&<p role="status" style={{color:"#86efac",fontSize:12}}>{passwordMessage}</p>}<p className="muted" style={{fontSize:10}}>Пароль хранится в базе только в виде bcrypt-хеша.</p>
+ {section==="security"&&<><div className="toggle-row"><span><strong>Пароль</strong><br/><small className="muted">Для смены подтвердите текущий пароль</small></span><LockKeyhole size={18}/></div><label className="setting-field">Текущий пароль<input type="password" autoComplete="current-password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} /></label><label className="setting-field">Новый пароль<input type="password" autoComplete="new-password" minLength={8} maxLength={72} value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="От 8 до 72 символов"/></label><label className="setting-field">Повторите новый пароль<input type="password" autoComplete="new-password" minLength={8} maxLength={72} value={repeatNewPassword} onChange={e=>setRepeatNewPassword(e.target.value)} placeholder="Повторите новый пароль"/></label><button type="button" className="pure-button" disabled={savingPassword||!currentPassword||newPassword.length<8||newPassword.length>72||!repeatNewPassword} onClick={changePassword}>{savingPassword?"Сохранение…":"Изменить пароль"}</button>{passwordError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{passwordError}</p>}{passwordMessage&&<p role="status" style={{color:"#86efac",fontSize:12}}>{passwordMessage}</p>}<p className="muted" style={{fontSize:10}}>Пароль хранится в базе только в виде bcrypt-хеша.</p>
  <div style={{marginTop:18}}><div className="form-row" style={{justifyContent:"space-between"}}><strong>Активные сессии</strong><button className="pure-button ghost" disabled={revokingSessions||sessions.length<2} onClick={()=>void revokeOtherSessions()}><LogOut size={14}/>Завершить остальные</button></div>
  {sessions.map(s=><div className="member-row" key={s.id}><div className="transaction-icon"><MonitorSmartphone size={16}/></div><div className="member-copy"><strong>{s.current?"Текущая сессия":"Активная сессия"}</strong><small>Создана: {new Date(s.createdAt).toLocaleString("ru-RU")} · Истекает: {new Date(s.expiresAt).toLocaleDateString("ru-RU")}</small></div>{!s.current&&<button className="pure-button ghost" onClick={()=>void revokeSession(s.id)}>Завершить</button>}</div>)}
  {sessionError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{sessionError}</p>}
@@ -159,12 +144,12 @@ function Settings(){
  <div className="empty-note" style={{marginTop:18,borderColor:"#a33"}}><strong>Удаление аккаунта</strong><p>Личные данные, счета, операции и файлы будут удалены из активной системы. Семейные операции сохранятся с обезличенным автором. Резервные копии могут хранить данные до 7 дней.</p>
  <label className="setting-field">Подтвердите текущим паролем<input type="password" autoComplete="current-password" value={deletePassword} onChange={e=>setDeletePassword(e.target.value)}/></label>
  <label className="setting-field">Введите DELETE для подтверждения<input value={deleteConfirmation} onChange={e=>setDeleteConfirmation(e.target.value)} placeholder="DELETE"/></label>
- <button type="button" className="pure-button" disabled={deleteBusy||!deletePassword||deleteConfirmation!=="DELETE"} onClick={()=>void deleteAccount()}>{deleteBusy?"Удаление…":"Безвозвратно удалить аккаунт"}</button>
+ <button type="button" className="pure-button" style={{background:"#dc2626",borderColor:"#dc2626",color:"#fff"}} disabled={deleteBusy||!deletePassword||deleteConfirmation!=="DELETE"} onClick={()=>void deleteAccount()}>{deleteBusy?"Удаление…":"Безвозвратно удалить аккаунт"}</button>
  {deleteError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{deleteError}</p>}
  {deleteMessage&&<><p role="status">{deleteMessage}</p><button type="button" className="pure-button secondary" onClick={()=>window.location.reload()}>Вернуться ко входу</button></>}
  </div></>}
  {section==="notifications"&&<>{[["operations","Уведомления об операциях","Сообщать о новых доходах и расходах"],["goals","Прогресс целей","Напоминать о важных этапах накоплений"],["family","Семейные события","Получать обновления общего бюджета"]].map(([k,t,d])=><div className="toggle-row" key={k}><span><strong>{t}</strong><br/><small className="muted">{d}</small></span><button type="button" aria-label={t} aria-pressed={isOn(k)} className={`toggle ${isOn(k)?"on":""}`} onClick={()=>toggle(k)}/></div>)}</>}
- {section==="appearance"&&<><div className="toggle-row"><span><strong>Тема оформления</strong><br/><small className="muted">Выберите внешний вид интерфейса</small></span></div><div className="filter-pills">{["light","dark","auto"].map(t=><button key={t} className={`filter-pill ${theme===t?"active":""}`} onClick={()=>void saveTheme(t)}>{t==="light"?"Светлая":t==="dark"?"Тёмная":"Авто"}</button>)}</div><p className="muted" style={{fontSize:10,marginTop:12}}>Тема и параметры сохраняются в аккаунте и синхронизируются между устройствами.</p></>}
+ {section==="appearance"&&<><div className="toggle-row"><span><strong>Тема оформления</strong><br/><small className="muted">Выберите внешний вид интерфейса</small></span></div><div className="filter-pills" style={{marginTop:16}}>{["light","dark"].map(t=><button key={t} className={`filter-pill ${theme===t?"active":""}`} onClick={()=>void saveTheme(t)}>{t==="light"?"Светлая":"Тёмная"}</button>)}</div><p className="muted" style={{fontSize:10,marginTop:12}}>Тема и параметры сохраняются в аккаунте и синхронизируются между устройствами.</p></>}
  {section==="privacy"&&<>{[["profile","Публичный профиль","Разрешить другим видеть имя и достижения"],["achievements","Достижения","Показывать полученные награды"],["activity","Активность","Показывать события в ленте профиля"]].map(([k,t,d])=><div className="toggle-row" key={k}><span><strong>{t}</strong><br/><small className="muted">{d}</small></span><button type="button" aria-label={t} aria-pressed={isOn(k)} className={`toggle ${isOn(k)?"on":""}`} onClick={()=>toggle(k)}/></div>)}<div className="empty-note" style={{marginTop:14}}>Финансовые суммы и история операций не публикуются в профиле.</div></>}
  {prefsError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{prefsError}</p>}
  {section==="integrations"&&<div className="pure-grid two">
