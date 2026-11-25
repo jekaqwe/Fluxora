@@ -75,3 +75,31 @@
 .operation-modal-backdrop { position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(15,28,52,.42);backdrop-filter:blur(4px); }
 .operation-modal { width:min(760px,100%);max-height:90vh;overflow:auto;background:#fff;box-shadow:0 24px 80px rgba(20,43,85,.25); }
 @media(max-width:850px) { .operations-tools-grid { grid-template-columns:1fr; } }
+
+
+/* Регулярные операции: фиксированная высота и постраничный список */
+.recurring-tools .recurring-fixed-panel { height:279px;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden; }
+.recurring-tools .recurring-fixed-panel > .panel-heading { flex:0 0 auto; }
+.recurring-list-scroll,.recurring-form-scroll { flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain; }
+.recurring-transaction-row { grid-template-columns:30px minmax(0,1fr) auto auto auto auto;gap:7px;padding:8px 0; }
+.recurring-transaction-row .transaction-icon { width:30px;height:30px;border-radius:9px; }
+.recurring-transaction-row .transaction-copy strong { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.recurring-transaction-row .transaction-copy small { line-height:1.35; }
+.recurring-transaction-row .pure-button { min-width:28px;min-height:28px;width:28px;padding:0;border-radius:8px; }
+.recurring-transaction-row .transaction-amount { font-size:11px; }
+.recurring-account-select { max-width:125px;min-height:30px;padding:0 5px;font-size:10px; }
+.recurring-pagination { flex:0 0 auto;margin-top:5px;gap:9px; }
+.recurring-pagination .pure-button { min-height:27px;padding:0 9px;font-size:10px; }
+.recurring-empty { margin-top:2px; }
+.recurring-form-scroll .pure-grid.three { grid-template-columns:repeat(2,minmax(0,1fr));gap:9px; }
+.recurring-form-scroll .form-label { gap:4px;font-size:10px; }
+.recurring-form-scroll .pure-input,.recurring-form-scroll .pure-select { min-height:32px;font-size:11px; }
+.recurring-form-actions { grid-column:1/-1;align-items:center; }
+.recurring-form-actions .pure-button { min-height:32px;padding:0 10px;font-size:10px; }
+@media(max-width:650px) {
+ .recurring-transaction-row { grid-template-columns:28px minmax(0,1fr) auto; }
+ .recurring-transaction-row .recurring-account-select { grid-column:2/-1;max-width:none; }
+ .recurring-transaction-row .transaction-amount { grid-column:3;grid-row:1; }
+ .recurring-form-scroll .pure-grid.three { grid-template-columns:1fr; }
+ .recurring-form-actions { grid-column:auto; }
+}
