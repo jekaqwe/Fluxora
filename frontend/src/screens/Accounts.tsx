@@ -118,7 +118,7 @@ function Accounts() {
     new Intl.NumberFormat("ru-RU").format(absoluteCents / 100n) + "," +
     (absoluteCents % 100n).toString().padStart(2, "0") + " ₽";
 
-  return <div className="pure-page">
+  return <div className="pure-page" style={{padding:16}}>
     <PageHeading title="Счета" subtitle="Ваши деньги в одном месте"/>
     <div className="pure-grid two">
       <Panel title="Общий баланс" subtitle="Сумма текущих остатков на всех ваших счетах">
