@@ -1,6 +1,6 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import { Plus, Target, Plane, CarFront, Laptop, X, Pause, Play, Trash2, Pencil, History, Image, XCircle } from "lucide-react";
-import { PageHeading, Panel, Stat, Progress } from "./ui";
+import { ConfirmPopover, PageHeading, Panel, Stat, Progress } from "./ui";
 import "./Pure.css";
 
 type Priority="low"|"medium"|"high";
@@ -33,6 +33,7 @@ function Goals(){
  const [entryKey,setEntryKey]=useState("");
  const [historyGoalId,setHistoryGoalId]=useState<number|null>(null);
  const [history,setHistory]=useState<Record<number,Entry[]>>({});
+ const [confirmDeleteId,setConfirmDeleteId]=useState<number|null>(null);
 
  const load=async()=>{try{const [r,a]=await Promise.all([fetch("/api/goals"),fetch("/api/accounts")]);const [d,accountData]=await Promise.all([r.json(),a.json()]);if(!r.ok||!a.ok)throw new Error("Не удалось загрузить цели и счета");setGoals(d);setAccounts(accountData);if(accountData.length&&!accountData.some((a:Account)=>String(a.id)===entryAccountId))setEntryAccountId(String(accountData[0].id));}catch(e){setError(e instanceof Error?e.message:"Ошибка загрузки");}finally{setLoading(false);}};
  useEffect(()=>{void load();},[]);
@@ -65,7 +66,7 @@ function Goals(){
   try{const r=await fetch(`/api/goals/${id}/image`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить изображение");setGoals(old=>old.map(g=>g.id===id?{...g,imageUrl:undefined}:g));}
   catch(e){setError(e instanceof Error?e.message:"Ошибка удаления изображения");}
  };
- const remove=async(id:number)=>{if(!window.confirm("Удалить цель и её историю?"))return;try{const r=await fetch(`/api/goals/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить цель");setGoals(old=>old.filter(g=>g.id!==id));}catch(e){setError(e instanceof Error?e.message:"Ошибка удаления");}};
+ const remove=async(id:number)=>{try{const r=await fetch(`/api/goals/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить цель");setGoals(old=>old.filter(g=>g.id!==id));}catch(e){setError(e instanceof Error?e.message:"Ошибка удаления");}};
  const togglePause=async(g:Goal)=>{try{const r=await fetch(`/api/goals/${g.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({...g,status:g.status==="paused"?"active":"paused"})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось изменить статус");setGoals(old=>old.map(x=>x.id===g.id?d:x));}catch(e){setError(e instanceof Error?e.message:"Ошибка статуса");}};
  const showHistory=async(id:number)=>{if(historyGoalId===id){setHistoryGoalId(null);return;}try{const r=await fetch(`/api/goals/${id}/entries`);const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось загрузить историю");setHistory(old=>({...old,[id]:d}));setHistoryGoalId(id);}catch(e){setError(e instanceof Error?e.message:"Ошибка истории");}};
  const total=goals.reduce((sum,g)=>sum+toCents(g.currentAmount),0n);
@@ -103,13 +104,14 @@ function Goals(){
        <button className="pure-button ghost" onClick={()=>beginEdit(g)}><Pencil size={14}/></button>
        <button className="pure-button ghost" onClick={()=>void togglePause(g)} disabled={g.status==="completed"}>{g.status==="paused"?<Play size={14}/>:<Pause size={14}/>}</button>
        <button className="pure-button ghost" onClick={()=>void showHistory(g.id)}><History size={14}/></button><label className="pure-button ghost" title="Изменить изображение"><Image size={14}/><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={e=>void uploadGoalImage(g.id,e)}/></label>{g.imageUrl&&<button className="pure-button ghost" title="Удалить изображение" onClick={()=>void deleteGoalImage(g.id)}><XCircle size={14}/></button>}
-       <button className="pure-button ghost" onClick={()=>void remove(g.id)}><Trash2 size={14}/></button>
+       <button className="pure-button ghost" onClick={()=>setConfirmDeleteId(g.id)}><Trash2 size={14}/></button>
       </div>
       {entryGoalId===g.id&&<div style={{marginTop:12}}><label className="form-label">{entryType==="contribution"?"Пополнение, ₽":"Снятие, ₽"}<input className="pure-input" value={entryAmount} onChange={e=>setEntryAmount(e.target.value)} placeholder="0.00"/></label><label className="form-label" style={{marginTop:8}}>Счёт<select className="pure-select" value={entryAccountId} onChange={e=>setEntryAccountId(e.target.value)}>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label><div className="form-row" style={{marginTop:8}}><button className="pure-button" disabled={!validAmount(entryAmount)||!entryAccountId} onClick={()=>void recordEntry()}>Подтвердить</button><button className="pure-button ghost" onClick={()=>setEntryGoalId(null)}>Отмена</button></div></div>}
       {historyGoalId===g.id&&<div className="empty-note" style={{marginTop:12}}>{(history[g.id]||[]).length?(history[g.id]||[]).map(e=><div key={e.id} className="legend-row"><span>{e.type==="contribution"?"Пополнение":"Снятие"} · {new Date(e.createdAt).toLocaleDateString("ru-RU")}</span><strong>{money(e.amount)}</strong></div>):"История пока пуста."}</div>}
      </div>
     </Panel>;
    })}</div>}
+  {confirmDeleteId!==null&&<ConfirmPopover title="Удалить цель?" message="Цель и вся её история будут удалены." onCancel={()=>setConfirmDeleteId(null)} onConfirm={()=>{const id=confirmDeleteId;setConfirmDeleteId(null);void remove(id);}}/>}
   {error&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{error}</p>}
  </div>;
 }
