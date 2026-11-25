@@ -45,7 +45,7 @@ function Home() {
   const trendValues=trend.map(item=>Number(item.expense));
   const max=Math.max(1,...trendValues);
   const labels=trend.map(item=>new Date(item.date+"T00:00:00").toLocaleDateString("ru-RU",{day:"2-digit",month:"2-digit"}));
-  return <div className="pure-page">
+  return <div className="pure-page" style={{padding:16}}>
     <PageHeading title="Главная" subtitle="Ваши финансы. Ваши цели. Вместе с Fluxora."/>
     {error&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{error}</p>}
     {!dashboard?<div className="empty-note">Загружаем финансовую сводку…</div>:<>
