@@ -30,3 +30,14 @@ export function LinkAction({ children, onClick }: { children:string; onClick?:()
   return <button className="text-action" type="button" onClick={onClick}>{children}<ArrowUpRight size={14}/></button>;
 }
 export const money=(value:number)=>new Intl.NumberFormat("ru-RU",{style:"currency",currency:"RUB",maximumFractionDigits:0}).format(value);
+
+
+export function ConfirmPopover({ title, message, confirmLabel="Удалить", onConfirm, onCancel }: { title:string; message:string; confirmLabel?:string; onConfirm:()=>void; onCancel:()=>void }) {
+  return <div className="confirm-popover-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onCancel();}}>
+    <div className="confirm-popover" role="dialog" aria-modal="true" aria-labelledby="confirm-popover-title">
+      <strong id="confirm-popover-title">{title}</strong>
+      <p>{message}</p>
+      <div className="confirm-popover-actions"><button type="button" className="pure-button ghost" onClick={onCancel}>Отмена</button><button type="button" className="pure-button danger" onClick={onConfirm}>{confirmLabel}</button></div>
+    </div>
+  </div>;
+}
