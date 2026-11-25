@@ -150,3 +150,18 @@
 :root[data-theme="dark"] .debt-modal { border-color:#344866;background:#17263d; }
 :root[data-theme="dark"] .debt-modal-heading strong { color:#e7eefc; }
 :root[data-theme="dark"] .debt-modal-heading small { color:#a4b5d0; }
+
+/* Интерактивные графики главной страницы */
+.line-chart { position:relative;padding-top:8px; }
+.line-chart svg { height:190px;overflow:visible; }
+.line-chart-point { cursor:pointer;transition:r .15s ease,filter .15s ease;outline:none; }
+.line-chart-point:hover,.line-chart-point:focus { filter:drop-shadow(0 0 4px rgba(52,120,246,.45)); }
+.chart-axis-label { fill:#9aa8bc;font-size:8px; }
+.line-chart-tooltip { position:absolute;top:0;right:4px;z-index:2;display:grid;gap:3px;padding:8px 11px;border:1px solid var(--chart-border,#e3eaf5);border-radius:10px;background:var(--chart-tooltip,#fff);box-shadow:0 6px 18px rgba(31,55,91,.1);pointer-events:none; }
+.line-chart-tooltip strong { color:var(--chart-ink,#263f67);font-size:12px; }
+.line-chart-tooltip span { color:#91a0b7;font-size:10px; }
+.donut-segment { cursor:pointer;transition:stroke-width .15s ease,opacity .15s ease;outline:none; }
+.donut-segment:hover,.donut-segment:focus { filter:drop-shadow(0 2px 4px rgba(40,70,120,.25)); }
+.donut-value { max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+:root[data-theme="dark"] { --chart-grid:#2b3d58;--chart-border:#344866;--chart-tooltip:#17263d;--chart-ink:#e7eefc; }
+:root[data-theme="dark"] .chart-axis-label { fill:#8fa2bf; }
