@@ -120,7 +120,7 @@ export default function CSVTools({ accounts, onImported }: { accounts: Account[]
   const mappingReady = fields.every(field => !field.required || Boolean(mapping[field.key]));
 
   return (
-    <Panel title="CSV: импорт и экспорт" subtitle="Переносите операции между Fluxora и таблицами">
+    <Panel title="CSV: импорт и экспорт" subtitle="Переносите операции между Fluxora и таблицами" className="compact-tools-panel csv-compact-panel">
       <div className="pure-grid two">
         <div>
           <strong>Экспорт операций</strong>
