@@ -1,6 +1,6 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import { Plus, Users, Home as HomeIcon, Trash2, UserPlus, LogOut, Pencil, Target, Image } from "lucide-react";
-import { PageHeading, Panel, Stat } from "./ui";
+import { ConfirmPopover, PageHeading, Panel, Stat } from "./ui";
 import "./Pure.css";
 
 type FamilyInfo={id:number;name:string;initialBalance:string;currentBalance:string;role:"owner"|"admin"|"member"};
@@ -53,6 +53,8 @@ function Family(){
  const [kind,setKind]=useState<"income"|"expense">("expense");
  const [showForm,setShowForm]=useState(false);
  const [editingTxId,setEditingTxId]=useState<number|null>(null);
+ const [confirmAction,setConfirmAction]=useState<{title:string;message:string;confirmLabel?:string;onConfirm:()=>void}|null>(null);
+ const askConfirmation=(title:string,message:string,onConfirm:()=>void,confirmLabel="Удалить")=>setConfirmAction({title,message,onConfirm,confirmLabel});
 
  const load=async()=>{
   setError("");
@@ -107,7 +109,6 @@ function Family(){
   catch(e){setError(e instanceof Error?e.message:"Ошибка изображения");}
  };
  const removeTransaction=async(id:number)=>{
-  if(!window.confirm("Удалить семейную операцию?"))return;
   try{const r=await fetch(`/api/family/transactions/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить операцию");setTransactions(old=>old.filter(x=>x.id!==id));await load();}
   catch(e){setError(e instanceof Error?e.message:"Ошибка удаления");}
  };
@@ -116,12 +117,10 @@ function Family(){
   catch(e){setError(e instanceof Error?e.message:"Ошибка роли");}
  };
  const removeMember=async(id:number)=>{
-  if(!window.confirm("Удалить участника из семейного бюджета?"))return;
   try{const r=await fetch(`/api/family/members/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить участника");await load();}
   catch(e){setError(e instanceof Error?e.message:"Ошибка удаления участника");}
  };
  const leave=async()=>{
-  if(!window.confirm("Покинуть семейный бюджет?"))return;
   try{const r=await fetch("/api/family/leave",{method:"POST"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось покинуть семейный бюджет");await load();}
   catch(e){setError(e instanceof Error?e.message:"Ошибка выхода");}
  };
@@ -157,9 +156,9 @@ function Family(){
      {members.map(m=><div className="member-row" key={m.id}>
       <div className="member-avatar">{(m.firstName[0]||"").toUpperCase()}{(m.lastName[0]||"").toUpperCase()}</div>
       <div className="member-copy"><strong>{m.firstName} {m.lastName}</strong><small>{m.role==="owner"?"Владелец":m.role==="admin"?"Администратор":"Участник"} · @{m.username}</small></div>
-      {family.role==="owner"&&m.role!=="owner"&&<select className="pure-select" aria-label="Роль участника" value={m.role} onChange={e=>void updateRole(m.id,e.target.value as "admin"|"member")}><option value="member">Участник</option><option value="admin">Администратор</option></select>}{(family.role==="owner"||family.role==="admin")&&m.role!=="owner"&&<button className="pure-button ghost" aria-label="Удалить участника" onClick={()=>void removeMember(m.id)}><Trash2 size={14}/></button>}
+      {family.role==="owner"&&m.role!=="owner"&&<select className="pure-select" aria-label="Роль участника" value={m.role} onChange={e=>void updateRole(m.id,e.target.value as "admin"|"member")}><option value="member">Участник</option><option value="admin">Администратор</option></select>}{(family.role==="owner"||family.role==="admin")&&m.role!=="owner"&&<button className="pure-button ghost" aria-label="Удалить участника" onClick={()=>askConfirmation("Удалить участника?","Участник будет удалён из семейного бюджета.",()=>removeMember(m.id))}><Trash2 size={14}/></button>}
      </div>)}
-     {family.role!=="owner"&&<button className="pure-button ghost" style={{marginTop:12}} onClick={()=>void leave()}><LogOut size={14}/>Покинуть семью</button>}
+     {family.role!=="owner"&&<button className="pure-button ghost" style={{marginTop:12}} onClick={()=>askConfirmation("Покинуть семейный бюджет?","Вы потеряете доступ к общему бюджету и семейным операциям.",leave,"Покинуть")}><LogOut size={14}/>Покинуть семью</button>}
     </Panel>
     <Panel title="Пригласить участника" subtitle="Приглашение действует 7 дней">
      {family.role==="owner"||family.role==="admin"?<>
@@ -192,7 +191,7 @@ function Family(){
      <span className={`transaction-icon ${t.type==="income"?"mint":""}`}><HomeIcon size={16}/></span>
      <span className="transaction-copy"><strong>{t.title}</strong><small>{t.category} · {t.author} · {t.date}</small></span>
      <strong className={`transaction-amount ${t.type==="income"?"positive":"negative"}`}>{t.type==="income"?"+":"−"}{money(t.amount)}</strong>
-     <button className="pure-button ghost" aria-label="Изменить операцию" onClick={()=>editTransaction(t)}><Pencil size={14}/></button><button className="pure-button ghost" aria-label="Удалить операцию" onClick={()=>void removeTransaction(t.id)}><Trash2 size={14}/></button>
+     <button className="pure-button ghost" aria-label="Изменить операцию" onClick={()=>editTransaction(t)}><Pencil size={14}/></button><button className="pure-button ghost" aria-label="Удалить операцию" onClick={()=>askConfirmation("Удалить семейную операцию?","Операция будет удалена из истории.",()=>removeTransaction(t.id))}><Trash2 size={14}/></button>
     </div>)}</div>:<div className="empty-note">Операций по выбранным фильтрам нет.</div>}
    </Panel>
    <Panel title="Общие семейные цели" subtitle="Участники могут пополнять накопления и снимать средства с учётом остатка" action={<button className="pure-button" onClick={()=>setShowGoalForm(v=>!v)}><Plus size={15}/>Создать цель</button>}>
@@ -215,6 +214,7 @@ function Family(){
    </Panel>
    <div className="empty-note">Начальный семейный баланс и общие операции учитываются отдельно от личных счетов участников.</div>
   </>}
+  {confirmAction&&<ConfirmPopover title={confirmAction.title} message={confirmAction.message} confirmLabel={confirmAction.confirmLabel} onCancel={()=>setConfirmAction(null)} onConfirm={()=>{const action=confirmAction;setConfirmAction(null);void action.onConfirm();}}/>}
   {error&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{error}</p>}
  </div>;
 }
