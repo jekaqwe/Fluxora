@@ -28,14 +28,18 @@ export function LineChart({ values=[35,48,42,66,58,78,72], labels=["Янв","Ф�
   const coords=values.map((v,i)=>({x:values.length===1?150:12+i*(276/(values.length-1)),y:105-((v-min)/span)*82}));
   const points=coords.map(p=>`${p.x},${p.y}`).join(" ");
   const ticks=labels;
-  const total=values.reduce((sum,value)=>sum+value,0);\n  const average=values.length?total/values.length:0;\n  const peak=values.length?Math.max(...values):0;\n  const fmt=(value:number)=>new Intl.NumberFormat("ru-RU",{maximumFractionDigits:0}).format(value);\n  return <div className="line-chart-layout"><div className="line-chart">
-    {active!==null&&<div className="line-chart-tooltip"><strong>{valueLabels[active]||values[active].toLocaleString("ru-RU")}</strong><span>{labels[active]}</span></div>}
+  const total=values.reduce((sum,value)=>sum+value,0);
+  const average=values.length?total/values.length:0;
+  const peak=values.length?Math.max(...values):0;
+  const fmt=(value:number)=>new Intl.NumberFormat("ru-RU",{maximumFractionDigits:0}).format(value);
+  return <div className="line-chart-layout"><div className="line-chart">
+    {active!==null&&<div className="line-chart-tooltip" style={{left:`${Math.max(15,Math.min(285,coords[active].x))/3}%`,top:`${(coords[active].y/130)*190+8}px`,transform:"translate(-50%, calc(-100% - 9px))"}}><strong>{valueLabels[active]||values[active].toLocaleString("ru-RU")}</strong><span>{labels[active]}</span></div>}
     <svg viewBox="0 0 300 130" preserveAspectRatio="none" role="group" aria-label="Интерактивный график расходов">
       <defs><linearGradient id="line-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#6da8ff" stopOpacity=".28"/><stop offset="100%" stopColor="#6da8ff" stopOpacity="0"/></linearGradient></defs>
       {[23,49,75,101].map((y,i)=><g key={y}><line x1="8" x2="292" y1={y} y2={y} stroke="var(--chart-grid,#e9eef7)" strokeDasharray="3 5"/><text x="7" y={y-3} className="chart-axis-label">{Math.round(max-(i/3)*span).toLocaleString("ru-RU")}</text></g>)}
       {values.length>1&&<polygon points={`12,112 ${points} 288,112`} fill="url(#line-fill)"/>}
-      <polyline points={points} fill="none" stroke="#438bfa" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-      {coords.map((p,i)=><circle key={i} cx={p.x} cy={p.y} r={2.5} fill={active===i?"#fff":"#438bfa"} stroke="#3478f6" strokeWidth="1.5" className="line-chart-point" tabIndex={0} role="button" aria-label={`${labels[i]}: ${valueLabels[i]||values[i]}`} onMouseEnter={()=>setActive(i)} onMouseLeave={()=>setActive(null)} onFocus={()=>setActive(i)} onBlur={()=>setActive(null)}><title>{labels[i]}: {valueLabels[i]||values[i].toLocaleString("ru-RU")}</title></circle>)}
+      <polyline points={points} fill="none" stroke="#438bfa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      {coords.map((p,i)=><circle key={i} cx={p.x} cy={p.y} r={1} fill={active===i?"#fff":"#438bfa"} stroke="#3478f6" strokeWidth="1" className="line-chart-point" tabIndex={0} role="button" aria-label={`${labels[i]}: ${valueLabels[i]||values[i]}`} onMouseEnter={()=>setActive(i)} onMouseLeave={()=>setActive(null)} onFocus={()=>setActive(i)} onBlur={()=>setActive(null)}><title>{labels[i]}: {valueLabels[i]||values[i].toLocaleString("ru-RU")}</title></circle>)}
     </svg>
     <div className="chart-labels">{ticks.map((x,i)=><span key={i}>{x}</span>)}</div></div><aside className="line-chart-legend" aria-label="Сводка расходов"><span className="line-chart-legend-title"><i/> Расходы</span><div><small>Всего</small><strong>{fmt(total)} ₽</strong></div><div><small>В среднем за день</small><strong>{fmt(average)} ₽</strong></div><div><small>Максимум за день</small><strong>{fmt(peak)} ₽</strong></div></aside>
   </div>;
