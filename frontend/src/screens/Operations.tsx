@@ -58,6 +58,8 @@ function Operations() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [historyPage, setHistoryPage] = useState(1);
+  const pageSize = 20;
 
   const load = async () => {
     try {
@@ -78,6 +80,10 @@ function Operations() {
     (filter === "all" || item.type === filter) &&
     (item.title + " " + item.category + " " + item.comment).toLowerCase().includes(query.toLowerCase())
   ), [items, filter, query]);
+
+  const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
+  const currentPage = Math.min(historyPage, pageCount);
+  const paginatedVisible = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const income = items.filter(x => x.type === "income").reduce((sum, x) => sum + cents(x.amount), 0n);
   const expense = items.filter(x => x.type === "expense").reduce((sum, x) => sum + cents(x.amount), 0n);
@@ -158,10 +164,10 @@ function Operations() {
     <CSVTools accounts={accounts} onImported={()=>void load()}/>
     <Panel title="История операций" subtitle={`${visible.length} записей`}>
       <div className="form-row" style={{justifyContent:"space-between",marginBottom:16,flexWrap:"wrap"}}>
-        <div className="filter-pills">{[["all","Все"],["income","Доходы"],["expense","Расходы"],["transfer","Переводы"]].map(([key,label])=><button key={key} className={`filter-pill ${filter===key?"active":""}`} onClick={()=>setFilter(key)}>{label}</button>)}</div>
-        <input className="pure-input" style={{maxWidth:240}} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Поиск по операциям"/>
+        <div className="filter-pills">{[["all","Все"],["income","Доходы"],["expense","Расходы"],["transfer","Переводы"]].map(([key,label])=><button key={key} className={`filter-pill ${filter===key?"active":""}`} onClick={()=>{setFilter(key);setHistoryPage(1);}}>{label}</button>)}</div>
+        <input className="pure-input" style={{maxWidth:240}} value={query} onChange={e=>{setQuery(e.target.value);setHistoryPage(1);}} placeholder="Поиск по операциям"/>
       </div>
-      <div className="transaction-list">{visible.map(item => {
+      <div className="transaction-list operations-history-list">{paginatedVisible.map(item => {
         const isIncome = item.type === "income";
         const isTransfer = item.type === "transfer";
         const account = accounts.find(a => a.id === item.accountId)?.name || "Счёт";
@@ -172,9 +178,14 @@ function Operations() {
           <span className="transaction-copy"><strong>{item.title}</strong><small>{item.category} · {typeLabels[item.type]} · {isTransfer ? account + " → " + (destination || "счёт") : account}</small></span>
           <strong className={`transaction-amount ${isIncome ? "positive" : isTransfer ? "" : "negative"}`}>{isIncome ? "+" : isTransfer ? "↔ " : "−"}{item.amount} ₽</strong>
           <span className="transaction-date">{item.date}</span>
-          <button type="button" className="pure-button ghost" aria-label="Изменить операцию" onClick={() => beginEdit(item)}><Pencil size={14}/></button><button type="button" className="pure-button ghost" aria-label="Удалить операцию" onClick={() => void remove(item.id)}><Trash2 size={14}/></button>
+          <button type="button" className="pure-button ghost" aria-label="Изменить операцию" onClick={() => beginEdit(item)}><Pencil size={14}/></button><button type="button" className="pure-button ghost operation-delete-button" aria-label="Удалить операцию" onClick={() => void remove(item.id)}><Trash2 size={12}/></button>
         </div>;
       })}{visible.length===0&&<div className="empty-note">Операций по выбранным условиям не найдено.</div>}</div>
+      {visible.length > 0 && <div className="operations-pagination">
+        <button type="button" className="pure-button ghost" disabled={currentPage === 1} onClick={() => setHistoryPage(currentPage - 1)}>Назад</button>
+        <span>Страница {currentPage} из {pageCount}</span>
+        <button type="button" className="pure-button ghost" disabled={currentPage === pageCount} onClick={() => setHistoryPage(currentPage + 1)}>Вперёд</button>
+      </div>}
     </Panel>
     {error && <p role="alert" style={{color:"#f87171",fontSize:12}}>{error}</p>}
   </div>;
