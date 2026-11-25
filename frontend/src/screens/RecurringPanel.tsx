@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Panel } from "./ui";
+import { ConfirmPopover, Panel } from "./ui";
 import { Plus, Pause, Play, Trash2, Check, X, Pencil, History } from "lucide-react";
 
 type Account={id:number;name:string};
@@ -15,6 +15,8 @@ export default function RecurringPanel({accounts}:{accounts:Account[]}){
  const [missed,setMissed]=useState<Missed[]>([]);
  const [history,setHistory]=useState<HistoryItem[]>([]);
  const [historyOpenId,setHistoryOpenId]=useState<number|null>(null);
+ const [archiveOpen,setArchiveOpen]=useState(false);
+ const [confirmDeleteId,setConfirmDeleteId]=useState<number|null>(null);
  const [show,setShow]=useState(false);
  const [editingId,setEditingId]=useState<number|null>(null);
  const [recurringPage,setRecurringPage]=useState(1);
@@ -70,8 +72,7 @@ export default function RecurringPanel({accounts}:{accounts:Account[]}){
   catch(e){setError(e instanceof Error?e.message:"Ошибка обновления");}
  };
  const remove=async(id:number)=>{
-  if(!window.confirm("Удалить расписание? История выполненных и пропущенных дат сохранится."))return;
-  try{const r=await fetch(`/api/recurring/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить расписание");await load();}
+  try{const r=await fetch(`/api/recurring/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить расписание");setConfirmDeleteId(null);await load();}
   catch(e){setError(e instanceof Error?e.message:"Ошибка удаления");}
  };
  const resolve=async(id:number,action:"confirm"|"skip")=>{
@@ -86,7 +87,7 @@ export default function RecurringPanel({accounts}:{accounts:Account[]}){
   await load();
  };
  return <div className="recurring-tools">
-  <Panel title="Регулярные операции" subtitle="Операции по расписанию" className="compact-tools-panel recurring-fixed-panel" action={<button className="pure-button compact-tool-button" onClick={()=>{if(show){resetForm();}else{setEditingId(null);setShow(true);}}}><Plus size={13}/>Добавить расписание</button>}>
+  <Panel title="Регулярные операции" subtitle="Операции по расписанию" className="compact-tools-panel recurring-fixed-panel" action={<div className="recurring-header-actions">{deletedItems.length>0&&<div className="recurring-archive-wrap"><button type="button" className="pure-button ghost compact-tool-button" aria-expanded={archiveOpen} onClick={()=>setArchiveOpen(v=>!v)}><History size={13}/>Архив</button>{archiveOpen&&<div className="recurring-archive-menu"><strong>Архив регулярных операций</strong><div className="transaction-list">{deletedItems.map(item=><div className="transaction-row" key={item.id}><span className="transaction-copy"><strong>{item.title}</strong><small>{frequencies[item.frequency]} · Архивировано</small></span><strong className="transaction-amount">{item.amount} ₽</strong><button type="button" className="pure-button ghost" onClick={()=>{setArchiveOpen(false);void showHistory(item.id);}}><History size={13}/>История</button></div>)}</div></div>}</div>}<button className="pure-button compact-tool-button" onClick={()=>{if(show){resetForm();}else{setEditingId(null);setShow(true);}}}><Plus size={13}/>Добавить автоплатёж</button></div>}>
    {show?(
     <div className="recurring-form-scroll">
      {accounts.length===0?<div className="empty-note">Сначала создайте хотя бы один счёт в разделе «Счета».</div>:<>
@@ -115,7 +116,7 @@ export default function RecurringPanel({accounts}:{accounts:Account[]}){
         {item.status!=="completed"&&<button className="pure-button ghost" aria-label={item.status==="active"?"Приостановить":"Возобновить"} disabled={item.status==="paused"&&!item.accountId&&!accountSelections[item.id]&&!accountId} onClick={()=>void update(item,item.status==="active"?"paused":"active")}>{item.status==="active"?<Pause size={14}/>:<Play size={14}/>}</button>}
         <button className="pure-button ghost" aria-label="История расписания" onClick={()=>void showHistory(item.id)}><History size={14}/></button>
         {item.status!=="completed"&&<button className="pure-button ghost" aria-label="Изменить расписание" onClick={()=>edit(item)}><Pencil size={14}/></button>}
-        <button className="pure-button ghost" aria-label="Удалить расписание" onClick={()=>void remove(item.id)}><Trash2 size={14}/></button>
+        <button className="pure-button ghost" aria-label="Удалить расписание" onClick={()=>setConfirmDeleteId(item.id)}><Trash2 size={14}/></button>
        </div>
       ))}
      </div>
@@ -127,9 +128,8 @@ export default function RecurringPanel({accounts}:{accounts:Account[]}){
     </>}
    </>}
   </Panel>
-  {deletedItems.length>0&&<Panel title="Архив регулярных операций" subtitle="Удалённые расписания сохранены вместе с историей"><div className="transaction-list">{deletedItems.map(item=><div className="transaction-row" key={item.id}><span className="transaction-copy"><strong>{item.title}</strong><small>{frequencies[item.frequency]} · Архивировано</small></span><strong className="transaction-amount">{item.amount} ₽</strong><button className="pure-button ghost" onClick={()=>void showHistory(item.id)}><History size={14}/>История</button></div>)}</div></Panel>}
   {historyOpenId!==null&&<Panel title="История регулярной операции" subtitle="Созданные, пропущенные и подтверждённые даты">{history.length===0?<div className="empty-note">История пока пуста.</div>:<div className="transaction-list">{history.map(item=><div className="transaction-row" key={item.id}><span className="transaction-copy"><strong>{item.date}</strong><small>{item.status==="confirmed"?"Подтверждена":item.status==="skipped"?"Пропущена":"Ожидает подтверждения"}</small></span>{item.transactionId&&<small>Операция #{item.transactionId}</small>}</div>)}</div>}</Panel>}
   {missed.length>0&&<Panel title={`Пропущенные даты: ${missed.length}`} subtitle="Они не были созданы автоматически. Подтвердите каждую или все сразу." action={<button className="pure-button" onClick={()=>void confirmAll()}><Check size={14}/>Подтвердить все</button>}><div className="transaction-list">{missed.map(item=><div className="transaction-row" key={item.id}><span className="transaction-copy"><strong>{item.title}</strong><small>{item.date} · {item.type==="income"?"Доход":"Расход"} · {item.category}</small></span><strong className="transaction-amount">{item.amount} ₽</strong><button className="pure-button" onClick={()=>void resolve(item.id,"confirm")}><Check size={14}/>Подтвердить</button><button className="pure-button ghost" onClick={()=>void resolve(item.id,"skip")}><X size={14}/>Пропустить</button></div>)}</div></Panel>}
-  {error&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{error}</p>}
+  {confirmDeleteId!==null&&<ConfirmPopover title="Удалить автоплатёж?" message="История выполненных и пропущенных дат сохранится." onCancel={()=>setConfirmDeleteId(null)} onConfirm={()=>void remove(confirmDeleteId)}/>}\n  {error&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{error}</p>}
  </div>;
 }
