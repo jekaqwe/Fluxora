@@ -50,7 +50,7 @@ function Home() {
     {error&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{error}</p>}
     {!dashboard?<div className="empty-note">Загружаем финансовую сводку…</div>:<>
       <QuickEntry onSaved={()=>setRefreshKey(value=>value+1)}/>
-      <div className="pure-grid four">
+      <div className="pure-grid four" style={{marginTop: 16}}>
         <Stat label="Общий баланс" value={money(dashboard.totalBalance)} icon={<Wallet size={17}/>}/>
         <Stat label="Доходы за месяц" value={money(dashboard.monthIncome)} tone="mint" icon={<ArrowDownLeft size={17}/>}/>
         <Stat label="Расходы за месяц" value={money(dashboard.monthExpense)} tone="violet" icon={<ArrowUpRight size={17}/>}/>
