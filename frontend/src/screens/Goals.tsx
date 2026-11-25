@@ -71,7 +71,7 @@ function Goals(){
  const total=goals.reduce((sum,g)=>sum+toCents(g.currentAmount),0n);
  const active=goals.filter(g=>g.status==="active").length;
 
- return <div className="pure-page">
+ return <div className="pure-page" style={{padding:16}}>
   <PageHeading title="Цели" subtitle="Планируйте накопления и приближайте мечты" action={<button className="pure-button" onClick={()=>{resetForm();setShow(true);}}><Plus size={16}/>Создать цель</button>}/>
   <div className="pure-grid two"><Stat label="Всего накоплено" value={moneyCents(total)} change="По всем целям" icon={<Target size={17}/>}/><Stat label="Активные цели" value={String(active)} change="Ваш план накоплений" tone="mint"/></div>
   {show&&<Panel title={editingId===null?"Новая цель":"Изменить цель"}>
