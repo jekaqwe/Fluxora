@@ -184,9 +184,9 @@
 /* Настройки графиков и всплывающая форма быстрой операции */
 .line-chart-tooltip { right:auto; }
 .chart-legend { width:220px;flex:0 0 220px;display:grid;gap:11px; }
-.category-legend-row { display:grid;grid-template-columns:8px minmax(0,1fr) 112px;align-items:center;column-gap:8px;min-width:0;color:#7789a5;font-size:11px; }
-.category-legend-name { min-width:0;margin-left:-10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
-.category-legend-value { width:112px;margin-left:0!important;text-align:right;white-space:nowrap;color:#31496e;font-size:10px!important; }
+.category-legend-row { display:grid;grid-template-columns:8px minmax(0,1fr) 112px;align-items:center;column-gap:8px;min-width:0;color:#fff;font-size:11px; }
+.category-legend-name { min-width:0;margin-left:-5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff; }
+.category-legend-value { width:112px;margin-left:0!important;text-align:right;white-space:nowrap;color:#fff;font-size:10px!important; }
 .quick-entry-modal { width:min(760px,100%); }
 .quick-entry-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px; }
 .quick-entry-grid .debt-modal-comment { grid-column:1/-1; }
