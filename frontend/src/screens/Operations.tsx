@@ -172,13 +172,12 @@ function Operations() {
         const isTransfer = item.type === "transfer";
         const account = accounts.find(a => a.id === item.accountId)?.name || "Счёт";
         const destination = accounts.find(a => a.id === item.transferAccountId)?.name;
-        const Icon = isIncome ? ArrowDownLeft : isTransfer ? ArrowLeftRight : item.category === "Транспорт" ? Car : item.category === "Кафе" ? Coffee : ShoppingBag;
+        const Icon = isIncome ? ArrowDownLeft : isTransfer ? ArrowLeftRight : ArrowUpRight;
         return <div className="transaction-row" key={item.id}>
           <span className={`transaction-icon ${isIncome ? "mint" : isTransfer ? "violet" : ""}`}><Icon size={16}/></span>
-          <span className="transaction-copy"><strong>{item.title}</strong><small>{item.category} · {typeLabels[item.type]} · {isTransfer ? account + " → " + (destination || "счёт") : account}</small></span>
+          <span className="transaction-copy"><strong>{item.title}</strong><small>{item.date} · {item.category} · {typeLabels[item.type]} · {isTransfer ? account + " → " + (destination || "счёт") : account}</small></span>
           <strong className={`transaction-amount ${isIncome ? "positive" : isTransfer ? "" : "negative"}`}>{isIncome ? "+" : isTransfer ? "↔ " : "−"}{item.amount} ₽</strong>
-          <span className="transaction-date">{item.date}</span>
-          <button type="button" className="pure-button ghost" aria-label="Изменить операцию" onClick={() => beginEdit(item)}><Pencil size={14}/></button><button type="button" className="pure-button ghost operation-delete-button" aria-label="Удалить операцию" onClick={() => void remove(item.id)}><Trash2 size={12}/></button>
+          <button type="button" className="pure-button ghost operation-edit-button" aria-label="Изменить операцию" onClick={() => beginEdit(item)}><Pencil size={14}/></button><button type="button" className="pure-button ghost operation-delete-button" aria-label="Удалить операцию" onClick={() => void remove(item.id)}><Trash2 size={12}/></button>
         </div>;
       })}{visible.length===0&&<div className="empty-note">Операций по выбранным условиям не найдено.</div>}</div>
       {visible.length > 0 && <div className="operations-pagination">
