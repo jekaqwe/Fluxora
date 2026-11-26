@@ -62,7 +62,7 @@ function Family(){
  const [amount,setAmount]=useState("");
  const [category,setCategory]=useState("Покупки");
  const [date,setDate]=useState(today());
- const [kind,setKind]=useState<"income"|"expense">("expense");
+ const [kind,setKind]=useState<string>("expense");
  const [showForm,setShowForm]=useState(false);
  const [editingTxId,setEditingTxId]=useState<number|null>(null);
  const [confirmAction,setConfirmAction]=useState<{title:string;message:string;confirmLabel?:string;onConfirm:()=>void}|null>(null);
