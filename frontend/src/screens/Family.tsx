@@ -1,6 +1,6 @@
 import { useEffect, useState, type ChangeEvent } from "react";
-import { Plus, Users, Home as HomeIcon, Trash2, UserPlus, LogOut, Pencil, Target, Image } from "lucide-react";
-import { ConfirmPopover, PageHeading, Panel, Stat } from "./ui";
+import { Plus, Home as HomeIcon, Trash2, UserPlus, LogOut, Pencil, Target, Image, X } from "lucide-react";
+import { ConfirmPopover, PageHeading, Panel, Stat, Progress } from "./ui";
 import "./Pure.css";
 
 type FamilyInfo={id:number;name:string;initialBalance:string;currentBalance:string;role:"owner"|"admin"|"member"};
@@ -14,6 +14,8 @@ const cents=(v:string)=>{const [whole,fraction=""]=v.split(".");return BigInt(wh
 const moneyCents=(value:bigint)=>{const neg=value<0n;const abs=neg?-value:value;return (neg?"−":"")+new Intl.NumberFormat("ru-RU").format(abs/100n)+","+(abs%100n).toString().padStart(2,"0")+" ₽";};
 const money=(v:string)=>{const neg=v.startsWith("-");const [whole,fraction=""]=v.replace("-","").split(".");const value=BigInt(whole||"0")*100n+BigInt((fraction+"00").slice(0,2));return moneyCents(neg?-value:value);};
 const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");};
+const validFamilyGoalTarget=(value:string)=>/^(?:0|[1-9][0-9]{0,8})(?:[.,][0-9]{1,2})?$/.test(value)&&cents(value.replace(",", "."))>0n&&cents(value.replace(",", "."))<=99999999900n;
+const validFamilyGoalStarting=(value:string)=>/^(?:0|[1-9][0-9]{0,8})(?:[.,][0-9]{1,2})?$/.test(value)&&cents(value.replace(",", "."))>=0n&&cents(value.replace(",", "."))<=99999999900n;
 
 function Family(){
  const [family,setFamily]=useState<FamilyInfo|null>(null);
@@ -27,6 +29,9 @@ function Family(){
  const [accounts,setAccounts]=useState<Account[]>([]);
  const [familyGoalAccountId,setFamilyGoalAccountId]=useState("");
  const [showGoalForm,setShowGoalForm]=useState(false);
+ const [editingFamilyGoalId,setEditingFamilyGoalId]=useState<number|null>(null);
+ const [goalLimitExceeded,setGoalLimitExceeded]=useState(false);
+ const [goalInvalidFields,setGoalInvalidFields]=useState<Record<string,boolean>>({});
  const [goalTitle,setGoalTitle]=useState("");
  const [goalDescription,setGoalDescription]=useState("");
  const [goalTarget,setGoalTarget]=useState("");
@@ -45,6 +50,7 @@ function Family(){
  const [initialBalance,setInitialBalance]=useState("0");
  const [inviteEmail,setInviteEmail]=useState("");
  const [inviteToken,setInviteToken]=useState("");
+ const [showInviteForm,setShowInviteForm]=useState(false);
  const [acceptToken,setAcceptToken]=useState("");
  const [title,setTitle]=useState("");
  const [amount,setAmount]=useState("");
@@ -89,10 +95,18 @@ function Family(){
  const editTransaction=(t:FamilyTx)=>{
   setEditingTxId(t.id);setTitle(t.title);setKind(t.type);setAmount(t.amount);setCategory(t.category);setDate(t.date);setShowForm(true);
  };
- const createFamilyGoal=async()=>{
-  try{const r=await fetch("/api/family/goals",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title:goalTitle,description:goalDescription,targetAmount:goalTarget.replace(",", "."),startingAmount:goalStarting.replace(",", "."),dueDate:goalDueDate,priority:goalPriority})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось создать семейную цель");setFamilyGoals(old=>[d,...old]);setShowGoalForm(false);setGoalTitle("");setGoalDescription("");setGoalTarget("");setGoalStarting("0");}
+ const resetFamilyGoalForm=()=>{setShowGoalForm(false);setEditingFamilyGoalId(null);setGoalLimitExceeded(false);setGoalInvalidFields({});setGoalTitle("");setGoalDescription("");setGoalTarget("");setGoalStarting("0");setGoalDueDate("");setGoalPriority("medium");};
+ const beginEditFamilyGoal=(g:FamilyGoal)=>{setGoalInvalidFields({});setEditingFamilyGoalId(g.id);setGoalTitle(g.title);setGoalDescription(g.description);setGoalTarget(g.targetAmount);setGoalStarting(g.startingAmount);setGoalDueDate(g.dueDate||"");setGoalPriority(g.priority);setGoalLimitExceeded(false);setShowGoalForm(true);};
+ const saveFamilyGoal=async()=>{
+  if(editingFamilyGoalId===null&&familyGoals.length>=3){setGoalLimitExceeded(true);return;}
+  const invalid={title:!goalTitle.trim()||goalTitle.length>24,description:goalDescription.length>30,target:!validFamilyGoalTarget(goalTarget),starting:!validFamilyGoalStarting(goalStarting)};
+  setGoalInvalidFields(invalid);
+  if(Object.values(invalid).some(Boolean)){setError("Проверьте выделенные поля: максимальная сумма 999 999 999 ₽.");return;}
+  setError("");
+  try{const editing=editingFamilyGoalId!==null;const current=editing?familyGoals.find(g=>g.id===editingFamilyGoalId):undefined;const r=await fetch(editing?`/api/family/goals/${editingFamilyGoalId}`:"/api/family/goals",{method:editing?"PATCH":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title:goalTitle,description:goalDescription,targetAmount:goalTarget.replace(",", "."),startingAmount:goalStarting.replace(",", "."),dueDate:goalDueDate,priority:goalPriority,status:current?.status||"active"})});const d=await r.json();if(!r.ok)throw new Error(d.error||(editing?"Не удалось изменить семейную цель":"Не удалось создать семейную цель"));resetFamilyGoalForm();await load();}
   catch(e){setError(e instanceof Error?e.message:"Ошибка семейной цели");}
  };
+ const removeFamilyGoal=async(id:number)=>{try{const r=await fetch(`/api/family/goals/${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось удалить семейную цель");setFamilyGoals(old=>old.filter(g=>g.id!==id));}catch(e){setError(e instanceof Error?e.message:"Ошибка удаления семейной цели");}};
  const contributeFamilyGoal=async()=>{
   if(contributionGoalId===null)return;
   try{const r=await fetch(`/api/family/goals/${contributionGoalId}/entries`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({amount:contributionAmount.replace(",", "."),entryType:goalEntryType,comment:"",accountId:Number(familyGoalAccountId),idempotencyKey:contributionKey})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось провести операцию по семейной цели");setContributionGoalId(null);setContributionAmount("");setContributionKey("");setGoalEntryType("contribution");await load();}
@@ -125,6 +139,7 @@ function Family(){
   catch(e){setError(e instanceof Error?e.message:"Ошибка выхода");}
  };
  const currentMonth=today().slice(0,7);
+ const monthIncome=transactions.filter(x=>x.type==="income"&&x.date.startsWith(currentMonth)).reduce((s,x)=>s+cents(x.amount),0n);
  const monthExpense=transactions.filter(x=>x.type==="expense"&&x.date.startsWith(currentMonth)).reduce((s,x)=>s+cents(x.amount),0n);
  const authors=Array.from(new Set(transactions.map(item=>item.author))).sort((a,b)=>a.localeCompare(b,"ru"));
  const familyCategories=Array.from(new Set(transactions.map(item=>item.category))).sort((a,b)=>a.localeCompare(b,"ru"));
@@ -148,27 +163,20 @@ function Family(){
   </div>:<>
    <div className="pure-grid three">
     <Stat label="Семейный баланс" value={money(family.currentBalance)} icon={<HomeIcon size={17}/>}/>
-    <Stat label="Расходы за месяц" value={moneyCents(monthExpense)} tone="violet"/>
-    <Stat label="Участники" value={String(members.length)} tone="mint" icon={<Users size={17}/>}/>
+    <Stat label="Доход Семьи" value={moneyCents(monthIncome)} tone="mint"/>
+    <Stat label="Расходы Семьи" value={moneyCents(monthExpense)} tone="violet"/>
    </div>
    <div className="pure-grid two" style={{marginTop:16}}>
-    <Panel title="Участники семьи" subtitle={family.name}>
+    <Panel title="Участники семьи" subtitle={family.name} action={(family.role==="owner"||family.role==="admin")?<button className="pure-button" onClick={()=>{setInviteEmail("");setInviteToken("");setShowInviteForm(true);}}><UserPlus size={15}/>Пригласить участника</button>:undefined}>
      {members.map(m=><div className="member-row" key={m.id}>
       <div className="member-avatar">{(m.firstName[0]||"").toUpperCase()}{(m.lastName[0]||"").toUpperCase()}</div>
       <div className="member-copy"><strong>{m.firstName} {m.lastName}</strong><small>{m.role==="owner"?"Владелец":m.role==="admin"?"Администратор":"Участник"} · @{m.username}</small></div>
-      {family.role==="owner"&&m.role!=="owner"&&<select className="pure-select" aria-label="Роль участника" value={m.role} onChange={e=>void updateRole(m.id,e.target.value as "admin"|"member")}><option value="member">Участник</option><option value="admin">Администратор</option></select>}{(family.role==="owner"||family.role==="admin")&&m.role!=="owner"&&<button className="pure-button ghost" aria-label="Удалить участника" onClick={()=>askConfirmation("Удалить участника?","Участник будет удалён из семейного бюджета.",()=>removeMember(m.id))}><Trash2 size={14}/></button>}
+      {family.role==="owner"&&m.role!=="owner"&&<select className="pure-select" aria-label="Роль участника" style={{width:120,height:40,minHeight:40,boxSizing:"border-box"}} value={m.role} onChange={e=>void updateRole(m.id,e.target.value as "admin"|"member")}><option value="member">Участник</option><option value="admin">Администратор</option></select>}{(family.role==="owner"||family.role==="admin")&&m.role!=="owner"&&<button className="pure-button ghost" aria-label="Удалить участника" style={{width:36,height:36,minWidth:36,minHeight:36,padding:0,display:"grid",placeItems:"center"}} onClick={()=>askConfirmation("Удалить участника?","Участник будет удалён из семейного бюджета.",()=>removeMember(m.id))}><Trash2 size={20}/></button>}
      </div>)}
      {family.role!=="owner"&&<button className="pure-button ghost" style={{marginTop:12}} onClick={()=>askConfirmation("Покинуть семейный бюджет?","Вы потеряете доступ к общему бюджету и семейным операциям.",leave,"Покинуть")}><LogOut size={14}/>Покинуть семью</button>}
     </Panel>
-    <Panel title="Пригласить участника" subtitle="Приглашение действует 7 дней">
-     {family.role==="owner"||family.role==="admin"?<>
-      <label className="form-label">Email участника<input className="pure-input" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="name@example.com"/></label>
-      <button className="pure-button" style={{marginTop:12}} disabled={!inviteEmail.includes("@")} onClick={()=>void invite()}><UserPlus size={15}/>Создать приглашение</button>
-      {inviteToken&&<div className="empty-note" style={{marginTop:12}}>Передайте этот токен участнику вручную: <strong>{inviteToken}</strong></div>}
-     </>:<div className="empty-note">Приглашать участников могут владелец и администраторы.</div>}
-    </Panel>
    </div>
-   <Panel title="Семейные операции" subtitle="Доходы и расходы общего бюджета" action={<button className="pure-button" onClick={()=>setShowForm(v=>!v)}><Plus size={15}/>Добавить</button>}>
+   <div style={{marginTop:16}}><Panel title="Семейные операции" subtitle="Доходы и расходы общего бюджета" action={<button className="pure-button" onClick={()=>setShowForm(v=>!v)}><Plus size={15}/>Добавить</button>}>
     {showForm&&<div className="pure-grid three" style={{marginBottom:16}}>
      <label className="form-label">Тип<select className="pure-select" value={kind} onChange={e=>setKind(e.target.value as "income"|"expense")}><option value="expense">Расход</option><option value="income">Доход</option></select></label>
      <label className="form-label">Название<input className="pure-input" value={title} onChange={e=>setTitle(e.target.value)}/></label>
@@ -193,27 +201,15 @@ function Family(){
      <strong className={`transaction-amount ${t.type==="income"?"positive":"negative"}`}>{t.type==="income"?"+":"−"}{money(t.amount)}</strong>
      <button className="pure-button ghost" aria-label="Изменить операцию" onClick={()=>editTransaction(t)}><Pencil size={14}/></button><button className="pure-button ghost" aria-label="Удалить операцию" onClick={()=>askConfirmation("Удалить семейную операцию?","Операция будет удалена из истории.",()=>removeTransaction(t.id))}><Trash2 size={14}/></button>
     </div>)}</div>:<div className="empty-note">Операций по выбранным фильтрам нет.</div>}
-   </Panel>
-   <Panel title="Общие семейные цели" subtitle="Участники могут пополнять накопления и снимать средства с учётом остатка" action={<button className="pure-button" onClick={()=>setShowGoalForm(v=>!v)}><Plus size={15}/>Создать цель</button>}>
-    {showGoalForm&&<div className="pure-grid three" style={{marginBottom:14}}>
-     <label className="form-label">Название<input className="pure-input" value={goalTitle} onChange={e=>setGoalTitle(e.target.value)}/></label>
-     <label className="form-label">Целевая сумма<input className="pure-input" value={goalTarget} onChange={e=>setGoalTarget(e.target.value)}/></label>
-     <label className="form-label">Уже накоплено<input className="pure-input" value={goalStarting} onChange={e=>setGoalStarting(e.target.value)}/></label>
-     <label className="form-label">Срок<input className="pure-input" type="date" value={goalDueDate} onChange={e=>setGoalDueDate(e.target.value)}/></label>
-     <label className="form-label">Приоритет<select className="pure-select" value={goalPriority} onChange={e=>setGoalPriority(e.target.value)}><option value="low">Низкий</option><option value="medium">Средний</option><option value="high">Высокий</option></select></label>
-     <label className="form-label">Описание<input className="pure-input" value={goalDescription} onChange={e=>setGoalDescription(e.target.value)}/></label>
-     <button className="pure-button" disabled={!goalTitle.trim()||!/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(goalTarget)||cents(goalTarget.replace(",", "."))<=0n} onClick={()=>void createFamilyGoal()}>Сохранить цель</button>
-    </div>}
-    {familyGoals.length===0?<div className="empty-note">Семейных целей пока нет.</div>:<div className="pure-grid two">{familyGoals.map(g=>{const current=cents(g.currentAmount);const targetCents=cents(g.targetAmount);const pct=Math.max(0,Math.min(100,Number(current*10000n/targetCents)/100));return <div className="goal-card" key={g.id}>
-     <div className="goal-art">{g.imageUrl?<img src={g.imageUrl} alt={g.title} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Target/>}</div>
-     <div className="goal-content"><h3>{g.title}</h3><p>{g.description||"Семейная цель"}</p><strong>{pct.toFixed(1).replace(".",",")}%</strong><div className="goal-meta"><span>{money(g.currentAmount)}</span><span>{money(g.targetAmount)}</span></div><div className="progress-track"><div className="progress-fill" style={{width:pct+"%"}}/></div><small className="muted">Срок: {g.dueDate||"не задан"} · {g.status==="completed"?"Завершена":g.status==="paused"?"Приостановлена":"Активна"}</small>
-      <div className="form-row" style={{marginTop:10,flexWrap:"wrap"}}><button className="pure-button" disabled={g.status!=="active"} onClick={()=>{setContributionGoalId(g.id);setGoalEntryType("contribution");setContributionKey(crypto.randomUUID());}}>Пополнить</button><button className="pure-button ghost" disabled={g.status==="paused"} onClick={()=>{setContributionGoalId(g.id);setGoalEntryType("withdrawal");setContributionKey(crypto.randomUUID());}}>Снять</button><button className="pure-button ghost" onClick={()=>void showFamilyGoalHistory(g.id)}>История</button><label className="pure-button ghost"><Image size={14}/><input type="file" hidden accept="image/jpeg,image/png,image/webp,image/gif" onChange={e=>void uploadFamilyGoalImage(g.id,e)}/></label></div>
-      {contributionGoalId===g.id&&<div style={{marginTop:10}}><strong>{goalEntryType==="withdrawal"?"Снятие с семейной цели":"Пополнение семейной цели"}</strong><label className="form-label">Сумма<input className="pure-input" value={contributionAmount} onChange={e=>setContributionAmount(e.target.value)}/></label><label className="form-label" style={{marginTop:8}}>Личный счёт<select className="pure-select" value={familyGoalAccountId} onChange={e=>setFamilyGoalAccountId(e.target.value)}>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label><div className="form-row" style={{marginTop:8}}><button className="pure-button" disabled={!familyGoalAccountId||!/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(contributionAmount)||cents(contributionAmount.replace(",", "."))<=0n} onClick={()=>void contributeFamilyGoal()}>{goalEntryType==="withdrawal"?"Подтвердить снятие":"Подтвердить пополнение"}</button><button className="pure-button ghost" onClick={()=>setContributionGoalId(null)}>Отмена</button></div></div>}
-      {goalHistoryId===g.id&&<div className="empty-note" style={{marginTop:10}}>{(goalHistory[g.id]||[]).length?(goalHistory[g.id]||[]).map(entry=><div className="legend-row" key={entry.id}><span>{entry.author} · {new Date(entry.createdAt).toLocaleDateString("ru-RU")}</span><strong>{entry.entryType==="withdrawal"?"−":"+"}{money(entry.amount)} <small>{entry.entryType==="withdrawal"?"Снятие":"Пополнение"}</small></strong></div>):"История пуста."}</div>}
-     </div></div>})}</div>}
-   </Panel>
-   <div className="empty-note">Начальный семейный баланс и общие операции учитываются отдельно от личных счетов участников.</div>
+   </Panel></div>
+   <div style={{marginTop:16}}><Panel title="Семейные цели" subtitle="Общие накопления семьи" action={<button className="pure-button" onClick={()=>{resetFamilyGoalForm();setGoalLimitExceeded(familyGoals.length>=3);setShowGoalForm(true);}} disabled={familyGoals.length>=3}><Plus size={15}/>Создать цель</button>}>
+
+    {familyGoals.length===0?<div className="empty-note">Семейных целей пока нет. Создайте первую и начните копить на важное.</div>:<div className="pure-grid three">{familyGoals.map(g=>{const current=cents(g.currentAmount);const targetCents=cents(g.targetAmount);const pct=targetCents>0n?Math.max(0,Math.min(100,Number(current*10000n/targetCents)/100)):0;return <Panel key={g.id} className="goal-card"><div className="goal-art">{g.imageUrl?<img src={g.imageUrl} alt={g.title} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Target/>}</div><div className="goal-content"><div className="form-row" style={{justifyContent:"space-between"}}><h3>{g.title}</h3><span className="muted">{g.priority==="high"?"Высокий":g.priority==="low"?"Низкий":"Средний"}</span></div><p>{g.description||"Семейная цель"}</p><strong style={{fontSize:21}}>{pct.toFixed(1).replace(".",",")}%</strong><div className="goal-meta"><span>{money(g.currentAmount)}</span><span>{money(g.targetAmount)}</span></div><Progress value={pct}/><div className="goal-meta"><span>Срок: {g.dueDate||"не задан"}</span><span>{moneyCents(targetCents>current?targetCents-current:0n)}</span></div><span className="muted">{g.status==="paused"?"Приостановлена":g.status==="completed"?"Завершена":"Активна"}</span><div className="form-row" style={{marginTop:10,flexWrap:"wrap"}}><button className="pure-button secondary" disabled={g.status!=="active"} onClick={()=>{setContributionGoalId(g.id);setGoalEntryType("contribution");setContributionKey(crypto.randomUUID());}}>Пополнить</button><button className="pure-button ghost" disabled={g.status==="paused"} onClick={()=>{setContributionGoalId(g.id);setGoalEntryType("withdrawal");setContributionKey(crypto.randomUUID());}}>Снять</button><button className="pure-button ghost" onClick={()=>beginEditFamilyGoal(g)}><Pencil size={14}/></button><button className="pure-button ghost" onClick={()=>void showFamilyGoalHistory(g.id)}>История</button><label className="pure-button ghost" title="Изменить изображение"><Image size={14}/><input type="file" hidden accept="image/jpeg,image/png,image/webp,image/gif" onChange={e=>void uploadFamilyGoalImage(g.id,e)}/></label><button className="pure-button ghost" onClick={()=>askConfirmation("Удалить семейную цель?","Цель без истории операций будет удалена.",()=>removeFamilyGoal(g.id))}><Trash2 size={14}/></button></div>{contributionGoalId===g.id&&<div style={{marginTop:10}}><strong>{goalEntryType==="withdrawal"?"Снятие с семейной цели":"Пополнение семейной цели"}</strong><label className="form-label">Сумма<input className="pure-input" value={contributionAmount} onChange={e=>setContributionAmount(e.target.value)}/></label><label className="form-label" style={{marginTop:8}}>Личный счёт<select className="pure-select" value={familyGoalAccountId} onChange={e=>setFamilyGoalAccountId(e.target.value)}>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label><div className="form-row" style={{marginTop:8}}><button className="pure-button" disabled={!familyGoalAccountId||!/^(?:0|[1-9][0-9]{0,17})(?:[.,][0-9]{1,2})?$/.test(contributionAmount)||cents(contributionAmount.replace(",", "."))<=0n} onClick={()=>void contributeFamilyGoal()}>{goalEntryType==="withdrawal"?"Подтвердить снятие":"Подтвердить пополнение"}</button><button className="pure-button ghost" onClick={()=>setContributionGoalId(null)}>Отмена</button></div></div>}{goalHistoryId===g.id&&<div className="empty-note" style={{marginTop:10}}>{(goalHistory[g.id]||[]).length?(goalHistory[g.id]||[]).map(entry=><div className="legend-row" key={entry.id}><span>{entry.author} · {new Date(entry.createdAt).toLocaleDateString("ru-RU")}</span><strong>{entry.entryType==="withdrawal"?"−":"+"}{money(entry.amount)} <small>{entry.entryType==="withdrawal"?"Снятие":"Пополнение"}</small></strong></div>):"История пуста."}</div>}</div></Panel>;})}</div>}
+   </Panel></div>
+   <div className="empty-note" style={{marginTop:16}}>Начальный семейный баланс и общие операции учитываются отдельно от личных счетов участников.</div>
   </>}
+  {showInviteForm&&<div className="debt-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setShowInviteForm(false);}}><section className="debt-modal" role="dialog" aria-modal="true" aria-labelledby="family-invite-title"><div className="debt-modal-heading"><div><strong id="family-invite-title">Пригласить участника</strong><small>Приглашение действует 7 дней</small></div><button type="button" className="pure-button ghost debt-modal-close" aria-label="Закрыть" onClick={()=>setShowInviteForm(false)}><X size={16}/></button></div>{!inviteToken?<><label className="form-label">Email участника<input className="pure-input" type="email" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="name@example.com"/></label><div className="debt-modal-actions"><button className="pure-button" disabled={!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteEmail.trim())} onClick={()=>void invite()}>Создать приглашение</button><button className="pure-button ghost" onClick={()=>setShowInviteForm(false)}>Отмена</button></div></>:<><div className="empty-note" style={{marginTop:12}}><strong>Приглашение создано</strong><p style={{margin:"8px 0"}}>Передайте этот тикет участнику. Он сможет принять приглашение в разделе «Семья».</p><small>Email: {inviteEmail||"указан при создании"}</small><div style={{marginTop:8,wordBreak:"break-all"}}><strong>{inviteToken}</strong></div></div><div className="debt-modal-actions"><button className="pure-button" onClick={()=>setShowInviteForm(false)}>Готово</button></div></>}</section></div>}
+  {showGoalForm&&<div className="debt-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)resetFamilyGoalForm();}}><section className="debt-modal goal-modal" role="dialog" aria-modal="true" aria-labelledby="family-goal-modal-title"><div className="debt-modal-heading"><div><strong id="family-goal-modal-title">{editingFamilyGoalId===null?"Создать семейную цель":"Редактировать семейную цель"}</strong><small>Настройте параметры накоплений</small></div><button type="button" className="pure-button ghost debt-modal-close" aria-label="Закрыть" onClick={resetFamilyGoalForm}><X size={16}/></button></div>{goalLimitExceeded?<><p role="alert" style={{color:"#f87171",fontSize:14}}>Достигнут лимит: можно создать не более трёх семейных целей.</p><div className="debt-modal-actions"><button className="pure-button" onClick={resetFamilyGoalForm}>Понятно</button></div></>:<><div className="pure-grid two"><label className="form-label">Название<input className="pure-input" style={goalInvalidFields.title?{borderColor:"#ef4444"}:undefined} aria-invalid={!!goalInvalidFields.title} value={goalTitle} onChange={e=>{setGoalTitle(e.target.value);setGoalInvalidFields(old=>({...old,title:false}));}} maxLength={24} placeholder="Например, Путешествие"/></label><label className="form-label">Целевая сумма, ₽<input className="pure-input" style={goalInvalidFields.target?{borderColor:"#ef4444"}:undefined} aria-invalid={!!goalInvalidFields.target} value={goalTarget} onChange={e=>{setGoalTarget(e.target.value);setGoalInvalidFields(old=>({...old,target:false}));}} maxLength={12} placeholder="100000"/><small className="muted">Максимум: 999 999 999 ₽</small></label><label className="form-label">Уже накоплено, ₽<input className="pure-input" style={goalInvalidFields.starting?{borderColor:"#ef4444"}:undefined} aria-invalid={!!goalInvalidFields.starting} value={goalStarting} onChange={e=>{setGoalStarting(e.target.value);setGoalInvalidFields(old=>({...old,starting:false}));}} maxLength={12} placeholder="0"/><small className="muted">Максимум: 999 999 999 ₽</small></label><label className="form-label">Срок<input className="pure-input" type="date" value={goalDueDate} onChange={e=>setGoalDueDate(e.target.value)}/></label><label className="form-label">Приоритет<select className="pure-select" value={goalPriority} onChange={e=>setGoalPriority(e.target.value)}><option value="low">Низкий</option><option value="medium">Средний</option><option value="high">Высокий</option></select></label><label className="form-label">Описание<input className="pure-input" style={goalInvalidFields.description?{borderColor:"#ef4444"}:undefined} aria-invalid={!!goalInvalidFields.description} value={goalDescription} onChange={e=>{setGoalDescription(e.target.value);setGoalInvalidFields(old=>({...old,description:false}));}} maxLength={30}/></label></div><div className="debt-modal-actions"><button className="pure-button" onClick={()=>void saveFamilyGoal()}>{editingFamilyGoalId===null?"Создать цель":"Сохранить изменения"}</button><button className="pure-button ghost" onClick={resetFamilyGoalForm}>Отмена</button></div></>}</section></div>}
   {confirmAction&&<ConfirmPopover title={confirmAction.title} message={confirmAction.message} confirmLabel={confirmAction.confirmLabel} onCancel={()=>setConfirmAction(null)} onConfirm={()=>{const action=confirmAction;setConfirmAction(null);void action.onConfirm();}}/>}
   {error&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{error}</p>}
  </div>;
