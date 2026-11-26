@@ -1,21 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, Wallet, TrendingUp } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Wallet } from "lucide-react";
 import { PageHeading, Panel, Stat, Donut, LineChart } from "./ui";
 import "./Pure.css";
 
 type Period = "week" | "month" | "year" | "custom";
 type Category = { name: string; amount: string; count: number };
 type Point = { date: string; income: string; expense: string };
-type Large = { title: string; amount: string; date: string };
 type BalancePoint = { date:string; balance:string };
 type CategoryBudget = {id:number;category:string;monthlyLimit:string;spent:string;remaining:string};
 const toCents=(value:string)=>{const [whole,fraction=""]=value.split(".");return BigInt(whole||"0")*100n+BigInt((fraction+"00").slice(0,2));};
 type AnalyticsData = {
   period: string; from: string; to: string; income: string; expense: string; net: string;
-  averageExpense: string; categories: Category[]; trend: Point[]; largest: Large[];
-  previousIncome: string; previousExpense: string; previousNet: string;
+  categories: Category[]; trend: Point[];
   balanceTrend: BalancePoint[];
-  insights: string[];
 };
 const formatAmount = (value: string) => {
   const negative = value.startsWith("-");
@@ -121,7 +118,7 @@ function Analytics() {
       {budgetError&&<p role="alert" style={{color:"#f87171",fontSize:12}}>{budgetError}</p>}
     </Panel>
     {data && <>
-      <div className="pure-grid three">
+      <div className="pure-grid three" style={{marginTop:16}}>
         <Stat label="Расходы" value={formatAmount(data.expense)} tone="violet" icon={<ArrowUpRight size={17}/>}/>
         <Stat label="Доходы" value={formatAmount(data.income)} tone="mint" icon={<ArrowDownLeft size={17}/>}/>
         <Stat label="Разница" value={formatAmount(data.net)} icon={<Wallet size={17}/>}/>
@@ -140,29 +137,9 @@ function Analytics() {
           </div> : <div className="empty-note">Нет расходов по категориям за выбранный период.</div>}
         </Panel>
       </div>
-      <Panel title="Динамика общего баланса" subtitle="Баланс личных счетов с учётом доходов и расходов, без внутренних переводов">
+      <div style={{marginTop:16}}><Panel title="Динамика общего баланса" subtitle="Баланс личных счетов с учётом доходов и расходов, без внутренних переводов">
         {balanceValues.length?<LineChart values={balanceValues} labels={balanceLabels}/>:<div className="empty-note">Нет данных для динамики баланса.</div>}
-      </Panel>
-      {data.insights.length>0&&<Panel title="Финансовые подсказки" subtitle="Короткие выводы по выбранному периоду">
-        <ul className="insight-list">{data.insights.map((insight,index)=><li key={index}>{insight}</li>)}</ul>
-      </Panel>}
-      <div className="pure-grid two" style={{marginTop:16}}>
-        <Panel title="Крупнейшие расходы" subtitle="Пять самых больших операций">
-          {data.largest.length ? <div className="transaction-list">{data.largest.map((item,index)=><div className="transaction-row" key={index}>
-            <span className="transaction-copy"><strong>{item.title}</strong><small>{item.date}</small></span>
-            <strong className="transaction-amount negative">−{formatAmount(item.amount)}</strong>
-          </div>)}</div> : <div className="empty-note">Пока нет расходов за выбранный период.</div>}
-        </Panel>
-        <Panel title="Сводка периода" subtitle="Показатели по операциям">
-          <div className="legend-row"><span>Средний расход</span><strong>{formatAmount(data.averageExpense)}</strong></div>
-          <div className="legend-row" style={{marginTop:12}}><span>Категорий с расходами</span><strong>{data.categories.length}</strong></div>
-          <div className="legend-row" style={{marginTop:12}}><span>Операций в динамике</span><strong>{data.trend.length}</strong></div>
-          <div className="empty-note" style={{display:"flex",gap:12,alignItems:"center",marginTop:16}}><TrendingUp color="#08a47f" size={23}/><span>Переводы между собственными счетами не включаются в доходы и расходы.</span></div>
-          <div className="legend-row"><span>Доходы в прошлом периоде</span><strong>{formatAmount(data.previousIncome)}</strong></div>
-          <div className="legend-row" style={{marginTop:12}}><span>Расходы в прошлом периоде</span><strong>{formatAmount(data.previousExpense)}</strong></div>
-          <div className="legend-row" style={{marginTop:12}}><span>Разница в прошлом периоде</span><strong>{formatAmount(data.previousNet)}</strong></div>
-        </Panel>
-      </div>
+      </Panel></div>
     </>}
   </div>;
 }
