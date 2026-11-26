@@ -164,8 +164,8 @@ function Family(){
   </div>:<>
    <div className="pure-grid three">
     <Stat label="Семейный баланс" value={money(family.currentBalance)} icon={<HomeIcon size={17}/>}/>
-    <Stat label="Доход Семьи" value={moneyCents(monthIncome)} tone="mint"/>
-    <Stat label="Расходы Семьи" value={moneyCents(monthExpense)} tone="violet"/>
+    <Stat label="Семейный доход" value={moneyCents(monthIncome)} tone="mint"/>
+    <Stat label="Семейный расход" value={moneyCents(monthExpense)} tone="violet"/>
    </div>
    <div className="pure-grid two" style={{marginTop:16}}>
     <Panel title="Участники семьи" subtitle={family.name} action={(family.role==="owner"||family.role==="admin")?<button className="pure-button" onClick={()=>{setInviteEmail("");setInviteToken("");setInviteTicketEmail("");setShowInviteForm(true);}}><UserPlus size={15}/>Пригласить участника</button>:undefined}>
