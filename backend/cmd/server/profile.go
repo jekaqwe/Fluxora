@@ -279,9 +279,9 @@ func uploadAvatarHandler(w http.ResponseWriter, r *http.Request, database *pgxpo
 	contentType := http.DetectContentType(data)
 	extensions := map[string]string{
 		"image/jpeg": ".jpg",
-		"image/png": ".png",
+		"image/png":  ".png",
 		"image/webp": ".webp",
-		"image/gif": ".gif",
+		"image/gif":  ".gif",
 	}
 	extension, ok := extensions[contentType]
 	if !ok {
@@ -351,4 +351,3 @@ func deleteAvatarHandler(w http.ResponseWriter, r *http.Request, database *pgxpo
 	}
 	_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
 }
-
