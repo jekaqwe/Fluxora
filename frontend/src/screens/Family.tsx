@@ -153,7 +153,7 @@ function Family(){
 
  const monthIncome=transactions.filter(x=>x.type==="income"&&x.date.startsWith(currentMonth)).reduce((s,x)=>s+cents(x.amount),0n);
  const monthExpense=transactions.filter(x=>x.type==="expense"&&x.date.startsWith(currentMonth)).reduce((s,x)=>s+cents(x.amount),0n);
- const authors=Array.from(new Set(transactions.map(item=>item.author))).sort((a,b)=>a.localeCompare(b,"ru"));
+ const authors=Array.from(new Set([...members.map(m=>m.firstName+" "+m.lastName),...transactions.map(item=>item.author)])).sort((a,b)=>a.localeCompare(b,"ru"));
  const filteredTransactions=transactions.filter(item=>(!authorFilter||item.author===authorFilter)&&(!fromFilter||item.date>=fromFilter)&&(!toFilter||item.date<=toFilter)&&(!categoryFilter||item.category.toLowerCase()===categoryFilter.toLowerCase())&&(!typeFilter||item.type===typeFilter));
  const filteredIncome=filteredTransactions.filter(item=>item.type==="income").reduce((sum,item)=>sum+cents(item.amount),0n);
  const filteredExpense=filteredTransactions.filter(item=>item.type==="expense").reduce((sum,item)=>sum+cents(item.amount),0n);
@@ -161,6 +161,7 @@ function Family(){
  const historyPages=Math.max(1,Math.ceil(filteredTransactions.length/historyPageSize));
  const pagedTransactions=filteredTransactions.slice((historyPage-1)*historyPageSize,historyPage*historyPageSize);
  useEffect(()=>{setHistoryPage(1);},[authorFilter,fromFilter,toFilter,categoryFilter,typeFilter]);
+ useEffect(()=>{setHistoryPage(page=>Math.min(page,historyPages));},[historyPages]);
 
  if(loading)return <div className="pure-page" style={{padding:16}}><div className="empty-note">Загружаем семейный бюджет…</div></div>;
  return <div className="pure-page" style={{padding:16}}>
