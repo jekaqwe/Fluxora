@@ -12,7 +12,9 @@
   gap: 24px;
   margin-bottom: 30px;
 }
-.profile-eyebrow, .section-eyebrow, .progress-kicker {
+.profile-eyebrow,
+.section-eyebrow,
+.progress-kicker {
   color: #a78bca;
   font-size: 10px;
   font-weight: 750;
@@ -25,36 +27,56 @@
   font-weight: 750;
   letter-spacing: -1.2px;
 }
-.profile-page-header p { margin: 0; color: #a49bb8; font-size: 13px; }
+.profile-page-header p {
+  margin: 0;
+  color: #a49bb8;
+  font-size: 13px;
+}
 .profile-status {
   display: flex;
   align-items: center;
   gap: 9px;
   padding: 10px 14px;
-  border: 1px solid rgba(74, 222, 128, .17);
+  border: 1px solid rgba(74, 222, 128, 0.17);
   border-radius: 999px;
   color: #b4e8c5;
-  background: rgba(34, 197, 94, .07);
+  background: rgba(34, 197, 94, 0.07);
   font-size: 11px;
   white-space: nowrap;
 }
-.profile-status span { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 10px #4ade80; }
+.profile-status span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 10px #4ade80;
+}
 .profile-layout {
   display: grid;
-  grid-template-columns: minmax(290px, .88fr) minmax(0, 1.35fr);
+  grid-template-columns: minmax(290px, 0.88fr) minmax(0, 1.35fr);
   align-items: start;
   gap: 22px;
 }
 .glass-card {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(185, 151, 255, .14);
+  border: 1px solid rgba(185, 151, 255, 0.14);
   border-radius: 23px;
-  background: linear-gradient(145deg, rgba(39, 30, 62, .76), rgba(24, 19, 42, .72));
-  box-shadow: 0 18px 55px rgba(4, 2, 13, .22), inset 0 1px 0 rgba(255,255,255,.035);
+  background: linear-gradient(
+    145deg,
+    rgba(39, 30, 62, 0.76),
+    rgba(24, 19, 42, 0.72)
+  );
+  box-shadow:
+    0 18px 55px rgba(4, 2, 13, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
   backdrop-filter: blur(18px);
 }
-.profile-card { min-height: 640px; padding: 34px 29px 24px; text-align: center; }
+.profile-card {
+  min-height: 640px;
+  padding: 34px 29px 24px;
+  text-align: center;
+}
 .profile-card-glow {
   position: absolute;
   top: -160px;
@@ -63,23 +85,34 @@
   height: 310px;
   transform: translateX(-50%);
   border-radius: 50%;
-  background: rgba(135, 64, 230, .18);
+  background: rgba(135, 64, 230, 0.18);
   filter: blur(75px);
   pointer-events: none;
 }
-.profile-avatar-wrap { position: relative; width: 148px; height: 148px; margin: 0 auto 21px; }
+.profile-avatar-wrap {
+  position: relative;
+  width: 148px;
+  height: 148px;
+  margin: 0 auto 21px;
+}
 .profile-avatar-ring {
   width: 100%;
   height: 100%;
   display: grid;
   place-items: center;
   overflow: hidden;
-  border: 2px solid rgba(202, 155, 255, .8);
+  border: 2px solid rgba(202, 155, 255, 0.8);
   border-radius: 50%;
   background: linear-gradient(145deg, #39215f, #171329);
-  box-shadow: 0 0 0 6px rgba(157, 78, 221, .1), 0 0 34px rgba(157, 78, 221, .42);
+  box-shadow:
+    0 0 0 6px rgba(157, 78, 221, 0.1),
+    0 0 34px rgba(157, 78, 221, 0.42);
 }
-.profile-avatar-image { width: 100%; height: 100%; object-fit: cover; }
+.profile-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .profile-avatar-placeholder {
   position: relative;
   display: flex;
@@ -88,7 +121,11 @@
   gap: 2px;
   color: #d8b8ff;
 }
-.profile-avatar-placeholder span { font-size: 13px; font-weight: 700; letter-spacing: 1px; }
+.profile-avatar-placeholder span {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
 .profile-avatar-edit {
   position: absolute;
   right: 1px;
@@ -101,82 +138,362 @@
   border-radius: 50%;
   color: #fff;
   background: linear-gradient(145deg, #b56aff, #853cf5);
-  box-shadow: 0 0 18px rgba(168, 85, 247, .45);
+  box-shadow: 0 0 18px rgba(168, 85, 247, 0.45);
   cursor: pointer;
-  transition: transform .2s ease, box-shadow .2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
-.profile-avatar-edit:hover { transform: scale(1.08); box-shadow: 0 0 25px rgba(168, 85, 247, .7); }
-.profile-avatar-edit input { display: none; }
-.profile-identity h2 { margin: 0; color: #fff; font-size: 24px; font-weight: 750; letter-spacing: -.5px; }
-.profile-username { display: inline-block; margin-top: 6px; color: #a99fba; font-size: 13px; }
-.profile-member-since { display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 15px; color: #8f85a3; font-size: 11px; }
-.profile-member-since svg { color: #b78bfa; }
-.profile-card-separator { height: 1px; margin: 26px 0 23px; background: linear-gradient(90deg, transparent, rgba(185,151,255,.22), transparent); }
-.progress-card { padding: 20px; border: 1px solid rgba(185,151,255,.13); border-radius: 17px; background: rgba(10, 7, 22, .25); text-align: left; }
-.progress-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.progress-heading h3 { margin: 6px 0 0; color: #eee7fa; font-size: 14px; font-weight: 600; }
-.progress-trend { display: flex; align-items: center; gap: 2px; padding: 5px 8px; border-radius: 8px; color: #9de4b5; background: rgba(74,222,128,.09); font-size: 11px; font-weight: 700; }
-.progress-number { margin: 15px 0 12px; color: #fff; font-size: 43px; line-height: 1; font-weight: 800; letter-spacing: -2px; }
-.progress-number span { margin-left: 2px; color: #c18bff; font-size: 25px; }
-.progress-track { height: 9px; overflow: hidden; border-radius: 20px; background: rgba(255,255,255,.09); }
-.progress-fill { width: 75%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #853cf5, #c084fc); box-shadow: 0 0 15px rgba(168,85,247,.6); }
-.progress-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 13px; color: #9187a4; font-size: 10px; }
-.progress-foot > span:first-child { display: flex; align-items: center; gap: 6px; color: #d6b4ff; }
-.profile-card-footnote { display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 22px; color: #887e9b; font-size: 10px; }
-.profile-footnote-icon { display: grid; place-items: center; width: 27px; height: 27px; border: 1px solid rgba(185,151,255,.15); border-radius: 9px; color: #bd8cff; background: rgba(157,78,221,.1); }
-.profile-side-column { display: grid; gap: 22px; }
-.account-card, .achievements-card { padding: 25px 26px; }
-.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 19px; }
-.section-heading h2 { margin: 7px 0 0; color: #fff; font-size: 19px; font-weight: 700; letter-spacing: -.35px; }
-.section-heading-icon { display: grid; place-items: center; width: 39px; height: 39px; border: 1px solid rgba(185,151,255,.15); border-radius: 12px; color: #c59bff; background: rgba(157,78,221,.12); }
-.account-list { display: grid; }
-.account-row { min-height: 68px; display: flex; align-items: center; gap: 14px; border-top: 1px solid rgba(185,151,255,.09); }
-.account-row-icon { flex: 0 0 38px; width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid rgba(185,151,255,.11); border-radius: 11px; color: #bd93f8; background: rgba(12,9,26,.48); }
-.account-row-copy { min-width: 0; display: flex; flex: 1; flex-direction: column; gap: 4px; }
-.account-row-copy span { color: #8f86a1; font-size: 10px; }
-.account-row-copy strong { overflow: hidden; color: #eee9f6; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.account-edit-label { display: inline-flex; align-items: center; gap: 3px; color: #c39aff; font-size: 11px; white-space: nowrap; }
-.account-note { margin: 13px 0 0; color: #746b84; font-size: 10px; line-height: 1.5; }
-.achievements-card { min-height: 204px; }
-.achievements-heading { margin-bottom: 23px; }
-.achievements-count { padding: 6px 9px; border: 1px solid rgba(185,151,255,.12); border-radius: 999px; color: #a89bbd; background: rgba(255,255,255,.025); font-size: 10px; white-space: nowrap; }
-.achievement-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.achievement-item { display: flex; flex-direction: column; align-items: center; gap: 10px; color: #9c92ad; font-size: 10px; text-align: center; }
+.profile-avatar-edit:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 25px rgba(168, 85, 247, 0.7);
+}
+.profile-avatar-edit input {
+  display: none;
+}
+.profile-identity h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 750;
+  letter-spacing: -0.5px;
+}
+.profile-username {
+  display: inline-block;
+  margin-top: 6px;
+  color: #a99fba;
+  font-size: 13px;
+}
+.profile-member-since {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 15px;
+  color: #8f85a3;
+  font-size: 11px;
+}
+.profile-member-since svg {
+  color: #b78bfa;
+}
+.profile-card-separator {
+  height: 1px;
+  margin: 26px 0 23px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(185, 151, 255, 0.22),
+    transparent
+  );
+}
+.progress-card {
+  padding: 20px;
+  border: 1px solid rgba(185, 151, 255, 0.13);
+  border-radius: 17px;
+  background: rgba(10, 7, 22, 0.25);
+  text-align: left;
+}
+.progress-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.progress-heading h3 {
+  margin: 6px 0 0;
+  color: #eee7fa;
+  font-size: 14px;
+  font-weight: 600;
+}
+.progress-trend {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  color: #9de4b5;
+  background: rgba(74, 222, 128, 0.09);
+  font-size: 11px;
+  font-weight: 700;
+}
+.progress-number {
+  margin: 15px 0 12px;
+  color: #fff;
+  font-size: 43px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -2px;
+}
+.progress-number span {
+  margin-left: 2px;
+  color: #c18bff;
+  font-size: 25px;
+}
+.progress-track {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.09);
+}
+.progress-fill {
+  width: 75%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #853cf5, #c084fc);
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.6);
+}
+.progress-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 13px;
+  color: #9187a4;
+  font-size: 10px;
+}
+.progress-foot > span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #d6b4ff;
+}
+.profile-card-footnote {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-top: 22px;
+  color: #887e9b;
+  font-size: 10px;
+}
+.profile-footnote-icon {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border: 1px solid rgba(185, 151, 255, 0.15);
+  border-radius: 9px;
+  color: #bd8cff;
+  background: rgba(157, 78, 221, 0.1);
+}
+.profile-side-column {
+  display: grid;
+  gap: 22px;
+}
+.account-card,
+.achievements-card {
+  padding: 25px 26px;
+}
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 19px;
+}
+.section-heading h2 {
+  margin: 7px 0 0;
+  color: #fff;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.35px;
+}
+.section-heading-icon {
+  display: grid;
+  place-items: center;
+  width: 39px;
+  height: 39px;
+  border: 1px solid rgba(185, 151, 255, 0.15);
+  border-radius: 12px;
+  color: #c59bff;
+  background: rgba(157, 78, 221, 0.12);
+}
+.account-list {
+  display: grid;
+}
+.account-row {
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-top: 1px solid rgba(185, 151, 255, 0.09);
+}
+.account-row-icon {
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(185, 151, 255, 0.11);
+  border-radius: 11px;
+  color: #bd93f8;
+  background: rgba(12, 9, 26, 0.48);
+}
+.account-row-copy {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+}
+.account-row-copy span {
+  color: #8f86a1;
+  font-size: 10px;
+}
+.account-row-copy strong {
+  overflow: hidden;
+  color: #eee9f6;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-edit-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #c39aff;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.account-note {
+  margin: 13px 0 0;
+  color: #746b84;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.achievements-card {
+  min-height: 204px;
+}
+.achievements-heading {
+  margin-bottom: 23px;
+}
+.achievements-count {
+  padding: 6px 9px;
+  border: 1px solid rgba(185, 151, 255, 0.12);
+  border-radius: 999px;
+  color: #a89bbd;
+  background: rgba(255, 255, 255, 0.025);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.achievement-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.achievement-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: #9c92ad;
+  font-size: 10px;
+  text-align: center;
+}
 .achievement-hex {
   width: 61px;
   height: 61px;
   display: grid;
   place-items: center;
   clip-path: polygon(25% 4%, 75% 4%, 100% 50%, 75% 96%, 25% 96%, 0 50%);
-  background: rgba(168,85,247,.13);
-  border: 1px solid rgba(190,150,255,.35);
-  filter: drop-shadow(0 0 10px rgba(168,85,247,.15));
+  background: rgba(168, 85, 247, 0.13);
+  border: 1px solid rgba(190, 150, 255, 0.35);
+  filter: drop-shadow(0 0 10px rgba(168, 85, 247, 0.15));
 }
-.achievement-purple .achievement-hex { color: #c69aff; background: linear-gradient(145deg, rgba(168,85,247,.24), rgba(90,40,145,.18)); }
-.achievement-blue .achievement-hex { color: #91baff; background: linear-gradient(145deg, rgba(59,130,246,.22), rgba(30,58,138,.18)); }
-.achievement-gold .achievement-hex { color: #f3cd83; background: linear-gradient(145deg, rgba(234,179,8,.2), rgba(146,90,20,.16)); }
-.achievement-cyan .achievement-hex { color: #8ce7f2; background: linear-gradient(145deg, rgba(34,211,238,.2), rgba(21,94,117,.16)); }
+.achievement-purple .achievement-hex {
+  color: #c69aff;
+  background: linear-gradient(
+    145deg,
+    rgba(168, 85, 247, 0.24),
+    rgba(90, 40, 145, 0.18)
+  );
+}
+.achievement-blue .achievement-hex {
+  color: #91baff;
+  background: linear-gradient(
+    145deg,
+    rgba(59, 130, 246, 0.22),
+    rgba(30, 58, 138, 0.18)
+  );
+}
+.achievement-gold .achievement-hex {
+  color: #f3cd83;
+  background: linear-gradient(
+    145deg,
+    rgba(234, 179, 8, 0.2),
+    rgba(146, 90, 20, 0.16)
+  );
+}
+.achievement-cyan .achievement-hex {
+  color: #8ce7f2;
+  background: linear-gradient(
+    145deg,
+    rgba(34, 211, 238, 0.2),
+    rgba(21, 94, 117, 0.16)
+  );
+}
 
 @media (max-width: 1080px) {
-  .profile-layout { grid-template-columns: minmax(260px, .8fr) minmax(0, 1.2fr); gap: 16px; }
-  .profile-card { padding-inline: 20px; }
-  .account-card, .achievements-card { padding-inline: 20px; }
+  .profile-layout {
+    grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.2fr);
+    gap: 16px;
+  }
+  .profile-card {
+    padding-inline: 20px;
+  }
+  .account-card,
+  .achievements-card {
+    padding-inline: 20px;
+  }
 }
 @media (max-width: 820px) {
-  .profile-layout { grid-template-columns: 1fr; }
-  .profile-card { min-height: auto; }
-  .profile-side-column { grid-template-columns: 1fr; }
+  .profile-layout {
+    grid-template-columns: 1fr;
+  }
+  .profile-card {
+    min-height: auto;
+  }
+  .profile-side-column {
+    grid-template-columns: 1fr;
+  }
 }
 @media (max-width: 520px) {
-  .profile-page { padding: 20px 15px 35px; }
-  .profile-page-header { align-items: flex-start; flex-direction: column; margin-bottom: 20px; }
-  .profile-page-header h1 { font-size: 28px; }
-  .profile-status { align-self: flex-start; }
-  .profile-card { padding: 28px 17px 20px; }
-  .account-card, .achievements-card { padding: 21px 16px; }
-  .achievement-list { gap: 5px; }
-  .achievement-hex { width: 52px; height: 52px; }
-  .achievement-item { font-size: 9px; }
-  .account-row { gap: 10px; }
-  .account-edit-label { font-size: 10px; }
+  .profile-page {
+    padding: 20px 15px 35px;
+  }
+  .profile-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+    margin-bottom: 20px;
+  }
+  .profile-page-header h1 {
+    font-size: 28px;
+  }
+  .profile-status {
+    align-self: flex-start;
+  }
+  .profile-card {
+    padding: 28px 17px 20px;
+  }
+  .account-card,
+  .achievements-card {
+    padding: 21px 16px;
+  }
+  .achievement-list {
+    gap: 5px;
+  }
+  .achievement-hex {
+    width: 52px;
+    height: 52px;
+  }
+  .achievement-item {
+    font-size: 9px;
+  }
+  .account-row {
+    gap: 10px;
+  }
+  .account-edit-label {
+    font-size: 10px;
+  }
 }
