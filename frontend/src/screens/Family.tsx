@@ -1,11 +1,11 @@
 import { useEffect, useState, type ChangeEvent } from "react";
-import { Plus, Home as HomeIcon, Trash2, UserPlus, LogOut, Pencil, Target, Image, X } from "lucide-react";
+import { Plus, Home as HomeIcon, Trash2, UserPlus, LogOut, Pencil, Target, Image, X, ChevronDown, ChevronLeft, ChevronRight, Wallet, TrendingUp, TrendingDown, ArrowLeftRight, HandCoins, Baby, House, Heart, BriefcaseBusiness, Stethoscope, Utensils, Flame, Car, GraduationCap, Gift, Repeat, ShoppingBag, ShoppingCart, Plane, Gamepad2, Bus, CalendarDays, Users, Tag } from "lucide-react";
 import { ConfirmPopover, PageHeading, Panel, Stat, Progress } from "./ui";
 import "./Pure.css";
 
 type FamilyInfo={id:number;name:string;initialBalance:string;currentBalance:string;role:"owner"|"admin"|"member"};
 type Member={id:number;userId:number;firstName:string;lastName:string;username:string;role:string;joinedAt:string};
-type FamilyTx={id:number;title:string;type:"income"|"expense";amount:string;category:string;date:string;comment:string;author:string;createdAt:string};
+type FamilyTx={id:number;title:string;type:string;amount:string;category:string;date:string;comment:string;author:string;createdAt:string};
 type Account={id:number;name:string};
 type FamilyGoal={id:number;title:string;description:string;targetAmount:string;startingAmount:string;currentAmount:string;dueDate?:string;priority:string;status:string;imageUrl?:string;createdBy?:number};
 type FamilyGoalEntry={id:number;amount:string;entryType:"contribution"|"withdrawal";comment:string;author:string;createdAt:string};
@@ -145,8 +145,10 @@ function Family(){
   catch(e){setError(e instanceof Error?e.message:"Ошибка выхода");}
  };
  const currentMonth=today().slice(0,7);
- const familyCategoryOptions=[["Дети","baby"],["Дом/уют","house"],["Забота о себе","heart"],["Зарплата","briefcase-business"],["Здоровье","stethoscope"],["Кафе/рестораны","utensils"],["ЖКХ","flame"],["Машина","car"],["Образование","graduation-cap"],["Подарки","gift"],["Подписки","repeat"],["Покупки","shopping-bag"],["Продукты","shopping-cart"],["Путешествия","plane"],["Развлечения","gamepad-2"],["Общественный транспорт","bus"]] as const;
- const familyTypeOptions=[["Расход","expense","trending-down"],["Доход","income","trending-up"],["Перевод","transfer","arrow-left-right"],["Долг","debt","hand-coins"]] as const;
+ const familyCategoryOptions=[["Дети",Baby],["Дом/уют",House],["Забота о себе",Heart],["Зарплата",BriefcaseBusiness],["Здоровье",Stethoscope],["Кафе/рестораны",Utensils],["ЖКХ",Flame],["Машина",Car],["Образование",GraduationCap],["Подарки",Gift],["Подписки",Repeat],["Покупки",ShoppingBag],["Продукты",ShoppingCart],["Путешествия",Plane],["Развлечения",Gamepad2],["Общественный транспорт",Bus]] as const;
+ const familyTypeOptions=[["Расход","expense",TrendingDown],["Доход","income",TrendingUp],["Перевод","transfer",ArrowLeftRight],["Долг","debt",HandCoins]] as const;
+ const categoryIcon=(value:string)=>familyCategoryOptions.find(x=>x[0].toLowerCase()===value.toLowerCase())?.[1]||Tag;
+ const typeIcon=(value:string)=>familyTypeOptions.find(x=>x[1]===value)?.[2]||Wallet;
  const formatDate=(value:string)=>value?new Date(value+"T00:00:00").toLocaleDateString("ru-RU"):"";
 
  const monthIncome=transactions.filter(x=>x.type==="income"&&x.date.startsWith(currentMonth)).reduce((s,x)=>s+cents(x.amount),0n);
@@ -190,31 +192,17 @@ function Family(){
      {family.role!=="owner"&&<button className="pure-button ghost" style={{marginTop:12}} onClick={()=>askConfirmation("Покинуть семейный бюджет?","Вы потеряете доступ к общему бюджету и семейным операциям.",leave,"Покинуть")}><LogOut size={14}/>Покинуть семью</button>}
     </Panel>
    </div>
-   <div style={{marginTop:16}}><Panel title="Семейные операции" subtitle="Доходы и расходы общего бюджета" action={<button className="pure-button" onClick={()=>setShowForm(v=>!v)}><Plus size={15}/>Добавить</button>}>
-    {showForm&&<div className="pure-grid three" style={{marginBottom:16}}>
-     <label className="form-label">Тип<select className="pure-select" value={kind} onChange={e=>setKind(e.target.value as "income"|"expense")}><option value="expense">Расход</option><option value="income">Доход</option></select></label>
-     <label className="form-label">Название<input className="pure-input" value={title} onChange={e=>setTitle(e.target.value)}/></label>
-     <label className="form-label">Сумма, ₽<input className="pure-input" value={amount} onChange={e=>setAmount(e.target.value)}/></label>
-     <label className="form-label">Категория<input className="pure-input" value={category} onChange={e=>setCategory(e.target.value)}/></label>
-     <label className="form-label">Дата<input className="pure-input" type="date" value={date} onChange={e=>setDate(e.target.value)}/></label>
-     <div className="form-row" style={{alignItems:"end"}}><button className="pure-button" disabled={!title.trim()||!/^\d+(?:[.,]\d{1,2})?$/.test(amount)||cents(amount.replace(",", "."))<=0n} onClick={()=>void addTransaction()}>{editingTxId===null?"Сохранить":"Сохранить изменения"}</button><button className="pure-button ghost" onClick={()=>{setShowForm(false);setEditingTxId(null);}}>Отмена</button></div>
-    </div>}
-    <div className="pure-grid three" style={{marginBottom:12}}>
-     <label className="form-label">Участник<select className="pure-select" value={authorFilter} onChange={e=>setAuthorFilter(e.target.value)}><option value="">Все участники</option>{authors.map(author=><option key={author} value={author}>{author}</option>)}</select></label>
-     <label className="form-label">С даты<input className="pure-input" type="date" value={fromFilter} max={toFilter||undefined} onChange={e=>setFromFilter(e.target.value)}/></label>
-     <label className="form-label">По дату<input className="pure-input" type="date" value={toFilter} min={fromFilter||undefined} onChange={e=>setToFilter(e.target.value)}/></label>
-     <label className="form-label">Категория<select className="pure-select" value={categoryFilter} onChange={e=>setCategoryFilter(e.target.value)}><option value="">Все категории</option>{familyCategories.map(item=><option key={item} value={item}>{item}</option>)}</select></label>
+   <div style={{marginTop:16}}><Panel title="Семейные операции" subtitle="Доходы и расходы общего бюджета" action={<button className="pure-button compact-tool-button" onClick={()=>{setEditingTxId(null);setTitle("");setAmount("");setKind("expense");setCategory("Покупки");setDate(today());setShowForm(true);}}><Plus size={14}/>Добавить операцию</button>}>
+    <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:14}}>
+     <div style={{position:"relative"}}><button className={"filter-pill compact-tool-button "+(authorFilter?"active":"")} onClick={()=>setOpenFilter(openFilter==="member"?null:"member")}><Users size={13}/>Участник{authorFilter?": "+authorFilter:""}<ChevronDown size={12}/></button>{openFilter==="member"&&<div className="family-filter-menu">{["",...authors].map(a=><button key={a||"all"} className={authorFilter===a?"selected":""} onClick={()=>{setAuthorFilter(a);setOpenFilter(null);}}>{a||"Все участники"}</button>)}</div>}</div>
+     <div style={{position:"relative"}}><button className={"filter-pill compact-tool-button "+((fromFilter||toFilter)?"active":"")} onClick={()=>{setDraftFrom(fromFilter);setDraftTo(toFilter);setOpenFilter(openFilter==="period"?null:"period");}}><CalendarDays size={13}/>{fromFilter||toFilter?formatDate(fromFilter)+"-"+formatDate(toFilter):"Период"}<ChevronDown size={12}/></button>{openFilter==="period"&&<div className="family-filter-menu family-period-menu"><label className="form-label">С какого<input className="pure-input" type="date" value={draftFrom} max={draftTo||undefined} onChange={e=>setDraftFrom(e.target.value)}/></label><label className="form-label">По какой<input className="pure-input" type="date" value={draftTo} min={draftFrom||undefined} onChange={e=>setDraftTo(e.target.value)}/></label><div className="form-row"><button className="pure-button compact-tool-button" onClick={()=>{setFromFilter(draftFrom);setToFilter(draftTo);setOpenFilter(null);}}>Применить</button><button className="pure-button ghost compact-tool-button" onClick={()=>{setFromFilter("");setToFilter("");setDraftFrom("");setDraftTo("");setOpenFilter(null);}}>Сбросить</button></div></div>}</div>
+     <div style={{position:"relative"}}><button className={"filter-pill compact-tool-button "+(typeFilter?"active":"")} onClick={()=>setOpenFilter(openFilter==="type"?null:"type")}><Wallet size={13}/>Тип{typeFilter?": "+(familyTypeOptions.find(x=>x[1]===typeFilter)?.[0]||typeFilter):""}<ChevronDown size={12}/></button>{openFilter==="type"&&<div className="family-filter-menu">{[["Всё","",Wallet] as const,...familyTypeOptions].map(([label,value,Icon])=><button key={value||"all"} className={typeFilter===value?"selected":""} onClick={()=>{setTypeFilter(value);setOpenFilter(null);}}><Icon size={14}/>{label}</button>)}</div>}</div>
+     <div style={{position:"relative"}}><button className={"filter-pill compact-tool-button "+(categoryFilter?"active":"")} onClick={()=>setOpenFilter(openFilter==="category"?null:"category")}><Tag size={13}/>Категория{categoryFilter?": "+categoryFilter:""}<ChevronDown size={12}/></button>{openFilter==="category"&&<div className="family-filter-menu family-category-menu"><button className={!categoryFilter?"selected":""} onClick={()=>{setCategoryFilter("");setOpenFilter(null);}}>Все категории</button>{familyCategoryOptions.map(([name,Icon])=><button key={name} className={categoryFilter.toLowerCase()===name.toLowerCase()?"selected":""} onClick={()=>{setCategoryFilter(name);setOpenFilter(null);}}><Icon size={14}/>{name}</button>)}</div>}</div>
     </div>
-    <div className="pure-grid two" style={{marginBottom:12}}>
-     <Stat label="Доходы по фильтру" value={money(filteredIncome.toString())} tone="mint"/>
-     <Stat label="Расходы по фильтру" value={money(filteredExpense.toString())} tone="violet"/>
-    </div>
-    {filteredTransactions.length?<div className="transaction-list">{filteredTransactions.map(t=><div className="transaction-row" key={t.id}>
-     <span className={`transaction-icon ${t.type==="income"?"mint":""}`}><HomeIcon size={16}/></span>
-     <span className="transaction-copy"><strong>{t.title}</strong><small>{t.category} · {t.author} · {t.date}</small></span>
-     <strong className={`transaction-amount ${t.type==="income"?"positive":"negative"}`}>{t.type==="income"?"+":"−"}{money(t.amount)}</strong>
-     <button className="pure-button ghost" aria-label="Изменить операцию" onClick={()=>editTransaction(t)}><Pencil size={14}/></button><button className="pure-button ghost" aria-label="Удалить операцию" onClick={()=>askConfirmation("Удалить семейную операцию?","Операция будет удалена из истории.",()=>removeTransaction(t.id))}><Trash2 size={14}/></button>
-    </div>)}</div>:<div className="empty-note">Операций по выбранным фильтрам нет.</div>}
+    <div className="pure-grid two family-filter-stats" style={{marginBottom:12}}><Stat label="Доход" value={moneyCents(filteredIncome)} tone="mint"/><Stat label="Расход" value={moneyCents(filteredExpense)} tone="violet"/></div>
+    {filteredTransactions.length?<><div className="transaction-list operations-history-list">{pagedTransactions.map(t=>{const Icon=typeIcon(t.type);const CategoryIcon=categoryIcon(t.category);return <div className="transaction-row" key={t.id}>
+     <span className={"transaction-icon "+(t.type==="income"?"mint":t.type==="expense"?"coral":"orange")}><Icon size={15}/></span><span className="transaction-copy"><strong>{t.title}</strong><small><CategoryIcon size={11} style={{verticalAlign:"middle"}}/> {t.category} · {t.author} · {formatDate(t.date)}</small></span><strong className={"transaction-amount "+(t.type==="income"?"positive":"negative")}>{t.type==="income"?"+":t.type==="expense"?"−":""}{money(t.amount)}</strong><button className="pure-button ghost operation-edit-button" aria-label="Изменить операцию" onClick={()=>editTransaction(t)}><Pencil size={14}/></button><button className="pure-button ghost operation-delete-button" aria-label="Удалить операцию" onClick={()=>askConfirmation("Удалить семейную операцию?","Операция будет удалена из истории.",()=>removeTransaction(t.id))}><Trash2 size={13}/></button>
+    </div>;})}</div>{historyPages>1&&<div className="operations-pagination"><button className="pure-button ghost" disabled={historyPage<=1} onClick={()=>setHistoryPage(p=>Math.max(1,p-1))}><ChevronLeft size={14}/>Назад</button><span>Страница {historyPage} из {historyPages}</span><button className="pure-button ghost" disabled={historyPage>=historyPages} onClick={()=>setHistoryPage(p=>Math.min(historyPages,p+1))}>Вперёд<ChevronRight size={14}/></button></div>}</>:<div className="empty-note">Операций по выбранным фильтрам нет.</div>}
    </Panel></div>
    <div style={{marginTop:16}}><Panel title="Семейные цели" subtitle="Общие накопления семьи" action={<button className="pure-button" onClick={()=>{resetFamilyGoalForm();setGoalLimitExceeded(familyGoals.length>=3);setShowGoalForm(true);}}><Plus size={15}/>Создать цель</button>}>
 
