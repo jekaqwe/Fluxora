@@ -16,25 +16,7 @@ import (
  "github.com/jackc/pgx/v5/pgxpool"
 )
 
-var familyGoalInputAmountPattern=regexp.MustCompile(`^(?:0|[1-9][0-9]{0,8})(?:\.[0-9]{1,2})?package main
-
-import (
- "crypto/rand"
- "encoding/hex"
- "encoding/json"
- "io"
- "log"
- "net/http"
- "regexp"
- "strconv"
- "strings"
- "time"
- "github.com/jackc/pgx/v5"
- "github.com/jackc/pgx/v5/pgtype"
- "github.com/jackc/pgx/v5/pgxpool"
-)
-
-)
+var familyGoalInputAmountPattern=regexp.MustCompile(`^(?:0|[1-9][0-9]{0,8})(?:\.[0-9]{1,2})?$`)
 func validFamilyGoalInputAmount(v string,zero bool)bool{if !familyGoalInputAmountPattern.MatchString(v){return false};return zero||strings.Trim(v,"0.")!=""}
 
 type familyGoalPayload struct {
