@@ -119,8 +119,8 @@ function Analytics() {
     </Panel>
     {data && <>
       <div className="pure-grid three" style={{marginTop:16}}>
-        <Stat label="Расходы" value={formatAmount(data.expense)} tone="violet" icon={<ArrowUpRight size={17}/>}/>
         <Stat label="Доходы" value={formatAmount(data.income)} tone="mint" icon={<ArrowDownLeft size={17}/>}/>
+        <Stat label="Расходы" value={formatAmount(data.expense)} tone="violet" icon={<ArrowUpRight size={17}/>}/>
         <Stat label="Разница" value={formatAmount(data.net)} icon={<Wallet size={17}/>}/>
       </div>
       <div className="pure-grid two" style={{marginTop:16}}>
