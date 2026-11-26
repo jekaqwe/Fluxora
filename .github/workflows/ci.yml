@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [Develop]
+  push:
+    branches: [Develop]
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend build and tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: fluxora_test
+          POSTGRES_PASSWORD: fluxora_test
+          POSTGRES_DB: fluxora_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fluxora_test -d fluxora_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - run: go test ./...
+      - run: go vet ./...
+      - run: go build -o /tmp/fluxora-server ./cmd/server
+      - name: Build backend Docker image
+        run: docker build -t fluxora-backend-ci -f Dockerfile .
+      - name: Apply all migrations against PostgreSQL
+        env:
+          DATABASE_URL: postgres://fluxora_test:fluxora_test@localhost:5432/fluxora_test?sslmode=disable
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f database/schema.sql
+          /tmp/fluxora-server > /tmp/fluxora-server.log 2>&1 &
+          SERVER_PID=$!
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8080/api/health > /dev/null; then
+              psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f database/tests/account_transaction_history.sql
+              kill "$SERVER_PID"
+              wait "$SERVER_PID" || true
+              exit 0
+            fi
+            if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+              cat /tmp/fluxora-server.log
+              exit 1
+            fi
+            sleep 1
+          done
+          cat /tmp/fluxora-server.log
+          kill "$SERVER_PID" || true
+          exit 1
+
+      - name: PostgreSQL backup and restore smoke test
+        env:
+          DATABASE_URL: postgres://fluxora_test:fluxora_test@localhost:5432/fluxora_test?sslmode=disable
+          RESTORE_URL: postgres://fluxora_test:fluxora_test@localhost:5432/fluxora_restore_test?sslmode=disable
+          PGPASSWORD: fluxora_test
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "INSERT INTO users(first_name,last_name,username,email,password_hash) VALUES ('CI','Restore','ci_restore','ci_restore@example.test','test-hash')"
+          pg_dump --format=custom --no-owner --no-acl --dbname "$DATABASE_URL" --file /tmp/fluxora-ci.dump
+          createdb -h localhost -U fluxora_test fluxora_restore_test
+          pg_restore --clean --if-exists --no-owner --no-acl --dbname "$RESTORE_URL" /tmp/fluxora-ci.dump
+          psql "$RESTORE_URL" -v ON_ERROR_STOP=1 -c "INSERT INTO category_budgets(user_id,category,monthly_limit) SELECT id,'Food',100 FROM users WHERE username='ci_restore' ON CONFLICT (user_id, (lower(category))) DO UPDATE SET monthly_limit=EXCLUDED.monthly_limit"
+          psql "$RESTORE_URL" -v ON_ERROR_STOP=1 -c "INSERT INTO category_budgets(user_id,category,monthly_limit) SELECT id,'food',150 FROM users WHERE username='ci_restore' ON CONFLICT (user_id, (lower(category))) DO UPDATE SET monthly_limit=EXCLUDED.monthly_limit"
+          restored="$(psql "$RESTORE_URL" -Atc "SELECT to_regclass('public.category_budgets') IS NOT NULL AND (SELECT COUNT(*)=1 FROM users WHERE username='ci_restore') AND (SELECT COUNT(*)=1 FROM category_budgets WHERE user_id=(SELECT id FROM users WHERE username='ci_restore')) AND (SELECT monthly_limit=150 FROM category_budgets WHERE user_id=(SELECT id FROM users WHERE username='ci_restore'))")"
+          test "$restored" = "t"
+
+  frontend:
+    name: Frontend lint and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build

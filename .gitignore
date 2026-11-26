@@ -11,6 +11,7 @@ build/
 .env
 .env.*
 !.env.example
+!backend/.env.s3.example
 
 # Логи
 *.log

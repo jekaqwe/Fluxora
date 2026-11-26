@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: fluxora
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the root .env file}
       POSTGRES_DB: fluxora
     volumes:
       - fluxora_prod_data:/var/lib/postgresql/data
@@ -21,8 +21,19 @@ services:
       context: ./backend
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://fluxora:${POSTGRES_PASSWORD}@postgres:5432/fluxora?sslmode=disable
+      DATABASE_URL: postgres://fluxora:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the root .env file}@postgres:5432/fluxora?sslmode=disable
       COOKIE_SECURE: "true"
+      S3_ENDPOINT: ${S3_ENDPOINT:-https://s3.regru.cloud}
+      S3_BUCKET: ${S3_BUCKET:-fluxora.su}
+      # Temporary only. Set S3_REGION in the private .env after REG.RU confirms it.
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
     depends_on:
       postgres:
         condition: service_healthy
