@@ -7,6 +7,7 @@ import (
  "io"
  "log"
  "net/http"
+ "regexp"
  "strconv"
  "strings"
  "time"
@@ -14,6 +15,27 @@ import (
  "github.com/jackc/pgx/v5/pgtype"
  "github.com/jackc/pgx/v5/pgxpool"
 )
+
+var familyGoalInputAmountPattern=regexp.MustCompile(`^(?:0|[1-9][0-9]{0,8})(?:\.[0-9]{1,2})?package main
+
+import (
+ "crypto/rand"
+ "encoding/hex"
+ "encoding/json"
+ "io"
+ "log"
+ "net/http"
+ "regexp"
+ "strconv"
+ "strings"
+ "time"
+ "github.com/jackc/pgx/v5"
+ "github.com/jackc/pgx/v5/pgtype"
+ "github.com/jackc/pgx/v5/pgxpool"
+)
+
+)
+func validFamilyGoalInputAmount(v string,zero bool)bool{if !familyGoalInputAmountPattern.MatchString(v){return false};return zero||strings.Trim(v,"0.")!=""}
 
 type familyGoalPayload struct {
  Title string `json:"title"`
@@ -55,7 +77,8 @@ func familyGoalsHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
   case http.MethodPost:
    r.Body=http.MaxBytesReader(w,r.Body,24<<10);var in familyGoalPayload;if err:=json.NewDecoder(r.Body).Decode(&in);err!=nil{http.Error(w,`{"error":"Некорректные данные"}`,400);return}
    in.Title=strings.TrimSpace(in.Title);in.Description=strings.TrimSpace(in.Description);in.TargetAmount=strings.TrimSpace(in.TargetAmount);in.StartingAmount=strings.TrimSpace(in.StartingAmount);if in.StartingAmount==""{in.StartingAmount="0"};if in.Priority==""{in.Priority="medium"}
-   if in.Title==""||len([]rune(in.Title))>120||len([]rune(in.Description))>1000||!validGoalAmount(in.TargetAmount,false)||!validGoalAmount(in.StartingAmount,true)||(in.Priority!="low"&&in.Priority!="medium"&&in.Priority!="high"){http.Error(w,`{"error":"Проверьте название, суммы и приоритет"}`,400);return}
+   if in.Title==""||len([]rune(in.Title))>24||len([]rune(in.Description))>30||!validFamilyGoalInputAmount(in.TargetAmount,false)||!validFamilyGoalInputAmount(in.StartingAmount,true)||(in.Priority!="low"&&in.Priority!="medium"&&in.Priority!="high"){http.Error(w,`{"error":"Проверьте название, описание, суммы и приоритет"}`,400);return}
+   var goalCount int;if err:=database.QueryRow(r.Context(),`SELECT COUNT(*) FROM family_goals WHERE family_id=$1`,family.ID).Scan(&goalCount);err!=nil{http.Error(w,`{"error":"Не удалось проверить лимит семейных целей"}`,500);return};if goalCount>=3{http.Error(w,`{"error":"Можно создать не более трёх семейных целей"}`,409);return}
    due,err:=parseGoalDate(in.DueDate);if err!=nil{http.Error(w,`{"error":"Некорректная дата цели"}`,400);return}
    var x familyGoalResponse;var dueText *string;var creator pgtype.Int8
    err=database.QueryRow(r.Context(),`INSERT INTO family_goals(family_id,created_by,title,description,target_amount,starting_amount,due_date,priority,status) VALUES($1,$2,$3,$4,$5::numeric,$6::numeric,$7,$8,CASE WHEN $6::numeric>=$5::numeric THEN 'completed' ELSE 'active' END) RETURNING id,title,description,target_amount::text,starting_amount::text,starting_amount::text,due_date::text,priority,status,created_by,created_at`,family.ID,userID,in.Title,in.Description,in.TargetAmount,in.StartingAmount,due,in.Priority).Scan(&x.ID,&x.Title,&x.Description,&x.TargetAmount,&x.StartingAmount,&x.CurrentAmount,&dueText,&x.Priority,&x.Status,&creator,&x.CreatedAt)
@@ -89,7 +112,7 @@ func familyGoalsHandler(w http.ResponseWriter,r *http.Request,database *pgxpool.
   if !canManage{http.Error(w,`{"error":"Недостаточно прав"}`,403);return}
   r.Body=http.MaxBytesReader(w,r.Body,24<<10);var in familyGoalPayload;if err:=json.NewDecoder(r.Body).Decode(&in);err!=nil{http.Error(w,`{"error":"Некорректные данные"}`,400);return}
   in.Title=strings.TrimSpace(in.Title);in.Description=strings.TrimSpace(in.Description);in.TargetAmount=strings.TrimSpace(in.TargetAmount);in.StartingAmount=strings.TrimSpace(in.StartingAmount)
-  if in.Title==""||len([]rune(in.Title))>120||len([]rune(in.Description))>1000||!validGoalAmount(in.TargetAmount,false)||!validGoalAmount(in.StartingAmount,true)||(in.Priority!="low"&&in.Priority!="medium"&&in.Priority!="high"){http.Error(w,`{"error":"Проверьте название, суммы и приоритет"}`,400);return}
+  if in.Title==""||len([]rune(in.Title))>24||len([]rune(in.Description))>30||!validFamilyGoalInputAmount(in.TargetAmount,false)||!validFamilyGoalInputAmount(in.StartingAmount,true)||(in.Priority!="low"&&in.Priority!="medium"&&in.Priority!="high"){http.Error(w,`{"error":"Проверьте название, описание, суммы и приоритет"}`,400);return}
   if in.Status!="active"&&in.Status!="paused"&&in.Status!="completed"{http.Error(w,`{"error":"Некорректный статус"}`,400);return}
   due,err:=parseGoalDate(in.DueDate);if err!=nil{http.Error(w,`{"error":"Некорректная дата"}`,400);return}
   _,err=database.Exec(r.Context(),`UPDATE family_goals SET title=$3,description=$4,target_amount=$5::numeric,starting_amount=$6::numeric,due_date=$7,priority=$8,status=CASE WHEN $6::numeric+COALESCE((SELECT SUM(CASE WHEN entry_type='withdrawal' THEN -amount ELSE amount END) FROM family_goal_entries WHERE goal_id=family_goals.id),0)>=$5::numeric THEN 'completed' WHEN $9='paused' THEN 'paused' ELSE 'active' END,updated_at=NOW() WHERE id=$1 AND family_id=$2`,id,family.ID,in.Title,in.Description,in.TargetAmount,in.StartingAmount,due,in.Priority,in.Status)
