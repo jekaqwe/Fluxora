@@ -58,7 +58,6 @@ function Family(){
  const [inviteTicketEmail,setInviteTicketEmail]=useState("");
  const [showInviteForm,setShowInviteForm]=useState(false);
  const [acceptToken,setAcceptToken]=useState("");
- const [title,setTitle]=useState("");
  const [comment,setComment]=useState("");
  const [amount,setAmount]=useState("");
  const [category,setCategory]=useState("Покупки");
@@ -96,11 +95,11 @@ function Family(){
  };
  const addTransaction=async()=>{
   setError("");
-  try{const r=await fetch(editingTxId===null?"/api/family/transactions":`/api/family/transactions/${editingTxId}`,{method:editingTxId===null?"POST":"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({title:category,type:kind,amount:amount.replace(",", "."),category,date,comment:comment.trim(),...(editingTxId===null?{idempotencyKey:crypto.randomUUID()}:{})})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось сохранить семейную операцию");setTransactions(old=>[d,...old.filter(x=>x.id!==d.id)]);setTitle("");setComment("");setAmount("");setShowForm(false);setEditingTxId(null);await load();}
+  try{const r=await fetch(editingTxId===null?"/api/family/transactions":`/api/family/transactions/${editingTxId}`,{method:editingTxId===null?"POST":"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({title:category,type:kind,amount:amount.replace(",", "."),category,date,comment:comment.trim(),...(editingTxId===null?{idempotencyKey:crypto.randomUUID()}:{})})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось сохранить семейную операцию");setTransactions(old=>[d,...old.filter(x=>x.id!==d.id)]);setComment("");setAmount("");setShowForm(false);setEditingTxId(null);await load();}
   catch(e){setError(e instanceof Error?e.message:"Ошибка операции");}
  };
  const editTransaction=(t:FamilyTx)=>{
-  setEditingTxId(t.id);setTitle(t.category);setComment(t.comment||"");setKind(t.type);setAmount(t.amount);setCategory(t.category);setDate(t.date);setShowForm(true);
+  setEditingTxId(t.id);setComment(t.comment||"");setKind(t.type);setAmount(t.amount);setCategory(t.category);setDate(t.date);setShowForm(true);
  };
  const resetFamilyGoalForm=()=>{setShowGoalForm(false);setEditingFamilyGoalId(null);setGoalLimitExceeded(false);setGoalInvalidFields({});setGoalTitle("");setGoalDescription("");setGoalTarget("");setGoalStarting("0");setGoalDueDate("");setGoalPriority("medium");};
  const beginEditFamilyGoal=(g:FamilyGoal)=>{setGoalInvalidFields({});setEditingFamilyGoalId(g.id);setGoalTitle(g.title);setGoalDescription(g.description);setGoalTarget(g.targetAmount);setGoalStarting(g.startingAmount);setGoalDueDate(g.dueDate||"");setGoalPriority(g.priority);setGoalLimitExceeded(false);setShowGoalForm(true);};
@@ -194,7 +193,7 @@ function Family(){
      {family.role!=="owner"&&<button className="pure-button ghost" style={{marginTop:12}} onClick={()=>askConfirmation("Покинуть семейный бюджет?","Вы потеряете доступ к общему бюджету и семейным операциям.",leave,"Покинуть")}><LogOut size={14}/>Покинуть семью</button>}
     </Panel>
    </div>
-   <div style={{marginTop:16}}><Panel title="Семейные операции" subtitle="Доходы и расходы общего бюджета" action={<button className="pure-button compact-tool-button" onClick={()=>{setEditingTxId(null);setTitle("");setComment("");setAmount("");setKind("expense");setCategory("Покупки");setDate(today());setShowForm(true);}}><Plus size={14}/>Добавить операцию</button>}>
+   <div style={{marginTop:16}}><Panel title="Семейные операции" subtitle="Доходы и расходы общего бюджета" action={<button className="pure-button compact-tool-button" onClick={()=>{setEditingTxId(null);setComment("");setAmount("");setKind("expense");setCategory("Покупки");setDate(today());setShowForm(true);}}><Plus size={14}/>Добавить операцию</button>}>
     <div className="family-filter-bar" style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:14}}>
      <div style={{position:"relative"}}><button className={"filter-pill compact-tool-button "+(authorFilter?"active":"")} onClick={()=>setOpenFilter(openFilter==="member"?null:"member")}><Users size={13}/>Участник{authorFilter?": "+authorFilter:""}<ChevronDown size={12}/></button>{openFilter==="member"&&<div className="family-filter-menu">{["",...authors].map(a=><button key={a||"all"} className={authorFilter===a?"selected":""} onClick={()=>{setAuthorFilter(a);setOpenFilter(null);}}>{a||"Все участники"}</button>)}</div>}</div>
      <div style={{position:"relative"}}><button className={"filter-pill compact-tool-button "+((fromFilter||toFilter)?"active":"")} onClick={()=>{setDraftFrom(fromFilter);setDraftTo(toFilter);setOpenFilter(openFilter==="period"?null:"period");}}><CalendarDays size={13}/>{fromFilter||toFilter?formatDate(fromFilter)+"-"+formatDate(toFilter):"Период"}<ChevronDown size={12}/></button>{openFilter==="period"&&<div className="family-filter-menu family-period-menu"><label className="form-label">С какого<input className="pure-input" type="date" value={draftFrom} max={draftTo||undefined} onChange={e=>setDraftFrom(e.target.value)}/></label><label className="form-label">По какой<input className="pure-input" type="date" value={draftTo} min={draftFrom||undefined} onChange={e=>setDraftTo(e.target.value)}/></label><div className="form-row"><button className="pure-button compact-tool-button" onClick={()=>{setFromFilter(draftFrom);setToFilter(draftTo);setOpenFilter(null);}}>Применить</button><button className="pure-button ghost compact-tool-button" onClick={()=>{setFromFilter("");setToFilter("");setDraftFrom("");setDraftTo("");setOpenFilter(null);}}>Сбросить</button></div></div>}</div>
