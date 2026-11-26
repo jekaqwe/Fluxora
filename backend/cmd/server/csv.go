@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	csvTinkoffTypeMapping = "__tinkoff_type_from_amount__"
+	csvTinkoffTypeMapping   = "__tinkoff_type_from_amount__"
 	csvTinkoffAccountPrefix = "__tinkoff_account_id__:"
 )
 
@@ -62,12 +62,12 @@ func csvFormat(headers []string) string {
 func csvSuggestedMapping(headers []string) map[string]string {
 	if isTinkoffCSV(headers) {
 		return map[string]string{
-			"date": "Дата операции",
-			"title": "Описание",
-			"type": csvTinkoffTypeMapping,
-			"amount": "Сумма в валюте счёта",
+			"date":     "Дата операции",
+			"title":    "Описание",
+			"type":     csvTinkoffTypeMapping,
+			"amount":   "Сумма в валюте счёта",
 			"category": "Категория по-умолчанию",
-			"comment": "Сообщение",
+			"comment":  "Сообщение",
 		}
 	}
 

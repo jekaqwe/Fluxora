@@ -145,7 +145,9 @@ func transactionsHandler(w http.ResponseWriter, r *http.Request, database *pgxpo
 		}
 		date, transferID, validationError := validateTransactionPayload(&input)
 		if validationError != "" || input.IdempotencyKey == "" {
-			if validationError == "" { validationError = "Отсутствует ключ идемпотентности" }
+			if validationError == "" {
+				validationError = "Отсутствует ключ идемпотентности"
+			}
 			http.Error(w, `{"error":"`+validationError+`"}`, http.StatusBadRequest)
 			return
 		}

@@ -43,11 +43,11 @@ func newS3Store() (*s3Store, error) {
 	}
 	return &s3Store{
 		endpoint: endpoint,
-		bucket: bucket,
-		region: region,
-		access: access,
-		secret: secret,
-		client: &http.Client{Timeout: 30 * time.Second},
+		bucket:   bucket,
+		region:   region,
+		access:   access,
+		secret:   secret,
+		client:   &http.Client{Timeout: 30 * time.Second},
 	}, nil
 }
 
@@ -319,57 +319,105 @@ func randomObjectID() (string, error) {
 }
 
 type s3ListResult struct {
- XMLName xml.Name `xml:"ListBucketResult"`
- IsTruncated bool `xml:"IsTruncated"`
- NextContinuationToken string `xml:"NextContinuationToken"`
- Contents []struct {
-  Key string `xml:"Key"`
-  LastModified string `xml:"LastModified"`
- } `xml:"Contents"`
+	XMLName               xml.Name `xml:"ListBucketResult"`
+	IsTruncated           bool     `xml:"IsTruncated"`
+	NextContinuationToken string   `xml:"NextContinuationToken"`
+	Contents              []struct {
+		Key          string `xml:"Key"`
+		LastModified string `xml:"LastModified"`
+	} `xml:"Contents"`
 }
 
-func (s *s3Store) listKeys(ctx context.Context,prefix string)([]string,error){
- keys:=make([]string,0);token:=""
- for {
-  u:=*s.endpoint
-  basePath:=strings.TrimRight(u.EscapedPath(),"/")
-  u.RawPath=basePath+"/"+url.PathEscape(s.bucket)
-  decoded,_:=url.PathUnescape(u.RawPath);u.Path=decoded
-  query:=url.Values{};query.Set("list-type","2");query.Set("prefix",prefix);if token!=""{query.Set("continuation-token",token)}
-  u.RawQuery=query.Encode()
-  now:=time.Now().UTC();payloadHash:=sha256Hex(nil);amzDate:=now.Format("20060102T150405Z");dateStamp:=now.Format("20060102")
-  canonicalHeaders:="host:"+u.Host+"\n"+"x-amz-content-sha256:"+payloadHash+"\n"+"x-amz-date:"+amzDate+"\n"
-  signedHeaders:="host;x-amz-content-sha256;x-amz-date"
-  canonicalRequest:=buildS3CanonicalRequest(http.MethodGet,u.EscapedPath(),u.Query().Encode(),canonicalHeaders,signedHeaders,payloadHash)
-  scope:=dateStamp+"/"+s.region+"/s3/aws4_request"
-  stringToSign:="AWS4-HMAC-SHA256\n"+amzDate+"\n"+scope+"\n"+sha256Hex([]byte(canonicalRequest))
-  signature:=hex.EncodeToString(hmacSHA256(s.signingKey(dateStamp),stringToSign))
-  req,err:=http.NewRequestWithContext(ctx,http.MethodGet,u.String(),nil);if err!=nil{return nil,err}
-  req.Header.Set("X-Amz-Date",amzDate);req.Header.Set("X-Amz-Content-Sha256",payloadHash)
-  req.Header.Set("Authorization","AWS4-HMAC-SHA256 Credential="+s.access+"/"+scope+", SignedHeaders="+signedHeaders+", Signature="+signature)
-  resp,err:=s.client.Do(req);if err!=nil{return nil,err}
-  body,readErr:=io.ReadAll(io.LimitReader(resp.Body,8<<20));resp.Body.Close()
-  if readErr!=nil{return nil,readErr};if resp.StatusCode<200||resp.StatusCode>=300{return nil,fmt.Errorf("S3 list failed with status %d: %s",resp.StatusCode,strings.TrimSpace(string(body)))}
-  var result s3ListResult;if err:=xml.Unmarshal(body,&result);err!=nil{return nil,err}
-  for _,item:=range result.Contents{keys=append(keys,item.Key)}
-  if !result.IsTruncated||result.NextContinuationToken==""{break};token=result.NextContinuationToken
- }
- return keys,nil
+func (s *s3Store) listKeys(ctx context.Context, prefix string) ([]string, error) {
+	keys := make([]string, 0)
+	token := ""
+	for {
+		u := *s.endpoint
+		basePath := strings.TrimRight(u.EscapedPath(), "/")
+		u.RawPath = basePath + "/" + url.PathEscape(s.bucket)
+		decoded, _ := url.PathUnescape(u.RawPath)
+		u.Path = decoded
+		query := url.Values{}
+		query.Set("list-type", "2")
+		query.Set("prefix", prefix)
+		if token != "" {
+			query.Set("continuation-token", token)
+		}
+		u.RawQuery = query.Encode()
+		now := time.Now().UTC()
+		payloadHash := sha256Hex(nil)
+		amzDate := now.Format("20060102T150405Z")
+		dateStamp := now.Format("20060102")
+		canonicalHeaders := "host:" + u.Host + "\n" + "x-amz-content-sha256:" + payloadHash + "\n" + "x-amz-date:" + amzDate + "\n"
+		signedHeaders := "host;x-amz-content-sha256;x-amz-date"
+		canonicalRequest := buildS3CanonicalRequest(http.MethodGet, u.EscapedPath(), u.Query().Encode(), canonicalHeaders, signedHeaders, payloadHash)
+		scope := dateStamp + "/" + s.region + "/s3/aws4_request"
+		stringToSign := "AWS4-HMAC-SHA256\n" + amzDate + "\n" + scope + "\n" + sha256Hex([]byte(canonicalRequest))
+		signature := hex.EncodeToString(hmacSHA256(s.signingKey(dateStamp), stringToSign))
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("X-Amz-Date", amzDate)
+		req.Header.Set("X-Amz-Content-Sha256", payloadHash)
+		req.Header.Set("Authorization", "AWS4-HMAC-SHA256 Credential="+s.access+"/"+scope+", SignedHeaders="+signedHeaders+", Signature="+signature)
+		resp, err := s.client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+		resp.Body.Close()
+		if readErr != nil {
+			return nil, readErr
+		}
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return nil, fmt.Errorf("S3 list failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		}
+		var result s3ListResult
+		if err := xml.Unmarshal(body, &result); err != nil {
+			return nil, err
+		}
+		for _, item := range result.Contents {
+			keys = append(keys, item.Key)
+		}
+		if !result.IsTruncated || result.NextContinuationToken == "" {
+			break
+		}
+		token = result.NextContinuationToken
+	}
+	return keys, nil
 }
 
-func (s *s3Store) get(ctx context.Context,key string)([]byte,error){
- u:=s.objectURL(key);now:=time.Now().UTC();dateStamp:=now.Format("20060102");amzDate:=now.Format("20060102T150405Z");payloadHash:=sha256Hex(nil)
- canonicalHeaders:="host:"+u.Host+"\n"+"x-amz-content-sha256:"+payloadHash+"\n"+"x-amz-date:"+amzDate+"\n"
- signedHeaders:="host;x-amz-content-sha256;x-amz-date"
- canonicalRequest:=buildS3CanonicalRequest(http.MethodGet,u.EscapedPath(),"",canonicalHeaders,signedHeaders,payloadHash)
- scope:=dateStamp+"/"+s.region+"/s3/aws4_request"
- stringToSign:="AWS4-HMAC-SHA256\n"+amzDate+"\n"+scope+"\n"+sha256Hex([]byte(canonicalRequest))
- signature:=hex.EncodeToString(hmacSHA256(s.signingKey(dateStamp),stringToSign))
- req,err:=http.NewRequestWithContext(ctx,http.MethodGet,u.String(),nil);if err!=nil{return nil,err}
- req.Header.Set("X-Amz-Date",amzDate);req.Header.Set("X-Amz-Content-Sha256",payloadHash)
- req.Header.Set("Authorization","AWS4-HMAC-SHA256 Credential="+s.access+"/"+scope+", SignedHeaders="+signedHeaders+", Signature="+signature)
- resp,err:=s.client.Do(req);if err!=nil{return nil,err};defer resp.Body.Close()
- body,err:=io.ReadAll(io.LimitReader(resp.Body,1<<20));if err!=nil{return nil,err}
- if resp.StatusCode<200||resp.StatusCode>=300{return nil,fmt.Errorf("S3 get failed with status %d: %s",resp.StatusCode,strings.TrimSpace(string(body)))}
- return body,nil
+func (s *s3Store) get(ctx context.Context, key string) ([]byte, error) {
+	u := s.objectURL(key)
+	now := time.Now().UTC()
+	dateStamp := now.Format("20060102")
+	amzDate := now.Format("20060102T150405Z")
+	payloadHash := sha256Hex(nil)
+	canonicalHeaders := "host:" + u.Host + "\n" + "x-amz-content-sha256:" + payloadHash + "\n" + "x-amz-date:" + amzDate + "\n"
+	signedHeaders := "host;x-amz-content-sha256;x-amz-date"
+	canonicalRequest := buildS3CanonicalRequest(http.MethodGet, u.EscapedPath(), "", canonicalHeaders, signedHeaders, payloadHash)
+	scope := dateStamp + "/" + s.region + "/s3/aws4_request"
+	stringToSign := "AWS4-HMAC-SHA256\n" + amzDate + "\n" + scope + "\n" + sha256Hex([]byte(canonicalRequest))
+	signature := hex.EncodeToString(hmacSHA256(s.signingKey(dateStamp), stringToSign))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-Amz-Date", amzDate)
+	req.Header.Set("X-Amz-Content-Sha256", payloadHash)
+	req.Header.Set("Authorization", "AWS4-HMAC-SHA256 Credential="+s.access+"/"+scope+", SignedHeaders="+signedHeaders+", Signature="+signature)
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("S3 get failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	return body, nil
 }

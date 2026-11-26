@@ -41,7 +41,9 @@ func main() {
 	log.Println("Миграции базы данных применены")
 
 	if os.Getenv("APPLY_DELETION_LEDGER") == "1" {
-		if err := applyDeletionLedger(context.Background(), db); err != nil { log.Fatal("Ошибка применения журнала удалений: ", err) }
+		if err := applyDeletionLedger(context.Background(), db); err != nil {
+			log.Fatal("Ошибка применения журнала удалений: ", err)
+		}
 		log.Println("Журнал удалений применён")
 		return
 	}

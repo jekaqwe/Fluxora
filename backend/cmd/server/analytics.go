@@ -21,8 +21,8 @@ type analyticsPoint struct {
 }
 
 type analyticsBalancePoint struct {
- Date string `json:"date"`
- Balance string `json:"balance"`
+	Date    string `json:"date"`
+	Balance string `json:"balance"`
 }
 
 type analyticsTransaction struct {
@@ -32,21 +32,21 @@ type analyticsTransaction struct {
 }
 
 type analyticsResponse struct {
-	Period        string                 `json:"period"`
-	From          string                 `json:"from"`
-	To            string                 `json:"to"`
-	Income        string                 `json:"income"`
-	Expense       string                 `json:"expense"`
-	Net           string                 `json:"net"`
- PreviousIncome string `json:"previousIncome"`
- PreviousExpense string `json:"previousExpense"`
- PreviousNet string `json:"previousNet"`
- BalanceTrend []analyticsBalancePoint `json:"balanceTrend"`
- Insights []string `json:"insights"`
-	AverageExpense string                `json:"averageExpense"`
-	Categories    []analyticsCategory    `json:"categories"`
-	Trend         []analyticsPoint       `json:"trend"`
-	Largest       []analyticsTransaction `json:"largest"`
+	Period          string                  `json:"period"`
+	From            string                  `json:"from"`
+	To              string                  `json:"to"`
+	Income          string                  `json:"income"`
+	Expense         string                  `json:"expense"`
+	Net             string                  `json:"net"`
+	PreviousIncome  string                  `json:"previousIncome"`
+	PreviousExpense string                  `json:"previousExpense"`
+	PreviousNet     string                  `json:"previousNet"`
+	BalanceTrend    []analyticsBalancePoint `json:"balanceTrend"`
+	Insights        []string                `json:"insights"`
+	AverageExpense  string                  `json:"averageExpense"`
+	Categories      []analyticsCategory     `json:"categories"`
+	Trend           []analyticsPoint        `json:"trend"`
+	Largest         []analyticsTransaction  `json:"largest"`
 }
 
 func analyticsRange(r *http.Request) (time.Time, time.Time, string, bool) {
@@ -112,9 +112,9 @@ func analyticsHandler(w http.ResponseWriter, r *http.Request, database *pgxpool.
 		return
 	}
 
- periodDuration := to.Sub(from)
- previousFrom := from.Add(-periodDuration)
- err = database.QueryRow(r.Context(), `
+	periodDuration := to.Sub(from)
+	previousFrom := from.Add(-periodDuration)
+	err = database.QueryRow(r.Context(), `
   SELECT
    COALESCE(SUM(amount) FILTER (WHERE operation_type = 'income'), 0)::text,
    COALESCE(SUM(amount) FILTER (WHERE operation_type = 'expense'), 0)::text,
@@ -123,10 +123,10 @@ func analyticsHandler(w http.ResponseWriter, r *http.Request, database *pgxpool.
   FROM transactions
   WHERE user_id = $1 AND operation_date >= $2::date AND operation_date < $3::date
  `, userID, previousFrom, from).Scan(&result.PreviousIncome, &result.PreviousExpense, &result.PreviousNet)
- if err != nil {
-  http.Error(w, `{"error":"Не удалось рассчитать предыдущий период"}`, http.StatusInternalServerError)
-  return
- }
+	if err != nil {
+		http.Error(w, `{"error":"Не удалось рассчитать предыдущий период"}`, http.StatusInternalServerError)
+		return
+	}
 
 	categoryRows, err := database.Query(r.Context(), `
 		SELECT category, SUM(amount)::text, COUNT(*)
@@ -180,7 +180,7 @@ func analyticsHandler(w http.ResponseWriter, r *http.Request, database *pgxpool.
 	}
 	trendRows.Close()
 
- balanceRows, err := database.Query(r.Context(), `
+	balanceRows, err := database.Query(r.Context(), `
   WITH calendar AS (
    SELECT generate_series($2::date, $3::date - 1, interval '1 day')::date AS day
   ), opening AS (
@@ -196,17 +196,25 @@ func analyticsHandler(w http.ResponseWriter, r *http.Request, database *pgxpool.
   SELECT TO_CHAR(date_trunc($4,day::timestamp),'YYYY-MM-DD'), (ARRAY_AGG(balance ORDER BY day DESC))[1]::text
   FROM running GROUP BY date_trunc($4,day::timestamp) ORDER BY date_trunc($4,day::timestamp)
  `, userID, from, to, bucket)
- if err != nil {
-  http.Error(w, `{"error":"Не удалось рассчитать динамику баланса"}`, http.StatusInternalServerError)
-  return
- }
- for balanceRows.Next() {
-  var item analyticsBalancePoint
-  if err := balanceRows.Scan(&item.Date, &item.Balance); err != nil { balanceRows.Close(); http.Error(w, `{"error":"Ошибка чтения динамики баланса"}`, http.StatusInternalServerError); return }
-  result.BalanceTrend = append(result.BalanceTrend, item)
- }
- if err := balanceRows.Err(); err != nil { balanceRows.Close(); http.Error(w, `{"error":"Ошибка чтения динамики баланса"}`, http.StatusInternalServerError); return }
- balanceRows.Close()
+	if err != nil {
+		http.Error(w, `{"error":"Не удалось рассчитать динамику баланса"}`, http.StatusInternalServerError)
+		return
+	}
+	for balanceRows.Next() {
+		var item analyticsBalancePoint
+		if err := balanceRows.Scan(&item.Date, &item.Balance); err != nil {
+			balanceRows.Close()
+			http.Error(w, `{"error":"Ошибка чтения динамики баланса"}`, http.StatusInternalServerError)
+			return
+		}
+		result.BalanceTrend = append(result.BalanceTrend, item)
+	}
+	if err := balanceRows.Err(); err != nil {
+		balanceRows.Close()
+		http.Error(w, `{"error":"Ошибка чтения динамики баланса"}`, http.StatusInternalServerError)
+		return
+	}
+	balanceRows.Close()
 
 	largestRows, err := database.Query(r.Context(), `
 		SELECT title, amount::text, operation_date::text
@@ -229,10 +237,18 @@ func analyticsHandler(w http.ResponseWriter, r *http.Request, database *pgxpool.
 		result.Largest = append(result.Largest, item)
 	}
 	largestRows.Close()
- if result.Net != "0" && result.Net != "0.00" {
-  if len(result.Net)>0 && result.Net[0]=='-' { result.Insights=append(result.Insights,"За выбранный период расходы превысили доходы.") } else { result.Insights=append(result.Insights,"За выбранный период доходы превышают расходы.") }
- }
- if len(result.Categories)>0 { result.Insights=append(result.Insights,"Самая затратная категория: "+result.Categories[0].Name+".") }
- if result.AverageExpense!="0" && result.AverageExpense!="0.00" { result.Insights=append(result.Insights,"Средний расход на одну операцию: "+result.AverageExpense+" ₽.") }
+	if result.Net != "0" && result.Net != "0.00" {
+		if len(result.Net) > 0 && result.Net[0] == '-' {
+			result.Insights = append(result.Insights, "За выбранный период расходы превысили доходы.")
+		} else {
+			result.Insights = append(result.Insights, "За выбранный период доходы превышают расходы.")
+		}
+	}
+	if len(result.Categories) > 0 {
+		result.Insights = append(result.Insights, "Самая затратная категория: "+result.Categories[0].Name+".")
+	}
+	if result.AverageExpense != "0" && result.AverageExpense != "0.00" {
+		result.Insights = append(result.Insights, "Средний расход на одну операцию: "+result.AverageExpense+" ₽.")
+	}
 	_ = json.NewEncoder(w).Encode(result)
 }
