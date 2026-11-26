@@ -167,13 +167,14 @@ function Family(){
     <Stat label="Семейный доход" value={moneyCents(monthIncome)} tone="mint"/>
     <Stat label="Семейный расход" value={moneyCents(monthExpense)} tone="violet"/>
    </div>
-   <div className="pure-grid two" style={{marginTop:16}}>
-    <Panel title="Участники семьи" subtitle={family.name} action={(family.role==="owner"||family.role==="admin")?<button className="pure-button" onClick={()=>{setInviteEmail("");setInviteToken("");setInviteTicketEmail("");setShowInviteForm(true);}}><UserPlus size={15}/>Пригласить участника</button>:undefined}>
-     {members.map(m=><div className="member-row" key={m.id}>
-      <div className="member-avatar">{(m.firstName[0]||"").toUpperCase()}{(m.lastName[0]||"").toUpperCase()}</div>
-      <div className="member-copy"><strong>{m.firstName} {m.lastName}</strong><small>{m.role==="owner"?"Владелец":m.role==="admin"?"Администратор":"Участник"} · @{m.username}</small></div>
-      {family.role==="owner"&&m.role!=="owner"&&<select className="pure-select" aria-label="Роль участника" style={{width:120,height:40,minHeight:40,boxSizing:"border-box"}} value={m.role} onChange={e=>void updateRole(m.id,e.target.value as "admin"|"member")}><option value="member">Участник</option><option value="admin">Администратор</option></select>}{(family.role==="owner"||family.role==="admin")&&m.role!=="owner"&&<button className="pure-button ghost" aria-label="Удалить участника" style={{width:36,height:36,minWidth:36,minHeight:36,padding:0,display:"grid",placeItems:"center"}} onClick={()=>askConfirmation("Удалить участника?","Участник будет удалён из семейного бюджета.",()=>removeMember(m.id))}><Trash2 size={20}/></button>}
-     </div>)}
+   <div style={{marginTop:16}}>
+    <Panel title="Участники семьи" subtitle={family.name}>
+     <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",borderTop:"1px solid #293953",borderLeft:"1px solid #293953"}}>
+      {Array.from({length:6},(_,index)=>{const m=members[index];const canInvite=family.role==="owner"||family.role==="admin";return <div key={m?m.id:"empty-"+index} style={{minWidth:0,minHeight:94,padding:"10px 8px",display:"flex",alignItems:"center",gap:8,borderRight:"1px solid #293953",borderBottom:"1px solid #293953"}}>
+       {m?<><div className="member-avatar" style={{flex:"0 0 34px"}}>{(m.firstName[0]||"").toUpperCase()}{(m.lastName[0]||"").toUpperCase()}</div><div className="member-copy"><strong>{m.firstName} {m.lastName}</strong><small>{m.role==="owner"?"Владелец":m.role==="admin"?"Администратор":"Участник"} · @{m.username}</small></div>{family.role==="owner"&&m.role!=="owner"&&<select className="pure-select" aria-label="Роль участника" style={{width:96,minWidth:0,height:34,minHeight:34,padding:"0 5px",fontSize:10}} value={m.role} onChange={e=>void updateRole(m.id,e.target.value as "admin"|"member")}><option value="member">Участник</option><option value="admin">Админ</option></select>}{canInvite&&m.role!=="owner"&&<button className="pure-button ghost" aria-label="Удалить участника" style={{width:30,height:30,minWidth:30,minHeight:30,padding:0}} onClick={()=>askConfirmation("Удалить участника?","Участник будет удалён из семейного бюджета.",()=>removeMember(m.id))}><Trash2 size={15}/></button>}</>:canInvite?<button className="pure-button secondary" style={{width:"100%",minHeight:36,padding:"0 6px",fontSize:10}} onClick={()=>{setInviteEmail("");setInviteToken("");setInviteTicketEmail("");setShowInviteForm(true);}}><UserPlus size={14}/>Пригласить</button>:<span className="muted" style={{fontSize:10}}>Свободное место</span>}
+      </div>;})}
+     </div>
+     {members.length>6&&<p className="muted" style={{fontSize:10,marginBottom:0}}>Показаны первые 6 участников</p>}
      {family.role!=="owner"&&<button className="pure-button ghost" style={{marginTop:12}} onClick={()=>askConfirmation("Покинуть семейный бюджет?","Вы потеряете доступ к общему бюджету и семейным операциям.",leave,"Покинуть")}><LogOut size={14}/>Покинуть семью</button>}
     </Panel>
    </div>
