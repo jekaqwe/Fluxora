@@ -25,6 +25,11 @@ function Family(){
  const [fromFilter,setFromFilter]=useState("");
  const [toFilter,setToFilter]=useState("");
  const [categoryFilter,setCategoryFilter]=useState("");
+ const [typeFilter,setTypeFilter]=useState("");
+ const [openFilter,setOpenFilter]=useState<"member"|"period"|"type"|"category"|null>(null);
+ const [historyPage,setHistoryPage]=useState(1);
+ const [draftFrom,setDraftFrom]=useState("");
+ const [draftTo,setDraftTo]=useState("");
  const [familyGoals,setFamilyGoals]=useState<FamilyGoal[]>([]);
  const [accounts,setAccounts]=useState<Account[]>([]);
  const [familyGoalAccountId,setFamilyGoalAccountId]=useState("");
@@ -140,13 +145,20 @@ function Family(){
   catch(e){setError(e instanceof Error?e.message:"Ошибка выхода");}
  };
  const currentMonth=today().slice(0,7);
+ const familyCategoryOptions=[["Дети","baby"],["Дом/уют","house"],["Забота о себе","heart"],["Зарплата","briefcase-business"],["Здоровье","stethoscope"],["Кафе/рестораны","utensils"],["ЖКХ","flame"],["Машина","car"],["Образование","graduation-cap"],["Подарки","gift"],["Подписки","repeat"],["Покупки","shopping-bag"],["Продукты","shopping-cart"],["Путешествия","plane"],["Развлечения","gamepad-2"],["Общественный транспорт","bus"]] as const;
+ const familyTypeOptions=[["Расход","expense","trending-down"],["Доход","income","trending-up"],["Перевод","transfer","arrow-left-right"],["Долг","debt","hand-coins"]] as const;
+ const formatDate=(value:string)=>value?new Date(value+"T00:00:00").toLocaleDateString("ru-RU"):"";
+
  const monthIncome=transactions.filter(x=>x.type==="income"&&x.date.startsWith(currentMonth)).reduce((s,x)=>s+cents(x.amount),0n);
  const monthExpense=transactions.filter(x=>x.type==="expense"&&x.date.startsWith(currentMonth)).reduce((s,x)=>s+cents(x.amount),0n);
  const authors=Array.from(new Set(transactions.map(item=>item.author))).sort((a,b)=>a.localeCompare(b,"ru"));
- const familyCategories=Array.from(new Set(transactions.map(item=>item.category))).sort((a,b)=>a.localeCompare(b,"ru"));
- const filteredTransactions=transactions.filter(item=>(!authorFilter||item.author===authorFilter)&&(!fromFilter||item.date>=fromFilter)&&(!toFilter||item.date<=toFilter)&&(!categoryFilter||item.category===categoryFilter));
+ const filteredTransactions=transactions.filter(item=>(!authorFilter||item.author===authorFilter)&&(!fromFilter||item.date>=fromFilter)&&(!toFilter||item.date<=toFilter)&&(!categoryFilter||item.category.toLowerCase()===categoryFilter.toLowerCase())&&(!typeFilter||item.type===typeFilter));
  const filteredIncome=filteredTransactions.filter(item=>item.type==="income").reduce((sum,item)=>sum+cents(item.amount),0n);
  const filteredExpense=filteredTransactions.filter(item=>item.type==="expense").reduce((sum,item)=>sum+cents(item.amount),0n);
+ const historyPageSize=20;
+ const historyPages=Math.max(1,Math.ceil(filteredTransactions.length/historyPageSize));
+ const pagedTransactions=filteredTransactions.slice((historyPage-1)*historyPageSize,historyPage*historyPageSize);
+ useEffect(()=>{setHistoryPage(1);},[authorFilter,fromFilter,toFilter,categoryFilter,typeFilter]);
 
  if(loading)return <div className="pure-page" style={{padding:16}}><div className="empty-note">Загружаем семейный бюджет…</div></div>;
  return <div className="pure-page" style={{padding:16}}>
